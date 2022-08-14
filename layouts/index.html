@@ -1,5 +1,18 @@
 {{- define "main" }}
 
+<!-- tailwind css -->
+{{ $styles := resources.Get "css/main.css" }}
+{{ $styles = $styles | resources.PostCSS }}
+{{ if hugo.IsProduction }}
+	{{- with $styles -}}
+		<style>{{- .Content | safeCSS -}}</style>
+	{{- end -}}
+{{ else }}
+	{{ $styles = $styles | resources.ExecuteAsTemplate (printf "css/index.dev.%v.css" now.UnixMilli) .}}
+	<link href="{{ $styles.RelPermalink }}" rel="stylesheet" />
+{{ end }}
+<!-- end tailwind css -->
+
 <article class="post-single">
   <header class="post-header">
     {{ partial "breadcrumbs.html" . }}
@@ -14,9 +27,7 @@
     {{- end }}
     {{- if not (.Param "hideMeta") }}
     <div class="post-meta">
-      {{- partial "post_meta.html" . -}}
       {{- partial "translation_list.html" . -}}
-      {{- partial "edit_post.html" . -}}
       {{- partial "post_canonical.html" . -}}
     </div>
     {{- end }}
@@ -29,9 +40,7 @@
 
   {{- if .Content }}
   <div class="post-content">
-    {{- if not (.Param "disableAnchoredHeadings") }}
-    {{- partial "anchored_headings.html" .Content -}}
-    {{- else }}{{ .Content }}{{ end }}
+    {{ .Content }}
   </div>
   {{- end }}
 
