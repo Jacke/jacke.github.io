@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://iamjacke.com/</loc>
+    <lastmod>2022-08-07T21:59:46+03:00</lastmod>
+    <priority>0</priority>
+  </url><url>
+    <loc>https://iamjacke.com/blog/</loc>
+    <lastmod>2022-08-07T21:59:46+03:00</lastmod>
+  </url><url>
+    <loc>https://iamjacke.com/blog/my-first-post/</loc>
+    <lastmod>2022-08-07T21:59:46+03:00</lastmod>
+  </url><url>
+    <loc>https://iamjacke.com/projects/</loc>
+    <lastmod>2022-08-07T21:59:46+03:00</lastmod>
+  </url><url>
+    <loc>https://iamjacke.com/about/</loc>
+    <lastmod>2020-09-15T11:30:03+00:00</lastmod>
+  </url><url>
+    <loc>https://iamjacke.com/tags/first/</loc>
+    <lastmod>2020-09-15T11:30:03+00:00</lastmod>
+  </url><url>
+    <loc>https://iamjacke.com/tags/</loc>
+    <lastmod>2020-09-15T11:30:03+00:00</lastmod>
+  </url><url>
+    <loc>https://iamjacke.com/blog/my-second-post/</loc>
+    <lastmod>2020-09-15T11:30:03+00:00</lastmod>
+  </url><url>
+    <loc>https://iamjacke.com/categories/</loc>
+  </url>
+</urlset>

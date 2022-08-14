@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Stan Sobolev</title>
+    <link>https://iamjacke.com/</link>
+    <description>Recent content on Stan Sobolev</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Sun, 07 Aug 2022 21:59:46 +0300</lastBuildDate><atom:link href="https://iamjacke.com/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>My First Post</title>
+      <link>https://iamjacke.com/blog/my-first-post/</link>
+      <pubDate>Sun, 07 Aug 2022 21:59:46 +0300</pubDate>
+      
+      <guid>https://iamjacke.com/blog/my-first-post/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Projects</title>
+      <link>https://iamjacke.com/projects/</link>
+      <pubDate>Sun, 07 Aug 2022 21:59:46 +0300</pubDate>
+      
+      <guid>https://iamjacke.com/projects/</guid>
+      <description>Grammar &amp;hellip;
+~ (iam) &amp;hellip;
+Serotonin &amp;hellip;.
+Calendbrew &amp;hellip;
+Drilllist &amp;hellip;
+One line leet &amp;hellip;
+Cosmos &amp;hellip;
+SystemArchitectures &amp;hellip;
+TSEC &amp;hellip;</description>
+    </item>
+    
+    <item>
+      <title>Yo My 1st post</title>
+      <link>https://iamjacke.com/blog/my-second-post/</link>
+      <pubDate>Tue, 15 Sep 2020 11:30:03 +0000</pubDate>
+      
+      <guid>https://iamjacke.com/blog/my-second-post/</guid>
+      <description>Desc Text.</description>
+    </item>
+    
+  </channel>
+</rss>
