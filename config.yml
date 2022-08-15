@@ -20,14 +20,17 @@ minify:
   disableXML: true
 menu:
   main:
+    - name: Content
+      url: /content
+      weight: 1
     - name: Projects
       url: /projects
-      weight: 1
+      weight: 2
     - identifier: about
       name: About
       pre: <i class='fa fa-heart'></i>
-      url: /about/
-      weight: 2
+      url: /about
+      weight: 3
     - name: Blog
       url: /blog
-      weight: 3
+      weight: 4
