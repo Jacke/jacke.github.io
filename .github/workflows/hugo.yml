@@ -30,7 +30,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      HUGO_VERSION: 0.99.0
+      HUGO_VERSION: 0.101.0
+      HUGO_ENV: production
     steps:
       - name: Install Hugo CLI
         run: |
@@ -40,6 +41,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: recursive
+      - name: Fetch npm packages
+        run: |
+          npm install &&
+          npm run prod:twcss
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v1
@@ -55,6 +60,8 @@ jobs:
 
   # Deployment job
   deploy:
+    env:
+      HUGO_ENV: production
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -7,9 +7,9 @@ buildDrafts: false
 buildFuture: false
 buildExpired: false
 pluralizelisttitles: false
+googleAnalytics: G-HF3EGN90FY
 params:
   disableAnchoredHeadings: true
-  googleAnalytics: G-HF3EGN90FY
   assets:
     favicon: ./favicon/favicon.ico
     favicon16x16: ./favicon/favicon-16x16.png
@@ -26,11 +26,11 @@ menu:
     - name: Projects
       url: /projects
       weight: 2
+    - name: Blog
+      url: /blog
+      weight: 3
     - identifier: about
       name: About
       pre: <i class='fa fa-heart'></i>
       url: /about
-      weight: 3
-    - name: Blog
-      url: /blog
       weight: 4

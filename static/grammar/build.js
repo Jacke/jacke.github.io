@@ -78,4 +78,13 @@ window.addEventListener("load", (event) => {
   window.onscroll = () => renderNav();
   renderNav();
   addResourceSelector();
+
+  function determineNewHeight(originalHeight, originalWidth, newWidth){
+    return (originalHeight / originalWidth) * newWidth;
+  }
+
+  const images = [...document.getElementsByTagName("img")];
+  for (var element of images) {
+    element.height = determineNewHeight(element.naturalHeight, element.naturalWidth, 672)
+  }
 });

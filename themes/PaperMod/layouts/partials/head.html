@@ -163,7 +163,19 @@
 
 {{- /* Misc */}}
 {{- if hugo.IsProduction | or (eq site.Params.env "production") }}
-{{- template "_internal/google_analytics.html" . }}
+{{- $pc := .Site.Config.Privacy.GoogleAnalytics -}}
+{{- if not $pc.Disable -}}
+{{ with .Site.GoogleAnalytics }}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ . }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ . }}');
+</script>
+{{ end }}
+{{- end -}}
 {{- template "partials/templates/opengraph.html" . }}
 {{- template "partials/templates/twitter_cards.html" . }}
 {{- template "partials/templates/schema_json.html" . }}
