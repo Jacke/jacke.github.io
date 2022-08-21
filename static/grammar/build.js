@@ -78,4 +78,10 @@ window.addEventListener("load", (event) => {
   window.onscroll = () => renderNav();
   renderNav();
   addResourceSelector();
+
+
+  const images = [...document.getElementsByTagName("img")];
+  for (var element of images) {
+    element.height = element.height/1.9
+  }
 });

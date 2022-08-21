@@ -10,28 +10,4 @@ hideMeta: true
 
 > [Grammar](/grammar/)
 
-Cheatsheets for Ultimate English GRAMMAR! For each topic – slick description, resources.
-
-## ~ (iam)
-...
-
-## Serotonin
-....
-
-## Calendbrew
-...
-
-## Drilllist
-...
-
-## One line leet
-...
-
-## Cosmos
-...
-
-## SystemArchitectures
-...
-
-## TSEC
-...
+Cheatsheets for Ultimate English GRAMMAR! For each topic – slick description, resources

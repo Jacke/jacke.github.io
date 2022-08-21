@@ -1,0 +1,34 @@
+{
+  "acts": [
+    {
+      "name": "Innovate",
+      "color": "#e5b9ec",
+      "color_end": "#9630a7"
+    },
+    {
+      "name": "Having fun",
+      "color": "#ff75a4",
+      "color_end": "#e91e63"
+    },
+    {
+      "name": "Think",
+      "color": "#6175e0",
+      "color_end": "#3f51b5"
+    },
+    {
+      "name": "Dream",
+      "color": "#70e6f5",
+      "color_end": "#00bcd4"
+    },
+    {
+      "name": "Listen",
+      "color": "#ffcd83",
+      "color_end": "#ff9800"
+    },
+    {
+      "name": "Take a risk",
+      "color": "#ff75a4",
+      "color_end": "#e91e63"
+    }
+  ]
+}
