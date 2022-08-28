@@ -85,7 +85,7 @@
     <link href="{{ $styles.RelPermalink }}" rel="stylesheet" />
     {{ end }}
 <!-- end tailwind css -->
-
+<!-- <div class="float-left"></div> -->
 {{- /* Search */}}
 {{- if (eq .Layout `search`) -}}
 <link crossorigin="anonymous" rel="preload" as="fetch" href="../index.json">
@@ -137,7 +137,6 @@
         .top-link {
             display: none;
         }
-
     </style>
     {{- if (and (ne site.Params.defaultTheme "light") (ne site.Params.defaultTheme "dark")) }}
     <style>

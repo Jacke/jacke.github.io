@@ -8,7 +8,16 @@ buildFuture: false
 buildExpired: false
 pluralizelisttitles: false
 googleAnalytics: G-HF3EGN90FY
+
+disqusShortname: iamjacke-com
 params:
+  socialIcons:
+    - name: "Github"
+      url: "https://github.com/Jacke"
+    - name: "LinkedIn"
+      url: "https://www.linkedin.com/in/jacke1/"
+    - name: "Twitter"
+      url: "https://twitter.com/stanthoughts"
   disableAnchoredHeadings: true
   assets:
     favicon: ./favicon/favicon.ico

@@ -2,7 +2,10 @@ var camera, scene, renderer;
 var geometry, material, mesh;
 var uniforms;
 var mouseX, mouseY;
-var mouseCoords = new THREE.Vector2(0, 0);
+var presetCoords = [
+  {x: '0.29942857142857133', y: '0.021000000000000018'},
+];
+var mouseCoords = new THREE.Vector2(presetCoords[0].x, presetCoords[0].y);
 
 const renderElement = window.getComputedStyle(document.getElementById('code-demo'));
 var width = parseInt(renderElement.width.replace('px', ''));
@@ -20,13 +23,16 @@ var colorb = 6.15;
 var colorc = 1.85;
 const primaryColor = 0xDDDDDD;
 
+var perfTheme = localStorage.getItem('pref-theme');
+var isDark = (perfTheme && perfTheme === 'light') ? false : true;
+
 init();
+need_update = true;
+animate();
 // ===============================================
 
 function init() {
   setup();
-  const perfTheme = localStorage.getItem('pref-theme');
-  const isDark = (perfTheme && perfTheme === 'light') ? false : true;
   uniforms = {
     res: {type: 'vec2', value: new THREE.Vector2(width, height)},
     aspect: {type: 'float', value: aspect},

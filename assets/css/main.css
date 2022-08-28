@@ -1,4 +1,4 @@
-/* assets */ 
+/* assets */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,4 +6,35 @@
 .contact-menu-icon {
   margin-top: 18px;
   margin-right: 6px;
+}
+
+.top-link {
+  width: 34px;
+  height: 34px;
+  bottom: 30px;
+}
+
+li.contact-menu a {
+  line-height: 61px;
+  margin-bottom: -5px;
+  overflow: hidden;
+}
+
+li.contact-menu {
+  overflow: hidden;
+}
+
+li.contact-menu svg {
+  margin-top: 19px;
+  stroke-width: 1.3px;
+}
+
+.social-icons a svg {
+  height: 26px;
+  width: 26px;
+  stroke-width: 1.3px;
+}
+
+.code-demo-mouse-icon svg {
+  stroke-width: 1.1px;
 }

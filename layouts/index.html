@@ -10,6 +10,7 @@ resources.PostCSS }} {{ if hugo.IsProduction }} {{- with $styles -}}
 (printf "css/index.dev.%v.css" now.UnixMilli) .}}
 <link href="{{ $styles.RelPermalink }}" rel="stylesheet" />
 {{ end }}
+<!-- <div class="h-6 w-6 float-left"></div>-->
 <!-- end tailwind css -->
 <style>
   .text-box {
@@ -39,127 +40,85 @@ resources.PostCSS }} {{ if hugo.IsProduction }} {{- with $styles -}}
 </div>
 <section
   id="code-demo"
-  class="py-8"
+  class="py-8 relative"
   style="width: 720px; height: 525px"
-></section>
-
-<!--
-<section id="cta" class="flex justify-center">
-  <a
-    class="to-out py-4 font-semibold text-sm themable-button text-white border border-slate-300 rounded-md shadow-sm ring-2 ring-offset-2 ring-offset-slate-50 ring-blue-500 dark:ring-offset-slate-900 dark:bg-slate-700 dark:text-slate-200 dark:border-transparent"
-    href="/contact"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      class="h-6 w-6 float-left"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-      />
-    </svg>
-    Contact
-  </a>
+>
+<div class="code-demo-mouse-icon w-3.5 absolute right-7	top-10">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zm-7.518-.267A8.25 8.25 0 1120.25 10.5M8.288 14.212A5.25 5.25 0 1117.25 10.5" />
+  </svg>
+</div>
 </section>
--->
-<!--
-<article class="post-single">
-  <header class="post-header">
-    {{ partial "breadcrumbs.html" . }}
-    <h1 class="post-title">
-      {{ .Title }}
-      {{- if .Draft }}<sup><span class="entry-isdraft">&nbsp;&nbsp;[draft]</span></sup>{{- end }}
-    </h1>
-    {{- if .Description }}
-    <div class="post-description">
-      {{ .Description }}
-    </div>
-    {{- end }}
-    {{- if not (.Param "hideMeta") }}
-    <div class="post-meta">
-      {{- partial "translation_list.html" . -}}
-      {{- partial "post_canonical.html" . -}}
-    </div>
-    {{- end }}
-  </header>
-  {{- $isHidden := .Params.cover.hidden | default site.Params.cover.hiddenInSingle | default site.Params.cover.hidden }}
-  {{- partial "cover.html" (dict "cxt" . "IsHome" false "isHidden" $isHidden) }}
-  {{- if (.Param "ShowToc") }}
-  {{- partial "toc.html" . }}
-  {{- end }}
 
-  {{- if .Content }}
-  <div class="post-content">
-    {{ .Content }}
-  </div>
-  {{- end }}
+<section id="social-media" class="flex justify-center m-7 mt-12 mb-0">
+  {{- partial "social_icons.html" site.Params.socialIcons -}}
+</section>
 
-  <footer class="post-footer">
-    {{- $tags := .Language.Params.Taxonomies.tag | default "tags" }}
-    <ul class="post-tags">
-      {{- range ($.GetTerms $tags) }}
-      <li><a href="{{ .Permalink }}">{{ .LinkTitle }}</a></li>
-      {{- end }}
-    </ul>
-    {{- if (.Param "ShowPostNavLinks") }}
-    {{- partial "post_nav_links.html" . }}
-    {{- end }}
-    {{- if (and site.Params.ShowShareButtons (ne .Params.disableShare true)) }}
-    {{- partial "share_icons.html" . -}}
-    {{- end }}
-  </footer>
-
-  {{- if (.Param "comments") }}
-  {{- partial "comments.html" . }}
-  {{- end }}
-</article>
--->
 <section class="front-bottom-list flex justify-between to-out">
   <div id="front-recent-posts" class="front-list w-64">
-    <h3 class="text-2xl py-8"><a href="/blog">Posts</a></h3>
-    <ul class="list-disc ml-4">
-      <li>test</li>
-      <li>test</li>
+    <h3 class="text-2xl py-4"><a href="/blog">Posts</a></h3>
+    <ul class="list-none leading-normal">
+      {{- $pages := union .RegularPages .Sections }}
+      {{- if .IsHome }}
+      {{- $pages = where site.RegularPages "Type" "=" "blog" }}
+      {{- $pages = where $pages "Params.hiddenInHomeList" "!=" "true"  }}
+      {{- end }}
+      {{- $paginator := .Paginate $pages }}
+      {{- $pages := where site.RegularPages "Section" "=" "blog" }}
+      {{ range last 5 $pages }}
+      <li class="blog-post-entry m-3 ml-0 mt-0">
+          <a aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}">{{- .Title }}</a>
+      </li>
+      {{- end }}
     </ul>
   </div>
   <div id="front-changelog" class="front-list w-64">
-    <h3 class="text-2xl py-8"><a href="/changelog">Changelog</a></h3>
-    <ul class="list-disc ml-4">
-      <li>
-        Lorem ipsum dolor sit amet consectetur, adipisicing elit. Adipisci
-        consequatur numquam animi maiores sapiente, minus eos id error in
-        laudantium reprehenderit nam consequuntur optio rerum quo perferendis
-        odio repudiandae provident!
+    <h3 class="text-2xl py-4"><a href="/changelog">Changelog</a></h3>
+    <ul class="list-none leading-normal">
+      {{- $changelogs := where site.RegularPages "Section" "=" "changelog" }}
+      {{ range last 3 $changelogs }}
+        <li class="changelog-entry m-3 ml-0 mt-0">
+          <a class="changelog-link" aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}">{{- .Title }}</a>
+        {{- if (ne (.Param "hideSummary") true) }}
+        <div class="changelog-summary text-s">
+          <p>{{ .Summary | plainify | htmlUnescape | truncate 42 }}{{ if .Truncated }}...{{ end }}</p>
+        </div>
+        <div class="changelog-tags text-xs">
+        {{ range (.GetTerms "tags") }}
+            <a href="{{ .Permalink }}" class="changelog-tag text-teal-300">{{ .LinkTitle }}</a>
+        {{ end }}
+        </div>
+        {{- end }}
       </li>
-      <li>test</li>
+      {{- end }}
     </ul>
   </div>
 </section>
-<section id="subscribe" class="to-out pt-12 flex flex-col justify-center items-center text-center">
+
+<section
+  id="subscribe"
+  class="to-out pt-8 flex flex-col justify-center items-center text-center"
+>
   <div class="subscribe-announcement m-4 max-w-md">
     <h2 class="text-2xl font-bold">Subscribe</h2>
-    <p>Get cool monthly updates</p>
+    <p>Crisp monthly newsletter</p>
   </div>
   <div class="max-w-md">
-    <form class="m-4 flex">
+    <div id="mce-responses" class="clear foot">
+      <div class="response" id="mce-error-response" style="display:none"></div>
+      <div class="response" id="mce-success-response" style="display:none"></div>
+    </div>
+    <form class="m-4 flex" action="https://gmail.us13.list-manage.com/subscribe/post?u=9d9c000a90c3c897b7fe060d7&amp;id=a57aae69b6&amp;f_id=0024c2e2f0" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
       <input
         class="rounded-l-lg p-4 border-t mr-0 border-b border-l text-gray-800 border-gray-200 bg-white"
+        type="email" value="" name="EMAIL" id="mce-EMAIL" required
         placeholder="john@doe.com"
       />
-      <button
-        class="themable-button px-8 rounded-r-lg bg-yellow-400 text-white font-bold p-4 uppercase border-yellow-500 border-t border-b border-r"
-      >
-        Subscribe
-      </button>
+      <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="themable-button px-8 rounded-r-lg bg-yellow-400 text-white font-bold p-4 uppercase border-yellow-500 border-t border-b border-r">
     </form>
   </div>
 </section>
-
+<script type='text/javascript' src='//s3.amazonaws.com/downloads.mailchimp.com/js/mc-validate.js'></script><script type='text/javascript'>(function($) {window.fnames = new Array(); window.ftypes = new Array();fnames[0]='EMAIL';ftypes[0]='email';fnames[1]='FNAME';ftypes[1]='text';fnames[2]='LNAME';ftypes[2]='text';fnames[3]='ADDRESS';ftypes[3]='address';fnames[4]='PHONE';ftypes[4]='phone';fnames[5]='BIRTHDAY';ftypes[5]='birthday';}(jQuery));var $mcj = jQuery.noConflict(true);</script>
 <script src="https://threejs.org/build/three.min.js"></script>
 <script src="/Julia/dat.gui.min.js"></script>
 <script src="/Julia/main.js"></script>

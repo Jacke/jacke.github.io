@@ -75,9 +75,25 @@
         if (document.body.className.includes("dark")) {
             document.body.classList.remove('dark');
             localStorage.setItem("pref-theme", 'light');
+            try {
+                isDark = false;
+                document.querySelector('#code-demo canvas').remove();
+                init();
+                mouseCoords = new THREE.Vector2(presetCoords[0].x, presetCoords[0].y);
+                need_update = true;
+                animate();
+            } catch(e) {};
         } else {
             document.body.classList.add('dark');
             localStorage.setItem("pref-theme", 'dark');
+            try {
+                isDark = true;
+                document.querySelector('#code-demo canvas').remove();
+                init();
+                mouseCoords = new THREE.Vector2(presetCoords[0].x, presetCoords[0].y);
+                need_update = true;
+                animate();
+            } catch(e) {};
         }
     })
 
