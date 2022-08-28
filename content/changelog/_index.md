@@ -6,8 +6,6 @@ disableAnchoredHeadings: true
 hideMeta: true
 ---
 
-It is a markdown file.\
-The section will be added soon!\
-For now, you can watch a video.
+Something
 
-{{< youtube dQw4w9WgXcQ >}}
+[Example](https://keepachangelog.com/en/1.0.0/)

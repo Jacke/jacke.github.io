@@ -85,6 +85,9 @@ window.addEventListener("load", (event) => {
 
   const images = [...document.getElementsByTagName("img")];
   for (var element of images) {
-    element.height = determineNewHeight(element.naturalHeight, element.naturalWidth, 672)
+    const newHeight = determineNewHeight(element.naturalHeight, element.naturalWidth, 672);
+    if (newHeight !== 0) {
+      element.height = newHeight
+    }
   }
 });

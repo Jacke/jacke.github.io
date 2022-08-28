@@ -3,6 +3,7 @@
 @tailwind components;
 @tailwind utilities;
 
-h1 {
-  text-align: left;
+.contact-menu-icon {
+  margin-top: 18px;
+  margin-right: 6px;
 }
