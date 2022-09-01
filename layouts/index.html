@@ -85,7 +85,7 @@ resources.PostCSS }} {{ if hugo.IsProduction }} {{- with $styles -}}
         </div>
         <div class="changelog-tags text-xs">
         {{ range (.GetTerms "tags") }}
-            <a href="{{ .Permalink }}" class="changelog-tag text-teal-300">{{ .LinkTitle }}</a>
+            <a href="{{ .Permalink }}" class="changelog-tag text-teal-400">{{ .LinkTitle }}</a>
         {{ end }}
         </div>
         {{- end }}

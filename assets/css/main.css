@@ -38,3 +38,16 @@ li.contact-menu svg {
 .code-demo-mouse-icon svg {
   stroke-width: 1.1px;
 }
+
+.post-content a {
+  display: block;
+  box-shadow: none;
+}
+
+.dark .post-content a {
+  color: #00acc1;
+}
+
+.post-content a {
+  color: #00acc1;
+}

@@ -955,6 +955,11 @@ select {
   line-height: 1rem;
 }
 
+.text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
 .font-bold {
   font-weight: 700;
 }
@@ -980,6 +985,11 @@ select {
 .text-white {
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity));
+}
+
+.text-teal-400 {
+  --tw-text-opacity: 1;
+  color: rgb(45 212 191 / var(--tw-text-opacity));
 }
 
 .transition {
@@ -1024,4 +1034,17 @@ li.contact-menu svg {
 
 .code-demo-mouse-icon svg {
   stroke-width: 1.1px;
+}
+
+.post-content a {
+  display: block;
+  box-shadow: none;
+}
+
+.dark .post-content a {
+  color: #00acc1;
+}
+
+.post-content a {
+  color: #00acc1;
 }
