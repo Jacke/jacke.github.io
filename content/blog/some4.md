@@ -1,5 +1,5 @@
 ---
-title: "Yo My 4st post"
+title: "Dotfiles in the right form"
 date: 2020-08-06T11:30:03+00:00
 # weight: 1
 # aliases: ["/first"]
@@ -8,7 +8,7 @@ author: "Me"
 # author: ["Me", "You"] # multiple authors
 showToc: true
 TocOpen: false
-draft: false
+draft: true
 hidemeta: false
 comments: false
 description: "Desc Text."

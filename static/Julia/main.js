@@ -10,6 +10,9 @@ var mouseCoords = new THREE.Vector2(presetCoords[0].x, presetCoords[0].y);
 const renderElement = window.getComputedStyle(document.getElementById('code-demo'));
 var width = parseInt(renderElement.width.replace('px', ''));
 var height = parseInt(renderElement.height.replace('px', ''));
+const windowWidth = window.innerWidth;
+const windowHeight = window.innerHeight;
+
 var aspect = width / height;
 var zoom = 3.0;
 var res = new THREE.Vector2(width, height);
@@ -158,7 +161,7 @@ function setup(){
 }
 
 // events ================================================
-// window.addEventListener('resize', windowResize, false);
+window.addEventListener('resize', windowResize, false);
 // document.addEventListener('wheel', scroll);
 const codeDemo = document.getElementById('code-demo');
 codeDemo.addEventListener( 'mousedown', mouseDown, false );
@@ -169,8 +172,8 @@ codeDemo.addEventListener( 'touchend', mouseUp, false );
 codeDemo.addEventListener( 'mouseup', mouseUp, false );
 
 function windowResize() {  //aspect intentionaly not updated
-  width = window.innerWidth;
-  height = window.innerHeight;
+  windowWidth = window.innerWidth;
+  windowHeight = window.innerHeight;
   aspect = width/height;
   camera.aspect =  aspect;
   camera.updateProjectionMatrix();
@@ -201,8 +204,8 @@ function setMouseCoords(event) {
     clientX = event.clientX;
     clientY = event.clientY;
   }
-  mouseX = zoom*aspect*clientX / width + offset.x;
-  mouseY = zoom*clientY / height + offset.y;
+  mouseX = zoom*aspect*clientX / windowWidth + offset.x;
+  mouseY = zoom*clientY / windowHeight + offset.y;
   mouseCoords = new THREE.Vector2(mouseX, mouseY);
 }
 

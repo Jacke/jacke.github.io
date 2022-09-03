@@ -1,6 +1,6 @@
 ---
-title: "Yo My 1st post"
-date: 2022-09-01T11:30:03+00:00
+title: "Dotfiles redefined"
+date: 2020-05-06T11:30:03+00:00
 # weight: 1
 # aliases: ["/first"]
 tags: ["first"]
@@ -30,11 +30,7 @@ cover:
     caption: "<text>" # display caption under cover
     relative: false # when using page bundles set this to true
     hidden: true # only hide on current single page
-editPost:
-    URL: "https://github.com/<path_to_repo>/content"
-    Text: "Suggest Changes" # edit text
-    appendFilePath: true # to append file path to Edit link
 ---
 
 # Test something
-Something
+Something in progress

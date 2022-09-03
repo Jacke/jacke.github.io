@@ -12,7 +12,8 @@
     "prod:twcss": "./node_modules/tailwindcss/lib/cli.js -i ./assets/css/main.css -o ./assets/css/style.css --jit --minify",
     "prod:hugo": "hugo --gc --minify",
     "watch:tw": "tailwindcss -i ./assets/css/main.css -o ./assets/css/style.css --watch",
-    "watch:hugo": "hugo server"
+    "watch:hugo": "hugo server",
+    "watch:toolbelt": "./scripts/make_content.sh"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.2",

@@ -29,12 +29,15 @@ minify:
   disableXML: true
 menu:
   main:
-    - name: Content
+    - name: Knowledge base
       url: /content
       weight: 1
+    - name: Toolbelt
+      url: /content/toolbelt
+      weight: 2
     - name: Projects
       url: /projects
-      weight: 2
+      weight: 3
     - name: Blog
       url: /blog
-      weight: 3
+      weight: 4
