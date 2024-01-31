@@ -1,0 +1,89 @@
+{{- define "main" }}
+
+<div class="text-box">
+  <span class="ani-text">Hi! My name is Stan</span>
+  <span class="ani-text2">I'm here to <color id="act-text"></color></span>
+</div>
+<section
+  id="code-demo"
+  class="relative py-8"
+>
+<div class="code-demo-mouse-icon w-3.5 absolute right-7	top-10">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zm-7.518-.267A8.25 8.25 0 1120.25 10.5M8.288 14.212A5.25 5.25 0 1117.25 10.5" />
+  </svg>
+</div>
+<div class="transition duration-300 blurr"></div>
+</section>
+
+<section id="social-media" class="flex justify-center mt-12 mb-0 m-7">
+  {{- partial "social_icons.html" site.Params.socialIcons -}}
+</section>
+
+<section class="flex justify-between front-bottom-list to-out">
+  <div id="front-recent-posts" class="w-64 front-list">
+    <h3 class="py-4 text-2xl"><a href="/blog">Posts</a></h3>
+    <ul class="leading-normal list-none">
+      {{- $pages := union .RegularPages .Sections }}
+      {{- if .IsHome }}
+      {{- $pages = where site.RegularPages "Type" "=" "blog" }}
+      {{- $pages = where $pages "Params.hiddenInHomeList" "!=" "true"  }}
+      {{- end }}
+      {{- $paginator := .Paginate $pages }}
+      {{- $pages := where site.RegularPages "Section" "=" "blog" }}
+      {{ range last 5 $pages }}
+      <li class="m-3 mt-0 ml-0 blog-post-entry">
+          <a aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}">{{- .Title }}</a>
+      </li>
+      {{- end }}
+    </ul>
+  </div>
+  <div id="front-changelog" class="w-64 front-list">
+    <h3 class="py-4 text-2xl"><a href="/changelog">Changelog</a></h3>
+    <ul class="leading-normal list-none">
+      {{- $changelogs := where site.RegularPages "Section" "=" "changelog" }}
+      {{ range last 3 $changelogs }}
+        <li class="m-3 mt-0 ml-0 changelog-entry">
+          <a class="changelog-link" aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}">{{- .Title }}</a>
+        {{- if (ne (.Param "hideSummary") true) }}
+        <div class="changelog-summary text-s">
+          <p>{{ .Summary | plainify | htmlUnescape | truncate 42 }}{{ if .Truncated }}...{{ end }}</p>
+        </div>
+        <div class="text-xs changelog-tags">
+        {{ range (.GetTerms "tags") }}
+            <a href="{{ .Permalink }}" class="text-teal-400 changelog-tag">{{ .LinkTitle }}</a>
+        {{ end }}
+        </div>
+        {{- end }}
+      </li>
+      {{- end }}
+    </ul>
+  </div>
+</section>
+
+<section
+  id="subscribe"
+  class="flex flex-col items-center justify-center pt-8 text-center to-out"
+>
+  <div class="max-w-md m-4 subscribe-announcement">
+    <h2 class="text-2xl font-bold">Subscribe</h2>
+    <p>to monthly newsletter</p>
+  </div>
+  <div class="max-w-md">
+    <div id="mce-responses" class="clear foot">
+      <div class="response" id="mce-error-response" style="display:none"></div>
+      <div class="response" id="mce-success-response" style="display:none"></div>
+    </div>
+    <div>
+      <form class="flex" action="https://gmail.us13.list-manage.com/subscribe/post?u=9d9c000a90c3c897b7fe060d7&amp;id=a57aae69b6&amp;f_id=0024c2e2f0" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+        <input
+          class="p-4 mr-0 text-gray-800 bg-white border-t border-b border-l border-gray-200 rounded-l-lg"
+          type="email" value="" name="EMAIL" id="mce-EMAIL" required
+          placeholder="john@doe.com"
+        />
+        <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="p-4 px-8 font-bold text-white uppercase bg-yellow-400 border-t border-b border-r border-yellow-500 rounded-r-lg themable-button">
+      </form>
+    </div>
+  </div>
+</section>
+{{- end }}{{/* end main */}}

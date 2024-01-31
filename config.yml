@@ -1,0 +1,43 @@
+baseURL: 'https://iamjacke.com'
+languageCode: en-us
+title: Stan Sobolev
+theme: PaperMod
+enableRobotsTXT: true
+buildDrafts: false
+buildFuture: false
+buildExpired: false
+pluralizelisttitles: false
+googleAnalytics: G-HF3EGN90FY
+
+disqusShortname: iamjacke-com
+params:
+  socialIcons:
+    - name: "Github"
+      url: "https://github.com/Jacke"
+    - name: "LinkedIn"
+      url: "https://www.linkedin.com/in/jacke1/"
+    - name: "Twitter"
+      url: "https://twitter.com/stanthoughts"
+  disableAnchoredHeadings: true
+  assets:
+    favicon: ./favicon/favicon.ico
+    favicon16x16: ./favicon/favicon-16x16.png
+    favicon32x32: ./favicon/favicon-32x32.png
+    apple_touch_icon: ./favicon/apple-touch-icon.png
+    safari_pinned_tab: ./favicon/safari-pinned-tab.svg
+minify:
+  disableXML: true
+menu:
+  main:
+    - name: Knowledge base
+      url: /content
+      weight: 1
+    - name: Toolbelt
+      url: /content/toolbelt/
+      weight: 2
+    - name: Projects
+      url: /projects
+      weight: 3
+    - name: Blog
+      url: /blog
+      weight: 4

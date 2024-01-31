@@ -1,0 +1,267 @@
+/* assets */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Dank Mono';
+  src: url('/fonts/DankMono-Regular.woff2') format('woff2'),
+      url('/fonts/DankMono-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Futura Now Headline';
+  src: url('/fonts/FuturaNowHeadline-Bd.woff2') format('woff2'),
+      url('/fonts/FuturaNowHeadline-Bd.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Futura New Book';
+  src: url('/fonts/FuturaNewBook-Reg.woff2') format('woff2'),
+      url('/fonts/FuturaNewBook-Reg.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+
+body {
+  animation: fadeInAnimation ease-out .5s;
+}
+
+@keyframes fadeInAnimation {
+  0% {
+      opacity: 0;
+  }
+  100% {
+      opacity: 1;
+   }
+}
+/*
+#theme-toggle,
+.top-link {
+    display: none;
+}
+*/
+
+#code-demo {
+  width: 720px;
+  height: 525px;
+}
+
+@media screen and (max-width: 768px) {
+  #code-demo {
+    width: calc(720px/2);
+    height: calc(525px/2);
+    margin: 0 auto;
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .main .text-box {
+    font-size: 3em;
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .main .text-box {
+    font-size: 3em;
+  }
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+#menu {
+  margin-top: 10px;
+}
+
+.blurr { 
+  background: rgb(245, 245, 245);
+}
+.dark .blurr {
+  background: var(--theme);
+}
+.blurr {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  /*backdrop-filter: blur(5px);*/
+  display: none;
+  opacity: 0;
+}
+.blurr.active {
+  display: block;
+  opacity: 1;
+}
+
+.contact-menu-icon {
+  margin-top: 18px;
+  margin-right: 6px;
+}
+
+.top-link {
+  width: 34px;
+  height: 34px;
+  bottom: 30px;
+}
+
+li.contact-menu a {
+  line-height: 61px;
+  margin-bottom: -5px;
+}
+
+li.contact-menu {
+  overflow-y: visible;
+  overflow-x: visible;
+}
+
+#menu {
+  overflow-y: hidden;
+}
+
+li.contact-menu svg {
+  margin-top: 18px;
+  stroke-width: 1.3px;
+}
+
+.social-icons a svg {
+  height: 26px;
+  width: 26px;
+  stroke-width: 1.3px;
+}
+
+.code-demo-mouse-icon svg {
+  stroke-width: 1.1px;
+}
+
+.post-content a {
+  display: block;
+  box-shadow: none;
+}
+
+.dark .post-content a {
+  color: #00acc1;
+}
+
+.post-content a {
+  color: #00acc1;
+}
+
+/* ------------------------------------------------ */
+.text-box {
+  text-align: center;
+  overflow: hidden;
+  font-size: 4em;
+}
+
+.text-box .ani-text2 color {
+  font-weight: 900;
+}
+
+.to-out {
+  transition: all 1s;
+  opacity: 0;
+}
+
+section.subscribe {
+  background: #1b1c1e;
+}
+
+.post-content a.anchor {
+  display: inline;
+  margin-left: 5px;
+  transition: 1s all;
+}
+
+
+#menu a,
+.front-list li a,
+.front-list li .changelog-summary,
+.subscribe-announcement p,
+li.contact-menu .text-base {
+  font-size: 14px;
+  font-family: 'Dank Mono';
+}
+
+.ani-text,
+.ani-text2 {
+  display: block;
+}
+
+span.ani-text2 {
+  font-size: 54px;
+}
+
+.front-list h3 a,
+.subscribe-announcement h2 {
+  font-family: 'Futura Now Headline';
+}
+
+.subscribe-announcement h2 {
+  margin-bottom: 8px;
+}
+
+.main .text-box {
+  text-wrap: balance;
+  font-family: 'Futura Now Headline';
+}
+
+
+.subscribe-announcement {
+  margin-bottom: 15px;
+}
+
+.top-link {
+  width: 34px;
+  height: 29px;
+  bottom: 30px;
+}
+
+form#mc-embedded-subscribe-form,
+footer.footer,
+.post-meta,
+.post-content,
+.post-description,
+.post-meta,
+.breadcrumbs,
+.toc,
+main.main .post-entry,
+div#mce-success-response {
+  font-family: 'Dank Mono';
+}
+
+input#mc-embedded-subscribe,
+.post-single .post-header .post-title,
+.logo a,
+.post-content h3,
+.post-content h2,
+.page-header h1,
+.not-found {
+  font-family: 'Futura Now Headline';
+}
+
+.logo-switches {
+  margin-top: 23px;
+}
+
+nav.nav .logo a {
+  font-weight: 100;
+  font-family: 'Futura New Book';
+}
+
+.post-content a {
+  color: #2196f3;
+}
+
+.list {
+  background: rgb(245, 245, 245);
+}

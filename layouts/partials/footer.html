@@ -1,0 +1,55 @@
+<script src="//embed.typeform.com/next/embed.js"></script>
+
+{{- if not (.Param "hideFooter") }}
+<footer class="footer">
+    {{- if site.Copyright }}
+    <span>{{ site.Copyright | markdownify }}</span>
+    {{- else }}
+    <span>&copy; {{ now.Year }} <a href="{{ "" | absLangURL }}">{{ site.Title }}</a></span>
+    {{- end }}
+</footer>
+{{- end }}
+
+{{- if (not site.Params.disableScrollToTop) }}
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+{{- end }}
+<script type='text/javascript' src='//s3.amazonaws.com/downloads.mailchimp.com/js/mc-validate.js'></script><script type='text/javascript'>(function($) {window.fnames = new Array(); window.ftypes = new Array();fnames[0]='EMAIL';ftypes[0]='email';fnames[1]='FNAME';ftypes[1]='text';fnames[2]='LNAME';ftypes[2]='text';fnames[3]='ADDRESS';ftypes[3]='address';fnames[4]='PHONE';ftypes[4]='phone';fnames[5]='BIRTHDAY';ftypes[5]='birthday';}(jQuery));var $mcj = jQuery.noConflict(true);</script>
+<script src="https://threejs.org/build/three.min.js"></script>
+<script src="https://animejs.com/lib/anime.min.js"></script>
+<script src="/Julia/dat.gui.min.js"></script>
+<script src="/Julia/main.js"></script>
+<script>
+  var data = [];
+  {{- $data := $.Site.Data.acts.acts.acts | jsonify }};
+  try {
+    data = JSON.parse({{$data}});
+    renderMenu();
+    runRandomAct();
+  } catch(e) {}
+</script>
+<script src="/js/main.js"></script>
+
+{{- if (not site.Params.disableScrollToTop) }}
+    <script>addScroller();</script>
+{{- end }}
+
+{{- if (not site.Params.disableThemeToggle) }}
+    <script>addThemeToggler();</script>
+{{- end }}
+
+{{- if (and (eq .Kind "page") (ne .Layout "archives") (ne .Layout "search") (.Param "ShowCodeCopyButtons")) }}
+    <script>addCodeRenderer();</script>
+    {{- if hugo.IsProduction | or (eq site.Params.env "production") }}
+        {{- $pc := .Site.Config.Privacy.GoogleAnalytics -}}
+        {{- if not $pc.Disable -}}
+            {{ with .Site.GoogleAnalytics }}
+                <script async src="https://www.googletagmanager.com/gtag/js?id={{ . }}"></script>
+                <script>addGoogleTag();</script>
+            {{ end }}
+        {{- end -}}
+    {{- end -}}
+{{- end }}

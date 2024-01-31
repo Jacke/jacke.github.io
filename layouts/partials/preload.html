@@ -1,0 +1,48 @@
+{{- /* theme-toggle is enabled */}}
+{{- if (not site.Params.disableThemeToggle) }}
+{{- /* theme is light */}}
+{{- if (eq site.Params.defaultTheme "light") }}
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+        document.getElementsByTagName('meta')["theme-color"].content = "#1d1e20";
+    }
+
+</script>
+{{- /* theme is dark */}}
+{{- else if (eq site.Params.defaultTheme "dark") }}
+<script>
+    if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+        document.getElementsByTagName('meta')["theme-color"].content = "#f5f5f5";
+    }
+
+</script>
+{{- else }}
+{{- /* theme is auto */}}
+<script>
+  function preloadFunc() {
+      if (localStorage.getItem("pref-theme") === "dark") {
+          document.body.classList.add('dark');
+          document.getElementsByTagName('meta')["theme-color"].content = "#1d1e20";
+      } else if (localStorage.getItem("pref-theme") === "light") {
+          document.body.classList.remove('dark')
+          document.getElementsByTagName('meta')["theme-color"].content = "#f5f5f5";
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          // document.body.classList.add('dark');
+          // document.getElementsByTagName('meta')["theme-color"].content = "#1d1e20";
+      }
+  };
+  window.onpaint = preloadFunc();
+</script>
+{{- end }}
+{{- /* theme-toggle is disabled and theme is auto */}}
+{{- else if (and (ne site.Params.defaultTheme "light") (ne site.Params.defaultTheme "dark"))}}
+<script>
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        //document.body.classList.add('dark');
+        //document.getElementsByTagName('meta')["theme-color"].content = "#1d1e20";
+    }
+
+</script>
+{{- end }}
