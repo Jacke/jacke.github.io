@@ -1,9 +1,9 @@
-console.error('             [**]');
-console.error('             [**]');
-console.warn('              [**]');
-console.warn('             [**]');
-console.log('[**]          [**]');
-console.log('    [*********]       [**]          What\'s good? Check more: https://github.com/Jacke');
+console.info('             [**]');
+console.info('             [**]');
+console.info('              [**]');
+console.info('             [**]');
+console.info('[**]          [**]');
+console.info('    [*********]       [**]          What\'s good? Check more: https://github.com/Jacke');
 
 // Function to render the menu
 const renderMenu = () => {
