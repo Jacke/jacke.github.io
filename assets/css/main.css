@@ -265,3 +265,7 @@ nav.nav .logo a {
 .list {
   background: rgb(244 246 255);
 }
+
+.header {
+  display: none;
+}

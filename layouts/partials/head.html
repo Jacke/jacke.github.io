@@ -75,6 +75,7 @@
 {{- else }}
 <link crossorigin="anonymous" href="{{ $stylesheet.RelPermalink }}" rel="preload stylesheet" as="style">
 {{- end }}
+<link href="https://fonts.cdnfonts.com/css/helvetica-neue-55" rel="stylesheet">
 
 <!-- tailwind css -->
 {{ $styles := resources.Get "css/main.css" }} {{ $styles = $styles |
