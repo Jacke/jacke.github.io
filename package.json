@@ -17,36 +17,39 @@
   "version": "1.0.0",
   "scripts": {
     "version": "auto-changelog -p --template keepachangelog --commit-limit 0 && git add CHANGELOG.md",
-    "dev": "NODE_ENV=development ./node_modules/tailwindcss/lib/cli.js -i ./static/tailwind.css -o ./static/main.css -w",
+    "dev": "NODE_ENV=development tailwindcss -i ./assets/css/main.css -o ./assets/css/style.css --watch",
     "build": "hugo --minify",
     "clean": "rimraf public && rimraf ./themes/twjit/assets/css/index/css",
     "start2": "TAILWIND_MODE=watch NODE_ENV=development npm-run-all clean prelim:twcss --parallel dev:*",
     "start": "concurrently npm:watch:*",
     "build2": "NODE_ENV=production npm-run-all clean prelim:twcss prod:*",
-    "prelim:twcss": "./node_modules/tailwindcss/lib/cli.js -i ./themes/twjit/assets/css/tw.css -o ./themes/twjit/assets/css/index.css --jit",
-    "dev:twcssw": "./node_modules/tailwindcss/lib/cli.js -i ./themes/twjit/assets/css/tw.css -o ./themes/twjit/assets/css/index.css --jit -w",
+    "prelim:twcss": "tailwindcss -i ./themes/twjit/assets/css/tw.css -o ./themes/twjit/assets/css/index.css",
+    "dev:twcssw": "tailwindcss -i ./themes/twjit/assets/css/tw.css -o ./themes/twjit/assets/css/index.css --watch",
     "dev:hugo": "hugo server",
-    "prod:twcss": "./node_modules/tailwindcss/lib/cli.js -i ./assets/css/main.css -o ./assets/css/style.css --jit --minify",
+    "prod:twcss": "tailwindcss -i ./assets/css/main.css -o ./assets/css/style.css --minify",
     "prod:hugo": "hugo --gc --minify",
     "watch:tw": "tailwindcss -i ./assets/css/main.css -o ./assets/css/style.css --watch",
     "watch:hugo": "hugo server --bind=0.0.0.0 --baseURL=http://0.0.0.0:1313",
     "watch:toolbelt": "bash ./scripts/make_content.sh"
   },
   "devDependencies": {
-    "@tailwindcss/forms": "^0.5.7",
-    "@tailwindcss/typography": "^0.5.10",
-    "auto-changelog": "^2.4.0",
-    "autoprefixer": "^10.4.17",
-    "concurrently": "^8.2.2",
-    "postcss": "^8.4.35",
-    "postcss-cli": "^11.0.0",
-    "postcss-import": "^16.0.1",
-    "tailwindcss": "^3.4.1",
-    "webpack": "^5.90.3",
-    "webpack-cli": "^5.1.4"
+    "@tailwindcss/cli": "^4.1.18",
+    "@tailwindcss/forms": "^0.5.10",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tailwindcss/typography": "^0.5.19",
+    "auto-changelog": "^2.5.0",
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.5.6",
+    "postcss-cli": "^11.0.1",
+    "postcss-import": "^16.1.1",
+    "tailwindcss": "^4.1.18",
+    "webpack": "^5.103.0",
+    "webpack-cli": "^6.0.1"
   },
   "dependencies": {
     "lodash": "^4.17.21",
-    "notion-to-md": "^3.1.1"
-  }
+    "notion-to-md": "^3.1.9"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
