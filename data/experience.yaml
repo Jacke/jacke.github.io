@@ -1,0 +1,44 @@
+# Professional experience for timeline
+# Update with your actual positions
+
+positions:
+  - company: "Company Name"
+    logo: "/images/logos/company.svg"
+    role: "Staff Engineer"
+    type: "full-time"
+    period: "2022 - Present"
+    location: "Remote"
+    highlights:
+      - "Scaled distributed system to handle 10M+ requests/day"
+      - "Led architecture redesign reducing latency by 60%"
+      - "Mentored team of 8 engineers"
+    technologies:
+      - "Go"
+      - "Kafka"
+      - "Kubernetes"
+      - "PostgreSQL"
+
+  - company: "Previous Company"
+    logo: "/images/logos/prev-company.svg"
+    role: "Senior Engineer"
+    type: "full-time"
+    period: "2020 - 2022"
+    location: "Berlin, Germany"
+    highlights:
+      - "Built real-time data pipeline processing 1M events/hour"
+      - "Introduced event sourcing architecture"
+    technologies:
+      - "Scala"
+      - "Spark"
+      - "AWS"
+      - "DynamoDB"
+
+  - company: "Advisory"
+    role: "Technical Advisor"
+    type: "advisory"
+    period: "2021 - Present"
+    highlights:
+      - "Advised 5 VC-backed startups on architecture and scaling"
+    technologies:
+      - "System Design"
+      - "Due Diligence"

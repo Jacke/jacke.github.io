@@ -1,126 +1,396 @@
 {{- define "main" }}
 
 <style>
-  .construction-container {
+  /* Hero Section */
+  .hero-container {
     min-height: 80vh;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    padding: 2rem;
+    padding: 4rem 2rem;
   }
 
-  .construction-icon {
-    font-size: 4rem;
-    margin-bottom: 1.5rem;
-    animation: float 3s ease-in-out infinite;
-  }
-
-  @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-  }
-
-  .construction-title {
+  .hero-title {
     font-family: 'Futura Now Headline', sans-serif;
-    font-size: 3rem;
-    margin-bottom: 1rem;
+    font-size: 3.5rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  .construction-subtitle {
+  .hero-subtitle {
     font-family: 'Dank Mono', monospace;
     font-size: 1.25rem;
-    opacity: 0.8;
-    max-width: 500px;
+    opacity: 0.7;
+  }
+
+  .hero-tagline {
+    font-family: 'Futura New Book', sans-serif;
+    font-size: 1.5rem;
+    max-width: 600px;
     line-height: 1.6;
-    margin-bottom: 2rem;
   }
 
-  .progress-bar {
-    width: 300px;
-    height: 6px;
-    background: rgba(128, 128, 128, 0.2);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 2.5rem;
+  /* Metrics */
+  .metric-value {
+    font-family: 'Futura Now Headline', sans-serif;
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  .progress-fill {
-    height: 100%;
-    width: 42%;
-    background: linear-gradient(90deg, #667eea, #764ba2);
-    border-radius: 3px;
-    animation: pulse 2s ease-in-out infinite;
+  .metric-label {
+    font-family: 'Dank Mono', monospace;
+    font-size: 0.875rem;
+    opacity: 0.7;
   }
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+  /* Section Headers */
+  .section-title {
+    font-family: 'Futura Now Headline', sans-serif;
+    font-size: 2rem;
+  }
+
+  /* Cards */
+  .project-card {
+    transition: all 0.3s ease;
+  }
+
+  .project-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(102, 126, 234, 0.15);
   }
 
   .status-badge {
     font-family: 'Dank Mono', monospace;
-    font-size: 0.875rem;
-    padding: 0.5rem 1rem;
-    background: rgba(102, 126, 234, 0.1);
-    border: 1px solid rgba(102, 126, 234, 0.3);
-    border-radius: 2rem;
-    margin-bottom: 2rem;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
   }
 
-  .dark .status-badge {
-    background: rgba(102, 126, 234, 0.15);
+  .status-live { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+  .status-beta { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+  .status-oss { background: rgba(102, 126, 234, 0.15); color: #667eea; }
+
+  .tech-tag {
+    font-family: 'Dank Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
   }
 
-  @media screen and (max-width: 600px) {
-    .construction-title {
-      font-size: 2rem;
-    }
-    .construction-subtitle {
-      font-size: 1rem;
-    }
-    .progress-bar {
-      width: 250px;
-    }
+  /* Timeline */
+  .timeline-line {
+    position: absolute;
+    left: 7px;
+    top: 24px;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, #667eea, #764ba2);
+    opacity: 0.3;
+  }
+
+  .timeline-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    flex-shrink: 0;
+  }
+
+  /* Tools */
+  .tool-badge {
+    font-family: 'Dank Mono', monospace;
+    transition: all 0.2s ease;
+  }
+
+  .tool-badge:hover {
+    transform: scale(1.05);
+  }
+
+  .tool-expert { border-color: #667eea; }
+  .tool-advanced { border-color: #764ba2; }
+  .tool-learning { border-color: #9ca3af; }
+
+  /* Newsletter */
+  .newsletter-input {
+    font-family: 'Dank Mono', monospace;
+  }
+
+  /* Responsive */
+  @media screen and (max-width: 768px) {
+    .hero-title { font-size: 2.5rem; }
+    .hero-tagline { font-size: 1.25rem; }
+    .metric-value { font-size: 2rem; }
+    .hero-container { padding: 2rem 1rem; min-height: 70vh; }
   }
 </style>
 
-<div class="construction-container">
-  <div class="construction-icon">
-    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <defs>
-        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#667eea" />
-          <stop offset="100%" style="stop-color:#764ba2" />
-        </linearGradient>
-      </defs>
-      <path d="M12 3v1m0 16v1m-9-9h1m16 0h1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707"/>
-      <circle cx="12" cy="12" r="4"/>
-    </svg>
+<!-- HERO SECTION -->
+<section class="hero-container">
+  <div class="max-w-4xl mx-auto text-center">
+    {{- with site.Params.hero }}
+    <h1 class="hero-title mb-2">{{ .title }}</h1>
+    <p class="hero-subtitle mb-6">{{ .subtitle }}</p>
+    <p class="hero-tagline mx-auto mb-8">{{ .tagline }}</p>
+
+    <div class="flex flex-wrap justify-center gap-4 mb-8">
+      <a href="{{ .cta_primary.url }}" class="px-6 py-3 rounded-lg font-semibold text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        {{ .cta_primary.text }}
+      </a>
+      <a href="{{ .cta_secondary.url }}" class="px-6 py-3 rounded-lg font-semibold border-2 border-gray-300 dark:border-gray-600 hover:border-purple-500 transition-colors">
+        {{ .cta_secondary.text }}
+      </a>
+    </div>
+    {{- end }}
+
+    <div class="flex justify-center gap-6">
+      {{- partial "social_icons.html" site.Params.socialIcons -}}
+    </div>
   </div>
+</section>
 
-  <h1 class="construction-title">Under Construction</h1>
-
-  <p class="construction-subtitle">
-    Something new is brewing. I'm rebuilding this space to be better, faster, and more interesting.
-  </p>
-
-  <div class="progress-bar">
-    <div class="progress-fill"></div>
+<!-- METRICS SECTION -->
+{{- if site.Params.sections.showMetrics }}
+<section id="metrics" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-4xl mx-auto px-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      {{- range site.Data.metrics.metrics }}
+      <div>
+        <div class="metric-value">{{ .value }}</div>
+        <div class="metric-label">{{ .label }}</div>
+      </div>
+      {{- end }}
+    </div>
   </div>
+</section>
+{{- end }}
 
-  <div class="status-badge">
-    ETA: Soon™
+<!-- PROJECTS SECTION -->
+{{- if site.Params.sections.showProjects }}
+<section id="projects" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-5xl mx-auto px-4">
+    <h2 class="section-title mb-8 text-center">Things I've Built</h2>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      {{- range site.Data.projects.featured }}
+      <div class="project-card p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="flex items-start justify-between mb-3">
+          <h3 class="text-xl font-bold" style="font-family: 'Futura Now Headline'">{{ .name }}</h3>
+          <span class="status-badge status-{{ .status }}">
+            {{- if eq .status "live" }}Live{{- end }}
+            {{- if eq .status "beta" }}Beta{{- end }}
+            {{- if eq .status "oss" }}Open Source{{- end }}
+          </span>
+        </div>
+
+        <p class="text-sm opacity-70 mb-3" style="font-family: 'Dank Mono'">{{ .tagline }}</p>
+        <p class="mb-4">{{ .description }}</p>
+
+        {{- with .metrics }}
+        <div class="mb-4">
+          {{- range . }}
+          <span class="text-sm font-semibold" style="color: #667eea;">{{ .value }}</span>
+          <span class="text-sm opacity-60"> {{ .label }}</span>
+          {{- end }}
+        </div>
+        {{- end }}
+
+        <div class="flex flex-wrap gap-2">
+          {{- range .technologies }}
+          <span class="tech-tag bg-gray-100 dark:bg-gray-700">{{ . }}</span>
+          {{- end }}
+        </div>
+      </div>
+      {{- end }}
+    </div>
+
+    <div class="text-center mt-8">
+      <a href="/projects/" class="text-purple-600 dark:text-purple-400 hover:underline" style="font-family: 'Dank Mono'">
+        View All Projects →
+      </a>
+    </div>
   </div>
+</section>
+{{- end }}
 
-  <section id="social-media" class="flex justify-center">
-    {{- partial "social_icons.html" site.Params.socialIcons -}}
-  </section>
-</div>
+<!-- RECOGNITION / MEDIA SECTION -->
+{{- if site.Params.sections.showRecognition }}
+<section id="recognition" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-4xl mx-auto px-4">
+    <h2 class="section-title mb-8 text-center">Featured In</h2>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      {{- range site.Data.recognition.media }}
+      <a href="{{ .url }}" target="_blank" class="block p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-500 transition-colors text-center">
+        <div class="text-2xl mb-2">
+          {{- if eq .type "article" }}📰{{- end }}
+          {{- if eq .type "podcast" }}🎙️{{- end }}
+          {{- if eq .type "video" }}🎬{{- end }}
+        </div>
+        <div class="font-semibold mb-1">{{ .publication }}</div>
+        <div class="text-sm opacity-70" style="font-family: 'Dank Mono'">{{ .title }}</div>
+      </a>
+      {{- end }}
+    </div>
+  </div>
+</section>
+{{- end }}
+
+<!-- EXPERIENCE SECTION -->
+{{- if site.Params.sections.showExperience }}
+<section id="experience" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-3xl mx-auto px-4">
+    <h2 class="section-title mb-8 text-center">Experience</h2>
+
+    <div class="relative">
+      {{- range $index, $position := site.Data.experience.positions }}
+      <div class="flex gap-4 mb-8 {{ if lt $index (sub (len site.Data.experience.positions) 1) }}relative{{ end }}">
+        {{- if lt $index (sub (len site.Data.experience.positions) 1) }}
+        <div class="timeline-line"></div>
+        {{- end }}
+
+        <div class="timeline-dot mt-1"></div>
+
+        <div class="flex-1">
+          <div class="flex flex-wrap items-baseline gap-2 mb-1">
+            <span class="font-bold text-lg" style="font-family: 'Futura Now Headline'">{{ .role }}</span>
+            <span class="opacity-60">at</span>
+            <span class="font-semibold">{{ .company }}</span>
+          </div>
+
+          <div class="text-sm opacity-60 mb-3" style="font-family: 'Dank Mono'">
+            {{ .period }}{{ with .location }} · {{ . }}{{ end }}
+          </div>
+
+          {{- with .highlights }}
+          <ul class="list-disc list-inside mb-3 space-y-1">
+            {{- range . }}
+            <li class="text-sm">{{ . }}</li>
+            {{- end }}
+          </ul>
+          {{- end }}
+
+          {{- with .technologies }}
+          <div class="flex flex-wrap gap-2">
+            {{- range . }}
+            <span class="tech-tag bg-gray-100 dark:bg-gray-700 text-xs">{{ . }}</span>
+            {{- end }}
+          </div>
+          {{- end }}
+        </div>
+      </div>
+      {{- end }}
+    </div>
+  </div>
+</section>
+{{- end }}
+
+<!-- TOOLS & STACK SECTION -->
+{{- if site.Params.sections.showTools }}
+<section id="tools" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-4xl mx-auto px-4">
+    <h2 class="section-title mb-8 text-center">Tools & Stack</h2>
+
+    <div class="space-y-6">
+      {{- range site.Data.tools.categories }}
+      <div>
+        <h3 class="text-sm font-semibold uppercase tracking-wider opacity-60 mb-3" style="font-family: 'Dank Mono'">{{ .name }}</h3>
+        <div class="flex flex-wrap gap-3">
+          {{- range .tools }}
+          <span class="tool-badge px-3 py-1.5 rounded-lg border-2 tool-{{ .level }} bg-white dark:bg-gray-800">
+            {{ .name }}
+          </span>
+          {{- end }}
+        </div>
+      </div>
+      {{- end }}
+    </div>
+  </div>
+</section>
+{{- end }}
+
+<!-- ACHIEVEMENTS SECTION -->
+{{- if site.Params.sections.showAchievements }}
+<section id="achievements" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-4xl mx-auto px-4">
+    <h2 class="section-title mb-8 text-center">Achievements</h2>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      {{- range site.Data.achievements.achievements }}
+      <div class="flex items-start gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div class="text-2xl">
+          {{- if eq .icon "trophy" }}🏆{{- end }}
+          {{- if eq .icon "certificate" }}📜{{- end }}
+          {{- if eq .icon "star" }}⭐{{- end }}
+          {{- if eq .icon "mic" }}🎤{{- end }}
+        </div>
+        <div>
+          <div class="font-semibold">{{ .title }}</div>
+          <div class="text-sm opacity-60" style="font-family: 'Dank Mono'">{{ .organization }} · {{ .year }}</div>
+          <div class="text-sm mt-1">{{ .description }}</div>
+        </div>
+      </div>
+      {{- end }}
+    </div>
+  </div>
+</section>
+{{- end }}
+
+<!-- NEWSLETTER SECTION -->
+{{- if site.Params.sections.showNewsletter }}
+<section id="newsletter" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-xl mx-auto px-4 text-center">
+    <h2 class="section-title mb-2">{{ site.Params.newsletter.title }}</h2>
+    <p class="opacity-70 mb-6" style="font-family: 'Dank Mono'">{{ site.Params.newsletter.description }}</p>
+
+    <form action="{{ site.Params.newsletter.action }}" method="post" target="_blank" class="flex gap-2 max-w-md mx-auto">
+      <input
+        type="email"
+        name="EMAIL"
+        required
+        placeholder="your@email.com"
+        class="newsletter-input flex-1 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:border-purple-500"
+      >
+      <button
+        type="submit"
+        class="px-6 py-3 rounded-lg font-semibold text-white"
+        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
+      >
+        Subscribe
+      </button>
+    </form>
+  </div>
+</section>
+{{- end }}
+
+<!-- CONTACT SECTION -->
+<section id="contact" class="py-16 border-t border-gray-200 dark:border-gray-800">
+  <div class="max-w-xl mx-auto px-4 text-center">
+    <h2 class="section-title mb-6">Let's Connect</h2>
+
+    <div class="flex flex-wrap justify-center gap-4 mb-6">
+      {{- with site.Params.contact.email }}
+      <a href="mailto:{{ . }}" class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:border-purple-500 transition-colors">
+        <span>📧</span>
+        <span style="font-family: 'Dank Mono'">{{ . }}</span>
+      </a>
+      {{- end }}
+
+      {{- with site.Params.contact.calendly }}
+      <a href="{{ . }}" target="_blank" class="px-6 py-2 rounded-lg font-semibold text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        Schedule a Call
+      </a>
+      {{- end }}
+    </div>
+
+    <div class="flex justify-center gap-6">
+      {{- partial "social_icons.html" site.Params.socialIcons -}}
+    </div>
+  </div>
+</section>
 
 {{- end }}{{/* end main */}}

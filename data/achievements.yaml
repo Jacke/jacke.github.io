@@ -1,0 +1,31 @@
+# Achievements and recognition
+# Update with your actual achievements
+
+achievements:
+  - title: "Open Source Contributor"
+    icon: "star"
+    organization: "Apache Kafka"
+    year: "2023"
+    description: "Contributed performance improvements to core library"
+    url: "https://github.com/..."
+
+  - title: "Conference Speaker"
+    icon: "mic"
+    organization: "ScalaDays"
+    year: "2022"
+    description: "Keynote on Event Sourcing at Scale"
+    url: ""
+
+  - title: "AWS Solutions Architect"
+    icon: "certificate"
+    organization: "Amazon Web Services"
+    year: "2021"
+    description: "Professional certification"
+    url: ""
+
+  - title: "Hackathon Winner"
+    icon: "trophy"
+    organization: "TechCrunch Disrupt"
+    year: "2020"
+    description: "1st place in Developer Tools category"
+    url: ""

@@ -1,0 +1,63 @@
+# Featured projects for homepage
+# Update with your actual projects
+
+featured:
+  - name: "Serotonin"
+    slug: "serotonin"
+    tagline: "Terminal wizard for app configuration"
+    description: "Software wizard in terminal which can configure, install, manage your app and its components."
+    status: "beta"
+    metrics:
+      - label: "GitHub stars"
+        value: "500+"
+    technologies:
+      - "Go"
+      - "Cobra"
+      - "Viper"
+    url: "https://github.com/..."
+    featured: true
+
+  - name: "CalendBrew"
+    slug: "calendbrew"
+    tagline: "Time blocking with calendar integration"
+    description: "A tool for making time blocks integrated with your calendar. Recurrent activities, habit tracking, and accurate reports."
+    status: "live"
+    metrics:
+      - label: "Active users"
+        value: "1K+"
+    technologies:
+      - "TypeScript"
+      - "Next.js"
+      - "Supabase"
+    url: "https://calendbrew.com"
+    featured: true
+
+  - name: "Drilllist"
+    slug: "drilllist"
+    tagline: "Data sync across sources"
+    description: "Service for managing data across different sources (apps, local files), syncing state and adding interactive logic."
+    status: "beta"
+    metrics:
+      - label: "Data sources"
+        value: "20+"
+    technologies:
+      - "Scala"
+      - "Kafka"
+      - "PostgreSQL"
+    url: "https://github.com/..."
+    featured: true
+
+  - name: "Dotfiles"
+    slug: "dotfiles"
+    tagline: "Development environment toolkit"
+    description: "Fine-grained scripts, cheatsheets, and tools for development. UNIX OS preciseness."
+    status: "oss"
+    metrics:
+      - label: "GitHub stars"
+        value: "2K+"
+    technologies:
+      - "Shell"
+      - "Lua"
+      - "Python"
+    url: "https://dotfiles.download"
+    featured: true

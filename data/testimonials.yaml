@@ -1,0 +1,30 @@
+# Testimonials from mentees and colleagues
+# Update with real testimonials
+
+testimonials:
+  - author: "John Doe"
+    role: "Senior Engineer"
+    company: "Google"
+    company_logo: "/images/logos/google.svg"
+    photo: "/images/testimonials/john.jpg"
+    quote: "Stan's mentoring helped me transition from mid-level to senior in 6 months. His system design sessions were incredibly valuable."
+    linkedin: "https://linkedin.com/in/..."
+    context: "mentoring"
+
+  - author: "Jane Smith"
+    role: "Staff Engineer"
+    company: "Meta"
+    company_logo: "/images/logos/meta.svg"
+    photo: "/images/testimonials/jane.jpg"
+    quote: "The mock interviews and feedback were exactly what I needed to land my dream job."
+    linkedin: "https://linkedin.com/in/..."
+    context: "interview-prep"
+
+  - author: "Alex Chen"
+    role: "Engineering Manager"
+    company: "Stripe"
+    company_logo: "/images/logos/stripe.svg"
+    photo: "/images/testimonials/alex.jpg"
+    quote: "Working with Stan on our architecture review saved us months of potential issues."
+    linkedin: "https://linkedin.com/in/..."
+    context: "consulting"

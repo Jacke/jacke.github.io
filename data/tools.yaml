@@ -1,0 +1,55 @@
+# Tech stack organized by category
+# Update with your actual skills
+
+categories:
+  - name: "Languages"
+    tools:
+      - name: "Scala"
+        level: "expert"
+      - name: "Go"
+        level: "expert"
+      - name: "TypeScript"
+        level: "advanced"
+      - name: "Python"
+        level: "advanced"
+      - name: "Rust"
+        level: "learning"
+
+  - name: "Infrastructure"
+    tools:
+      - name: "Kubernetes"
+        level: "expert"
+      - name: "AWS"
+        level: "expert"
+      - name: "GCP"
+        level: "advanced"
+      - name: "Terraform"
+        level: "advanced"
+      - name: "Docker"
+        level: "expert"
+
+  - name: "Data & Messaging"
+    tools:
+      - name: "Kafka"
+        level: "expert"
+      - name: "PostgreSQL"
+        level: "expert"
+      - name: "Redis"
+        level: "advanced"
+      - name: "Elasticsearch"
+        level: "advanced"
+      - name: "Spark"
+        level: "advanced"
+
+  - name: "Practices"
+    tools:
+      - name: "DDD"
+        level: "expert"
+      - name: "Event Sourcing"
+        level: "expert"
+      - name: "CQRS"
+        level: "advanced"
+      - name: "Microservices"
+        level: "expert"
+      - name: "System Design"
+        level: "expert"

@@ -1,0 +1,24 @@
+# Media mentions and press coverage
+# Update with your actual media appearances
+
+media:
+  - type: "article"
+    publication: "Habr"
+    title: "How We Scaled to 10M Requests"
+    url: "https://habr.com/..."
+    date: "2023-06-15"
+    logo: "/images/logos/habr.svg"
+
+  - type: "podcast"
+    publication: "Software Engineering Daily"
+    title: "Event Sourcing in Production"
+    url: "https://..."
+    date: "2023-03-20"
+    logo: "/images/logos/sed.svg"
+
+  - type: "video"
+    publication: "YouTube"
+    title: "System Design Interview Tips"
+    url: "https://youtube.com/..."
+    date: "2022-11-10"
+    thumbnail: "/images/media/youtube-thumb.jpg"

@@ -10,7 +10,37 @@ pluralizelisttitles: false
 googleAnalytics: G-HF3EGN90FY
 
 disqusShortname: iamjacke-com
+
 params:
+  # SEO & Meta
+  description: "Staff Engineer specializing in distributed systems, system design, and engineering mentorship. Helping engineers reach Staff+ level."
+  keywords:
+    - "software engineer"
+    - "system design"
+    - "distributed systems"
+    - "mentoring"
+    - "staff engineer"
+    - "scala"
+    - "go"
+    - "kubernetes"
+  author: "Stan Sobolev"
+
+  # Profile
+  profileImage: "/images/profile.jpg"
+
+  # Hero Section
+  hero:
+    title: "Stan Sobolev"
+    subtitle: "Staff Engineer | System Architect | Mentor"
+    tagline: "Scaled distributed systems to 10M+ requests/day. Now helping engineers reach Staff+ level."
+    cta_primary:
+      text: "View My Work"
+      url: "#projects"
+    cta_secondary:
+      text: "Work With Me"
+      url: "/mentoring/"
+
+  # Social Icons
   socialIcons:
     - name: "Github"
       url: "https://github.com/Jacke"
@@ -18,6 +48,32 @@ params:
       url: "https://www.linkedin.com/in/jacke1/"
     - name: "Twitter"
       url: "https://twitter.com/stanthoughts"
+
+  # Contact
+  contact:
+    email: "stan@iamjacke.com"
+    calendly: "https://calendly.com/stansobolev"
+
+  # Newsletter (Mailchimp)
+  newsletter:
+    enabled: true
+    title: "Get weekly insights"
+    description: "System design tips and career growth strategies"
+    action: "https://gmail.us13.list-manage.com/subscribe/post?u=9d9c000a90c3c897b7fe060d7&id=a57aae69b6&f_id=0024c2e2f0"
+
+  # Section visibility
+  sections:
+    showMetrics: true
+    showProjects: true
+    showExperience: true
+    showRecognition: true
+    showSpeaking: true
+    showTools: true
+    showAchievements: true
+    showArticles: true
+    showNewsletter: true
+
+  # Theme settings
   disableAnchoredHeadings: true
   assets:
     favicon: ./favicon/favicon.ico
@@ -25,5 +81,24 @@ params:
     favicon32x32: ./favicon/favicon-32x32.png
     apple_touch_icon: ./favicon/apple-touch-icon.png
     safari_pinned_tab: ./favicon/safari-pinned-tab.svg
+
 minify:
   disableXML: true
+
+menu:
+  main:
+    - name: Projects
+      url: /projects/
+      weight: 10
+    - name: Articles
+      url: /articles/
+      weight: 20
+    - name: Speaking
+      url: /speaking/
+      weight: 30
+    - name: Mentoring
+      url: /mentoring/
+      weight: 40
+    - name: About
+      url: /about/
+      weight: 50

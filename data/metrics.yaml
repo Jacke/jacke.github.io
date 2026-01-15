@@ -1,0 +1,19 @@
+# Key metrics for hero section
+# Update these with your actual numbers
+
+metrics:
+  - value: "10M+"
+    label: "requests/day"
+    description: "Peak traffic handled"
+
+  - value: "15+"
+    label: "years"
+    description: "Engineering experience"
+
+  - value: "50+"
+    label: "engineers mentored"
+    description: "Career transitions supported"
+
+  - value: "5K+"
+    label: "GitHub stars"
+    description: "Open source contributions"
