@@ -78,7 +78,7 @@
 
 <!-- tailwind css -->
 {{ $styles := resources.Get "css/main.css" }} {{ $styles = $styles |
-    css.PostCSS }} {{ if hugo.IsProduction }} {{- with $styles -}}
+    resources.PostCSS }} {{ if hugo.IsProduction }} {{- with $styles -}}
     <style>
       {{- .Content | safeCSS -}}
     </style>
