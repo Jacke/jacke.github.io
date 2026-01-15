@@ -1,73 +1,134 @@
 {{- define "main" }}
 
-<div class="text-box">
-  <span class="ani-text">Hi! My name is Stan</span>
-  <span class="ani-text2">I'm here to <color id="act-text"></color></span>
-</div>
-<section
-  id="code-demo"
-  class="relative py-8"
->
-<div class="code-demo-mouse-icon w-3.5 absolute right-7	top-10">
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zm-7.518-.267A8.25 8.25 0 1120.25 10.5M8.288 14.212A5.25 5.25 0 1117.25 10.5" />
-  </svg>
-</div>
-<div class="transition duration-300 blurr"></div>
-</section>
+<style>
+  .construction-container {
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+  }
 
-<section id="social-media" class="flex justify-center mt-12 mb-0 m-7">
-  {{- partial "social_icons.html" site.Params.socialIcons -}}
-</section>
+  .construction-icon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+    animation: float 3s ease-in-out infinite;
+  }
 
-<section class="flex justify-between front-bottom-list to-out">
-  <div id="front-recent-posts" class="w-64 front-list">
-    <h3 class="py-4 text-2xl"><a href="/blog">Posts</a></h3>
-    <ul class="leading-normal list-none">
-      {{- $pages := union .RegularPages .Sections }}
-      {{- if .IsHome }}
-      {{- $pages = where site.RegularPages "Type" "=" "blog" }}
-      {{- $pages = where $pages "Params.hiddenInHomeList" "!=" "true"  }}
-      {{- end }}
-      {{- $paginator := .Paginate $pages }}
-      {{- $pages := where site.RegularPages "Section" "=" "blog" }}
-      {{ range last 5 $pages }}
-      <li class="m-3 mt-0 ml-0 blog-post-entry">
-          <a aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}">{{- .Title }}</a>
-      </li>
-      {{- end }}
-    </ul>
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .construction-title {
+    font-family: 'Futura Now Headline', sans-serif;
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .construction-subtitle {
+    font-family: 'Dank Mono', monospace;
+    font-size: 1.25rem;
+    opacity: 0.8;
+    max-width: 500px;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+  }
+
+  .progress-bar {
+    width: 300px;
+    height: 6px;
+    background: rgba(128, 128, 128, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 2.5rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 42%;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 3px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .status-badge {
+    font-family: 'Dank Mono', monospace;
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    background: rgba(102, 126, 234, 0.1);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 2rem;
+    margin-bottom: 3rem;
+  }
+
+  .dark .status-badge {
+    background: rgba(102, 126, 234, 0.15);
+  }
+
+  @media screen and (max-width: 600px) {
+    .construction-title {
+      font-size: 2rem;
+    }
+    .construction-subtitle {
+      font-size: 1rem;
+    }
+    .progress-bar {
+      width: 250px;
+    }
+  }
+</style>
+
+<div class="construction-container">
+  <div class="construction-icon">
+    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <defs>
+        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#667eea" />
+          <stop offset="100%" style="stop-color:#764ba2" />
+        </linearGradient>
+      </defs>
+      <path d="M12 3v1m0 16v1m-9-9h1m16 0h1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707"/>
+      <circle cx="12" cy="12" r="4"/>
+    </svg>
   </div>
-  <div id="front-changelog" class="w-64 front-list">
-    <h3 class="py-4 text-2xl"><a href="/changelog">Changelog</a></h3>
-    <ul class="leading-normal list-none">
-      {{- $changelogs := where site.RegularPages "Section" "=" "changelog" }}
-      {{ range last 3 $changelogs }}
-        <li class="m-3 mt-0 ml-0 changelog-entry">
-          <a class="changelog-link" aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}">{{- .Title }}</a>
-        {{- if (ne (.Param "hideSummary") true) }}
-        <div class="changelog-summary text-s">
-          <p>{{ .Summary | plainify | htmlUnescape | truncate 42 }}{{ if .Truncated }}...{{ end }}</p>
-        </div>
-        <div class="text-xs changelog-tags">
-        {{ range (.GetTerms "tags") }}
-            <a href="{{ .Permalink }}" class="text-teal-400 changelog-tag">{{ .LinkTitle }}</a>
-        {{ end }}
-        </div>
-        {{- end }}
-      </li>
-      {{- end }}
-    </ul>
+
+  <h1 class="construction-title">Under Construction</h1>
+
+  <p class="construction-subtitle">
+    Something new is brewing. I'm rebuilding this space to be better, faster, and more interesting.
+  </p>
+
+  <div class="progress-bar">
+    <div class="progress-fill"></div>
   </div>
-</section>
+
+  <div class="status-badge">
+    ETA: Soon™
+  </div>
+
+  <section id="social-media" class="flex justify-center mb-8">
+    {{- partial "social_icons.html" site.Params.socialIcons -}}
+  </section>
+</div>
 
 <section
   id="subscribe"
-  class="flex flex-col items-center justify-center pt-8 text-center to-out"
+  class="flex flex-col items-center justify-center pt-8 text-center"
 >
   <div class="max-w-md m-4 subscribe-announcement">
-    <h2 class="text-2xl font-bold">Subscribe</h2>
-    <p>to monthly newsletter</p>
+    <h2 class="text-xl font-bold" style="font-family: 'Futura Now Headline'">Get notified when it's ready</h2>
   </div>
   <div class="max-w-md">
     <div id="mce-responses" class="clear foot">
@@ -79,11 +140,12 @@
         <input
           class="p-4 mr-0 text-gray-800 bg-white border-t border-b border-l border-gray-200 rounded-l-lg"
           type="email" value="" name="EMAIL" id="mce-EMAIL" required
-          placeholder="john@doe.com"
+          placeholder="your@email.com"
         />
-        <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="p-4 px-8 font-bold text-white uppercase bg-yellow-400 border-t border-b border-r border-yellow-500 rounded-r-lg themable-button">
+        <input type="submit" value="Notify me" name="subscribe" id="mc-embedded-subscribe" class="p-4 px-8 font-bold text-white uppercase border-t border-b border-r rounded-r-lg themable-button" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-color: #764ba2;">
       </form>
     </div>
   </div>
 </section>
+
 {{- end }}{{/* end main */}}

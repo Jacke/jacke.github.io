@@ -30,12 +30,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      HUGO_VERSION: 0.101.0
+      HUGO_VERSION: 0.154.0
       HUGO_ENV: production
     steps:
       - name: Install Hugo CLI
         run: |
-          wget -O ${{ runner.temp }}/hugo.deb https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_Linux-64bit.deb \
+          wget -O ${{ runner.temp }}/hugo.deb https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb \
           && sudo dpkg -i ${{ runner.temp }}/hugo.deb
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,8 +43,8 @@ jobs:
           submodules: recursive
       - name: Fetch npm packages
         run: |
-          npm install &&
-          npm run prod:twcss
+          npm install
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
