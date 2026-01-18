@@ -85,20 +85,21 @@ params:
 minify:
   disableXML: true
 
-menu:
-  main:
-    - name: Projects
-      url: /projects/
-      weight: 10
-    - name: Articles
-      url: /articles/
-      weight: 20
-    - name: Speaking
-      url: /speaking/
-      weight: 30
-    - name: Mentoring
-      url: /mentoring/
-      weight: 40
-    - name: About
-      url: /about/
-      weight: 50
+# Menu disabled during maintenance
+# menu:
+#   main:
+#     - name: Projects
+#       url: /projects/
+#       weight: 10
+#     - name: Articles
+#       url: /articles/
+#       weight: 20
+#     - name: Speaking
+#       url: /speaking/
+#       weight: 30
+#     - name: Mentoring
+#       url: /mentoring/
+#       weight: 40
+#     - name: About
+#       url: /about/
+#       weight: 50
