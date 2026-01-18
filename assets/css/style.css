@@ -1239,7 +1239,7 @@ input#mc-embedded-subscribe,
 }
 
 .logo-switches {
-  margin-top: 23px;
+  /* margin-top: 23px; removed to fix button positioning */
 }
 
 nav.nav .logo a {
