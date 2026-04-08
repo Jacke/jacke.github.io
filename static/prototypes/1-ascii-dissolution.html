@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stan Sobolev — Portfolio</title>
+  <style>
+    @font-face {
+      font-family: 'Futura Now Headline';
+      src: url('../fonts/FuturaNowHeadline-Bd.woff2') format('woff2');
+      font-weight: bold;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Futura New Book';
+      src: url('../fonts/FuturaNewBook-Reg.woff2') format('woff2');
+      font-weight: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Dank Mono';
+      src: url('../fonts/DankMono-Regular.woff2') format('woff2');
+      font-weight: normal;
+      font-display: swap;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: #0d0a07;
+      color: #d8cec3;
+      font-family: 'Futura New Book', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ─── Hero ──────────────────────────────────────────────── */
+    #hero-canvas {
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 5; pointer-events: none;
+    }
+    #cursor-canvas {
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 4; pointer-events: none;
+    }
+    #hero-glow {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80vw; height: 45vh;
+      background: radial-gradient(ellipse at center,
+        rgba(149,95,59,0.14) 0%, rgba(149,95,59,0.05) 40%, transparent 70%);
+      z-index: 3; pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    /* ─── Scroll ────────────────────────────────────────────── */
+    #scroll-spacer { height: 120vh; position: relative; z-index: 2; pointer-events: none; }
+    #scroll-hint {
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+      z-index: 10; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: #6d645d; pointer-events: none;
+      animation: pulse-hint 2.4s ease-in-out infinite;
+      transition: opacity 0.5s ease;
+    }
+    @keyframes pulse-hint { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+    /* ─── Editorial ─────────────────────────────────────────── */
+    #editorial { position: relative; z-index: 1; background: #fffdf8; color: #201b18; }
+    .editorial-inner { max-width: 1080px; margin: 0 auto; padding: 80px 40px 120px; }
+
+    /* Scroll reveal */
+    .reveal {
+      opacity: 0; transform: translateY(28px);
+      transition: opacity 0.75s cubic-bezier(0.16,1,0.3,1), transform 0.75s cubic-bezier(0.16,1,0.3,1);
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* Lead statement */
+    .lead-statement {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: clamp(28px, 3.5vw, 48px); color: #201b18;
+      line-height: 1.25; letter-spacing: -0.015em;
+      max-width: 780px; margin: 0 auto 32px;
+      text-align: center;
+    }
+    .lead-accent { color: #955f3b; }
+    .lead-sub {
+      font-family: 'Futura New Book', sans-serif; font-weight: normal;
+      font-size: 16px; color: #6d645d; line-height: 1.7;
+      max-width: 540px; margin: 0 auto 0; text-align: center;
+      letter-spacing: 0.01em;
+    }
+
+    /* Section divider */
+    .section-divider {
+      height: 1px; max-width: 200px; margin: 64px auto;
+      background: linear-gradient(90deg, transparent, #d8cec3, transparent);
+    }
+
+    /* About fallback (hidden when pretext active) */
+    .about-text {
+      font-size: 17px; line-height: 1.75; color: #6d645d;
+      max-width: 640px; margin: 0 auto; text-align: center;
+    }
+
+    /* Stats */
+    .stats-section {
+      display: flex; justify-content: center; gap: 72px;
+      margin-bottom: 0; flex-wrap: wrap;
+    }
+    .stat-item { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+    .stat-number {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: clamp(40px,5vw,60px); color: #955f3b;
+      letter-spacing: -0.02em; line-height: 1;
+    }
+    .stat-label {
+      font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #6d645d;
+    }
+
+    /* Projects */
+    .projects-heading {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: #955f3b; margin-bottom: 28px;
+    }
+    .projects-grid {
+      display: grid; grid-template-columns: repeat(3,1fr);
+      gap: 24px; margin-bottom: 80px;
+    }
+    .project-card {
+      background: #f4f1ea; border-radius: 18px; padding: 36px 32px;
+      box-shadow: 0 18px 40px rgb(54 40 23 / 0.08);
+      transition: transform 0.28s cubic-bezier(0.22,1,0.36,1),
+                  box-shadow 0.28s cubic-bezier(0.22,1,0.36,1);
+      cursor: default; position: relative; overflow: hidden;
+    }
+    .project-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, transparent, #955f3b, transparent);
+      opacity: 0; transition: opacity 0.3s ease;
+    }
+    .project-card:hover { transform: translateY(-6px); box-shadow: 0 28px 60px rgb(54 40 23 / 0.14); }
+    .project-card:hover::before { opacity: 1; }
+    .project-tag {
+      font-family: 'Dank Mono', monospace; font-size: 11px;
+      letter-spacing: 0.1em; color: #955f3b; margin-bottom: 14px; opacity: 0.8;
+    }
+    .project-title {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: 20px; color: #201b18; line-height: 1.25; margin-bottom: 12px;
+    }
+    .project-desc { font-size: 14px; line-height: 1.65; color: #6d645d; }
+
+    /* Tech pills */
+    .tech-pills {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      justify-content: center; margin: 40px auto 0;
+      max-width: 640px;
+    }
+    .tech-pill {
+      font-family: 'Dank Mono', monospace; font-size: 12px;
+      color: #955f3b; letter-spacing: 0.06em;
+      padding: 6px 16px; border-radius: 100px;
+      border: 1px solid rgba(149,95,59,0.2);
+      background: rgba(149,95,59,0.04);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .tech-pill:hover {
+      background: rgba(149,95,59,0.1);
+      border-color: rgba(149,95,59,0.4);
+    }
+
+    /* Bio flow container */
+    #bio-flow-wrap {
+      max-width: 640px; margin: 0 auto;
+    }
+
+    /* CTA + Social */
+    .cta-section { text-align: center; }
+    .cta-heading {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: clamp(24px, 3vw, 40px); color: #201b18;
+      margin-bottom: 24px; letter-spacing: -0.01em;
+    }
+    .social-links {
+      display: flex; gap: 28px; flex-wrap: wrap; justify-content: center;
+    }
+    .social-link {
+      font-family: 'Futura New Book', sans-serif;
+      font-size: 15px; color: #955f3b; text-decoration: none;
+      letter-spacing: 0.04em; position: relative;
+      padding: 8px 0;
+    }
+    .social-link::after {
+      content: ''; position: absolute; bottom: 6px; left: 0;
+      width: 0; height: 1.5px; background: #955f3b; transition: width 0.24s ease;
+    }
+    .social-link:hover::after { width: 100%; }
+
+    /* ─── Mobile ────────────────────────────────────────────── */
+    #mobile-hero {
+      display: none; background: #0d0a07; min-height: 60vh;
+      align-items: center; justify-content: center; flex-direction: column;
+      gap: 20px; padding: 60px 32px; text-align: center;
+    }
+    .mobile-name {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: clamp(36px,10vw,56px); color: #d8cec3;
+      letter-spacing: -0.01em; line-height: 1.1;
+    }
+    .mobile-title { font-size: 15px; color: #6d645d; letter-spacing: 0.1em; }
+
+    @media (max-width: 768px) {
+      #hero-canvas, #cursor-canvas, #hero-glow, #scroll-spacer, #scroll-hint { display: none !important; }
+      #mobile-hero { display: flex; }
+      .projects-grid { grid-template-columns: 1fr; }
+      .editorial-inner { padding: 60px 24px 80px; }
+      .stats-section { gap: 40px; }
+      .lead-statement { font-size: clamp(24px, 6vw, 36px); }
+    }
+    @media (max-width: 900px) and (min-width: 769px) {
+      .projects-grid { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="cursor-canvas"></canvas>
+  <div id="hero-glow"></div>
+  <canvas id="hero-canvas"></canvas>
+  <div id="scroll-spacer"></div>
+  <div id="scroll-hint">&#x2193;&nbsp; scroll to explore</div>
+
+  <div id="mobile-hero">
+    <div class="mobile-name">Stan Sobolev</div>
+    <div class="mobile-title">Staff Engineer &nbsp;|&nbsp; System Architect &nbsp;|&nbsp; Mentor</div>
+  </div>
+
+  <section id="editorial">
+    <div class="editorial-inner">
+
+      <!-- Lead statement -->
+      <h1 class="lead-statement reveal">
+        I build systems that carry products from prototype to <span class="lead-accent">planetary scale</span>.
+      </h1>
+      <p class="lead-sub reveal reveal-delay-1">
+        Fifteen years of distributed infrastructure, engineering leadership,
+        and a deep belief that great systems empower great teams.
+      </p>
+
+      <div class="section-divider reveal"></div>
+
+      <!-- Pretext bio: character cascade reveal on canvas -->
+      <p class="about-text reveal" id="about-fallback">
+        Stan Sobolev is a Staff Engineer and System Architect specializing
+        in distributed systems that handle millions of requests daily.
+        With over fifteen years building scalable platforms, he has designed
+        event-driven architectures, led engineering teams, and mentored
+        dozens of engineers on their path to Staff+ level.
+      </p>
+      <div id="bio-flow-wrap" style="display:none;"></div>
+
+      <!-- Tech stack pills -->
+      <div class="tech-pills reveal" id="tech-pills">
+        <span class="tech-pill">Scala</span>
+        <span class="tech-pill">Go</span>
+        <span class="tech-pill">Kubernetes</span>
+        <span class="tech-pill">Kafka</span>
+        <span class="tech-pill">PostgreSQL</span>
+        <span class="tech-pill">System Design</span>
+        <span class="tech-pill">Event-Driven</span>
+      </div>
+
+      <div class="section-divider reveal"></div>
+
+      <!-- Stats -->
+      <div class="stats-section reveal">
+        <div class="stat-item">
+          <span class="stat-number" data-target="10" data-suffix="M+">0</span>
+          <span class="stat-label">Requests per day</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" data-target="15" data-suffix="+">0</span>
+          <span class="stat-label">Years in production</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" data-target="20" data-suffix="+">0</span>
+          <span class="stat-label">Engineers mentored</span>
+        </div>
+      </div>
+
+      <div class="section-divider reveal"></div>
+
+      <!-- Projects -->
+      <p class="projects-heading reveal">Selected work</p>
+      <div class="projects-grid">
+        <div class="project-card reveal reveal-delay-1">
+          <div class="project-tag">// INFRASTRUCTURE</div>
+          <div class="project-title">Distributed Systems</div>
+          <p class="project-desc">
+            Multi-region event-driven architectures handling millions of daily
+            transactions with sub-50ms p99 latency at steady state.
+          </p>
+        </div>
+        <div class="project-card reveal reveal-delay-2">
+          <div class="project-tag">// LEADERSHIP</div>
+          <div class="project-title">Engineering Mentorship</div>
+          <p class="project-desc">
+            Structured mentorship that moved engineers from mid to staff level —
+            pairing technical coaching with career navigation.
+          </p>
+        </div>
+        <div class="project-card reveal reveal-delay-3">
+          <div class="project-tag">// PLATFORM</div>
+          <div class="project-title">Platform Architecture</div>
+          <p class="project-desc">
+            Consolidated fragmented services into coherent internal platforms,
+            reducing time-to-production from weeks to days.
+          </p>
+        </div>
+      </div>
+
+      <div class="section-divider reveal"></div>
+
+      <!-- CTA + Social -->
+      <div class="cta-section reveal">
+        <h2 class="cta-heading">Let's build something.</h2>
+        <div class="social-links">
+          <a href="https://github.com/Jacke" class="social-link" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://www.linkedin.com/in/jacke1/" class="social-link" target="_blank" rel="noopener">LinkedIn</a>
+          <a href="https://twitter.com/stanthoughts" class="social-link" target="_blank" rel="noopener">Twitter</a>
+          <a href="mailto:stan@iamjacke.com" class="social-link">stan@iamjacke.com</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <script type="module">
+  (async function () {
+    'use strict';
+
+    // ── Import pretext ──────────────────────────────────────────────────────
+    let pt = {};
+    try {
+      pt = await import('https://esm.sh/@chenglou/pretext@0.0.4');
+      console.log('✓ Pretext loaded:', Object.keys(pt).join(', '));
+    } catch (e) {
+      console.warn('Pretext unavailable, using fallback:', e.message);
+    }
+
+    // ── Constants ──────────────────────────────────────────────────────────
+
+    // Entrance
+    const ENTRANCE_MS = 1600;
+
+    // Subtitle
+    const SUBTITLE_TEXT = 'Staff Engineer  |  System Architect  |  Mentor';
+
+    // Cursor glow
+    const CURSOR_GLOW_R = 120;
+
+    // Flow field
+    const FLOW_CELL    = 36;      // grid cell size px (larger = fewer cells = less CPU)
+    const NOISE_SCALE  = 0.0022;  // spatial frequency of Perlin noise
+    const NOISE_SPEED  = 0.00022; // temporal speed of noise evolution
+    const TEXT_MASK_SCALE = 4;    // offscreen canvas divisor (4 = clear text rendering)
+    const TEXT_ATTRACT  = 6.0;     // how strongly text captures strokes (slows + attracts)
+    const MOUSE_DIST_R = 200;     // mouse distortion radius px
+    const MOUSE_DIST_F = 0.55;    // mouse distortion strength
+
+    // Stroke groups: [back, mid, front]
+    const STROKE_COUNT  = 14000;
+    const STROKE_GROUPS = [
+      { frac: 0.45, speed: [0.55, 1.1],  len: [4, 9],   alpha: 0.22, color: '#c8a882', width: 0.7 },
+      { frac: 0.38, speed: [0.9,  1.8],  len: [7, 14],  alpha: 0.30, color: '#b8946a', width: 1.0 },
+      { frac: 0.17, speed: [1.5,  2.8],  len: [11, 20], alpha: 0.40, color: '#955f3b', width: 1.4 },
+    ];
+
+    // ── State ──────────────────────────────────────────────────────────────
+    const canvas = document.getElementById('hero-canvas');
+    const ctx    = canvas.getContext('2d');
+    const cursorCanvas = document.getElementById('cursor-canvas');
+    const cursorCtx    = cursorCanvas.getContext('2d');
+    const glow = document.getElementById('hero-glow');
+    const hint = document.getElementById('scroll-hint');
+    const editorial = document.getElementById('editorial');
+
+    let W = 0, H = 0;
+    let mouse = { x: -9999, y: -9999 };
+    let dissolve = 0;       // smoothed (used for visuals)
+    let dissolveTarget = 0; // raw from scroll (used for canvas opacity)
+    let startTime = 0;
+    let entranceProgress = 0;
+    let entranceDone = false;
+    let lastInteractionTime = 0;
+    let editorialUnlocked = false;
+    let smoothMouseX = 0, smoothMouseY = 0;
+    // Flow field state
+    let flowCols = 0, flowRows = 0, flowAngles = null, flowCos = null, flowSin = null;
+    let flowFrame = 0; // throttle: update flow every 3 frames
+    let strokes = [];      // flow strokes (decorative, repelled from text)
+    let textStrokes = [];  // text-forming strokes (fly in, anchor, wiggle with flow, rain on scroll)
+    // Text mask state
+    let maskW = 0, maskH = 0;
+    let textProx = null, textGradX = null, textGradY = null;
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+    function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+
+    function hslStr(h, s, l, a) {
+      return 'hsla(' + h + ',' + s + '%,' + l + '%,' + a + ')';
+    }
+
+    // ── Classic 2D Perlin noise ──────────────────────────────────────────────
+    var _perm = (function() {
+      var p = [];
+      for (var i = 0; i < 256; i++) p[i] = i;
+      for (var i = 255; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+      }
+      var out = new Uint8Array(512);
+      for (var i = 0; i < 512; i++) out[i] = p[i & 255];
+      return out;
+    })();
+
+    function _grad2(hash, x, y) {
+      var h = hash & 7;
+      var u = h < 4 ? x : y;
+      var v = h < 4 ? y : x;
+      return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+    }
+
+    function _fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+
+    function noise2D(x, y) {
+      var xi = Math.floor(x) & 255, yi = Math.floor(y) & 255;
+      var xf = x - Math.floor(x), yf = y - Math.floor(y);
+      var u = _fade(xf), v = _fade(yf);
+      var aa = _perm[_perm[xi]   + yi], ab = _perm[_perm[xi]   + yi + 1];
+      var ba = _perm[_perm[xi+1] + yi], bb = _perm[_perm[xi+1] + yi + 1];
+      return lerp(
+        lerp(_grad2(aa, xf,   yf),   _grad2(ba, xf-1, yf),   u),
+        lerp(_grad2(ab, xf,   yf-1), _grad2(bb, xf-1, yf-1), u),
+        v
+      );
+    }
+
+    // ── Text proximity mask ──────────────────────────────────────────────────
+    function createTextField() {
+      maskW = Math.ceil(W / TEXT_MASK_SCALE);
+      maskH = Math.ceil(H / TEXT_MASK_SCALE);
+      var oc = document.createElement('canvas');
+      oc.width = maskW; oc.height = maskH;
+      var ox = oc.getContext('2d');
+      ox.fillStyle = '#000'; ox.fillRect(0, 0, maskW, maskH);
+      var fs = Math.max(50, Math.min(160, Math.floor(W * 0.13))) / TEXT_MASK_SCALE;
+      ox.font = 'bold ' + fs + "px 'Futura Now Headline', Impact, sans-serif";
+      ox.textAlign = 'center'; ox.textBaseline = 'middle'; ox.fillStyle = '#fff';
+      if (ox.measureText('STAN SOBOLEV').width > maskW * 0.92) {
+        var lf = Math.max(40, Math.floor(W * 0.11)) / TEXT_MASK_SCALE;
+        ox.font = 'bold ' + lf + "px 'Futura Now Headline', Impact, sans-serif";
+        ox.fillText('STAN', maskW / 2, maskH * 0.4);
+        ox.fillText('SOBOLEV', maskW / 2, maskH * 0.55);
+      } else {
+        ox.fillText('STAN SOBOLEV', maskW / 2, maskH * 0.46);
+      }
+      var data = ox.getImageData(0, 0, maskW, maskH).data;
+      textProx = new Float32Array(maskW * maskH);
+      for (var i = 0; i < maskW * maskH; i++) textProx[i] = data[i * 4] / 255;
+      // Blur passes for smoother gradient
+      for (var pass = 0; pass < 14; pass++) {
+        var tmp = new Float32Array(textProx.length);
+        for (var y = 0; y < maskH; y++) {
+          for (var x = 0; x < maskW; x++) {
+            var s = 0, c = 0;
+            for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+              var nx = x + dx, ny = y + dy;
+              if (nx >= 0 && nx < maskW && ny >= 0 && ny < maskH) { s += textProx[ny * maskW + nx]; c++; }
+            }
+            tmp[y * maskW + x] = s / c;
+          }
+        }
+        textProx = tmp;
+      }
+      // Compute gradient
+      textGradX = new Float32Array(maskW * maskH);
+      textGradY = new Float32Array(maskW * maskH);
+      for (var gy = 1; gy < maskH - 1; gy++) for (var gx = 1; gx < maskW - 1; gx++) {
+        textGradX[gy * maskW + gx] = textProx[gy * maskW + gx + 1] - textProx[gy * maskW + gx - 1];
+        textGradY[gy * maskW + gx] = textProx[(gy + 1) * maskW + gx] - textProx[(gy - 1) * maskW + gx];
+      }
+    }
+
+    // ── Flow field grid ──────────────────────────────────────────────────────
+    function initFlowGrid() {
+      flowCols = Math.ceil(W / FLOW_CELL) + 1;
+      flowRows = Math.ceil(H / FLOW_CELL) + 1;
+      var n = flowCols * flowRows;
+      flowAngles = new Float32Array(n);
+      flowCos = new Float32Array(n);
+      flowSin = new Float32Array(n);
+    }
+
+    function updateFlowField(t) {
+      for (var r = 0; r < flowRows; r++) for (var c = 0; c < flowCols; c++) {
+        var x = c * FLOW_CELL, y = r * FLOW_CELL;
+        var n1 = noise2D(x * NOISE_SCALE + t, y * NOISE_SCALE + t * 0.7);
+        var n2 = noise2D(x * NOISE_SCALE * 2 + 100 + t * 1.3, y * NOISE_SCALE * 2 + 100 + t * 0.9);
+        var angle = (n1 + n2 * 0.5) * Math.PI * 3;
+        // Text attraction: strokes converge + slow down near letters
+        if (textProx) {
+          var mx = Math.min(maskW - 1, Math.max(0, Math.round(x / TEXT_MASK_SCALE)));
+          var my = Math.min(maskH - 1, Math.max(0, Math.round(y / TEXT_MASK_SCALE)));
+          var prox = textProx[my * maskW + mx];
+          if (prox > 0.01) {
+            var gx2 = textGradX[my * maskW + mx];
+            var gy2 = textGradY[my * maskW + mx];
+            var glen = Math.sqrt(gx2 * gx2 + gy2 * gy2) || 0.001;
+            // REPEL: flow strokes push AWAY from text (negative space around letters)
+            var repAngle = Math.atan2(-gy2 / glen, -gx2 / glen);
+            var inf = Math.min(1, prox * TEXT_ATTRACT) * Math.max(0, 1 - dissolve * 2.5);
+            var bx = Math.cos(angle) * (1 - inf) + Math.cos(repAngle) * inf;
+            var by = Math.sin(angle) * (1 - inf) + Math.sin(repAngle) * inf;
+            angle = Math.atan2(by, bx);
+          }
+        }
+        // Mouse distortion
+        if (mouse.x > -999) {
+          var dx = x - mouse.x, dy = y - mouse.y;
+          var d = Math.sqrt(dx * dx + dy * dy);
+          if (d < MOUSE_DIST_R && d > 1) {
+            var mAngle = Math.atan2(dy, dx);
+            var mInf = (1 - d / MOUSE_DIST_R) * (1 - d / MOUSE_DIST_R) * MOUSE_DIST_F;
+            var bx2 = Math.cos(angle) * (1 - mInf) + Math.cos(mAngle) * mInf;
+            var by2 = Math.sin(angle) * (1 - mInf) + Math.sin(mAngle) * mInf;
+            angle = Math.atan2(by2, bx2);
+          }
+        }
+        // Scroll: blend toward downward (rain)
+        if (dissolve > 0.01) {
+          var downA = Math.PI * 0.5;
+          var bx3 = Math.cos(angle) * (1 - dissolve) + Math.cos(downA) * dissolve;
+          var by3 = Math.sin(angle) * (1 - dissolve) + Math.sin(downA) * dissolve;
+          angle = Math.atan2(by3, bx3);
+        }
+        var idx = r * flowCols + c;
+        flowAngles[idx] = angle;
+        flowCos[idx] = Math.cos(angle);
+        flowSin[idx] = Math.sin(angle);
+      }
+    }
+
+    // Flow direction via cached cos/sin — zero trig, zero allocation
+    var _fdx = 0, _fdy = 0;
+    function getFlowDir(x, y) {
+      var c = x / FLOW_CELL, r = y / FLOW_CELL;
+      var ci = Math.max(0, Math.min(flowCols - 2, Math.floor(c)));
+      var ri = Math.max(0, Math.min(flowRows - 2, Math.floor(r)));
+      var cf = c - ci, rf = r - ri;
+      var i = ri * flowCols + ci;
+      _fdx = (flowCos[i]*(1-cf) + flowCos[i+1]*cf)*(1-rf) + (flowCos[i+flowCols]*(1-cf) + flowCos[i+flowCols+1]*cf)*rf;
+      _fdy = (flowSin[i]*(1-cf) + flowSin[i+1]*cf)*(1-rf) + (flowSin[i+flowCols]*(1-cf) + flowSin[i+flowCols+1]*cf)*rf;
+    }
+
+    // ── Strokes ──────────────────────────────────────────────────────────────
+    function initStrokes() {
+      // ── Text strokes: sampled from letter pixels, fly in and form text ──
+      textStrokes = [];
+      var off = document.createElement('canvas');
+      off.width = W; off.height = H;
+      var oc = off.getContext('2d');
+      var fontSize = Math.max(50, Math.min(160, Math.floor(W * 0.13)));
+      oc.font = 'bold ' + fontSize + "px 'Futura Now Headline', Impact, sans-serif";
+      oc.textAlign = 'center'; oc.textBaseline = 'middle'; oc.fillStyle = '#fff';
+      var textY = H * 0.46;
+      if (oc.measureText('STAN SOBOLEV').width > W * 0.92) {
+        var lf = Math.max(40, Math.floor(W * 0.11));
+        oc.font = 'bold ' + lf + "px 'Futura Now Headline', Impact, sans-serif";
+        oc.fillText('STAN', W / 2, H * 0.4);
+        oc.fillText('SOBOLEV', W / 2, H * 0.55);
+      } else {
+        oc.fillText('STAN SOBOLEV', W / 2, textY);
+      }
+      var data = oc.getImageData(0, 0, W, H).data;
+      var cx = W / 2, cy = H * 0.46;
+      var maxDist = Math.sqrt(cx * cx + cy * cy);
+      var gap = 4;
+      for (var py = 0; py < H; py += gap) {
+        for (var px = 0; px < W; px += gap) {
+          if (data[(py * W + px) * 4 + 3] > 128) {
+            var ang = Math.random() * Math.PI * 2;
+            var rad = Math.max(W, H) * 0.7 + Math.random() * 400;
+            var dToC = Math.sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy));
+            textStrokes.push({
+              x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad,
+              targetX: px, targetY: py,
+              vx: 0, vy: 0,
+              len: 4 + Math.random() * 4,
+              entranceDelay: (dToC / maxDist) * 0.4,
+              detachAt: 0.04 + (1 - dToC / maxDist) * 0.38,
+              breathOffset: Math.random() * Math.PI * 2,
+              alpha: 0.55 + Math.random() * 0.45,
+              hue: 18 + (px / W) * 20,
+              heat: 0,
+            });
+          }
+        }
+      }
+
+      strokes = []; // no separate flow strokes — all particles form the text
+    }
+
+    // ── Resize ──────────────────────────────────────────────────────────────
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      W = window.innerWidth;
+      H = window.innerHeight;
+      // Retina-crisp rendering
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      cursorCanvas.width = W * dpr;
+      cursorCanvas.height = H * dpr;
+      cursorCanvas.style.width = W + 'px';
+      cursorCanvas.style.height = H + 'px';
+      cursorCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (W > 768) {
+        createTextField();
+        initFlowGrid();
+        initStrokes();
+      }
+    }
+
+    // ── Scroll ──────────────────────────────────────────────────────────────
+    function onScroll() {
+      lastInteractionTime = performance.now();
+      dissolveTarget = Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 1.2)));
+
+      // Canvas stays opaque while particles rain — fades only when bg is cream
+      var fade = dissolveTarget < 0.85 ? 1 : Math.max(0, 1 - (dissolveTarget - 0.85) / 0.15);
+      canvas.style.opacity = fade;
+      cursorCanvas.style.opacity = fade;
+      glow.style.opacity = Math.max(0, 1 - dissolveTarget * 1.5);
+      if (dissolveTarget > 0.01 && hint.parentNode) hint.parentNode.removeChild(hint);
+
+      // Body bg transitions dark→cream so nothing dark shows behind fading canvas
+      var bgBodyT = Math.max(0, Math.min(1, (dissolveTarget - 0.7) / 0.3));
+      var r = Math.round(13 + 242 * bgBodyT), g = Math.round(10 + 243 * bgBodyT), b = Math.round(7 + 241 * bgBodyT);
+      document.body.style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
+
+      // Unlock editorial reveal once canvas is nearly gone
+      if (dissolveTarget >= 0.88 && !editorialUnlocked) {
+        editorialUnlocked = true;
+        document.querySelectorAll('.reveal:not(.visible)').forEach(function(el) {
+          var rect = el.getBoundingClientRect();
+          if (rect.top < window.innerHeight && rect.bottom > 0) el.classList.add('visible');
+        });
+        if (bioRevealFn) bioRevealFn();
+      }
+    }
+
+    // ── Mouse ───────────────────────────────────────────────────────────────
+    function onMouseMove(e) { mouse.x = e.clientX; mouse.y = e.clientY; lastInteractionTime = performance.now(); }
+    function onMouseLeave() { mouse.x = -9999; mouse.y = -9999; }
+
+    // ── Click burst (no-op — flow field has no particle velocities) ─────────
+    function onClickBurst(e) {
+      lastInteractionTime = performance.now();
+    }
+
+    // ── Touch ───────────────────────────────────────────────────────────────
+    function onTouchMove(e) {
+      if (e.touches.length > 0) {
+        mouse.x = e.touches[0].clientX;
+        mouse.y = e.touches[0].clientY;
+        lastInteractionTime = performance.now();
+      }
+    }
+    function onTouchEnd() { mouse.x = -9999; mouse.y = -9999; }
+
+    // ── Subtitle ────────────────────────────────────────────────────────────
+    function drawSubtitle(now) {
+      if (!entranceDone) return;
+      const elapsed = now - startTime - ENTRANCE_MS - 400;
+      if (elapsed < 0) return;
+      const progress = Math.min(1, elapsed / 1800);
+      const fontSize = Math.max(11, Math.min(16, W * 0.014));
+      ctx.font = fontSize + "px 'Futura New Book', sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const subY = H * 0.60;
+      const chars = SUBTITLE_TEXT.split('');
+      const total = chars.length;
+      const fullW = ctx.measureText(SUBTITLE_TEXT).width;
+      const charW = fullW / total;
+      const sx = W / 2 - fullW / 2;
+      for (let i = 0; i < total; i++) {
+        const reveal = i / total;
+        const local = Math.min(1, Math.max(0, (progress - reveal * 0.6) * 3));
+        const a = easeOutCubic(local) * Math.max(0, 1 - dissolve * 1.5) * 0.85;
+        if (a <= 0) continue;
+        ctx.globalAlpha = a;
+        ctx.fillStyle = '#d8cec3';
+        ctx.fillText(chars[i], sx + i * charW + charW / 2, subY);
+      }
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left';
+    }
+
+    // ── Draw cursor glow ────────────────────────────────────────────────────
+    function drawCursorGlow() {
+      cursorCtx.clearRect(0, 0, W, H);
+      if (mouse.x < -999 || dissolve > 0.8) return;
+      const grad = cursorCtx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, CURSOR_GLOW_R);
+      grad.addColorStop(0, 'rgba(149,95,59,0.08)');
+      grad.addColorStop(0.5, 'rgba(149,95,59,0.03)');
+      grad.addColorStop(1, 'transparent');
+      cursorCtx.fillStyle = grad;
+      cursorCtx.fillRect(mouse.x - CURSOR_GLOW_R, mouse.y - CURSOR_GLOW_R, CURSOR_GLOW_R * 2, CURSOR_GLOW_R * 2);
+    }
+
+    // ── Vignette ────────────────────────────────────────────────────────────
+    function drawVignette() {
+      const grad = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.75);
+      grad.addColorStop(0, 'transparent');
+      grad.addColorStop(1, 'rgba(13,10,7,0.5)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // ── Main tick ───────────────────────────────────────────────────────────
+    function tick(now) {
+      requestAnimationFrame(tick);
+      if (window.innerWidth <= 768) return;
+
+      var elapsed = now - startTime;
+
+      // Smooth dissolve
+      dissolve += (dissolveTarget - dissolve) * 0.14;
+      if (Math.abs(dissolve - dissolveTarget) < 0.0005) dissolve = dissolveTarget;
+
+      // Entrance
+      if (!entranceDone) {
+        entranceProgress = Math.min(1, elapsed / ENTRANCE_MS);
+        if (entranceProgress >= 1) entranceDone = true;
+      }
+
+      // Smooth mouse
+      if (mouse.x > -999) {
+        smoothMouseX += ((mouse.x - W / 2) / (W / 2) - smoothMouseX) * 0.04;
+        smoothMouseY += ((mouse.y - H / 2) / (H / 2) - smoothMouseY) * 0.04;
+      } else { smoothMouseX *= 0.96; smoothMouseY *= 0.96; }
+
+      // Trail: bg transitions dark→cream
+      var bgT = Math.max(0, Math.min(1, (dissolve - 0.5) / 0.5));
+      var tr = Math.round(13 + 242 * bgT), tg = Math.round(10 + 243 * bgT), tb = Math.round(7 + 241 * bgT);
+      var trailA = Math.min(1, 0.32 + Math.max(0, dissolve - 0.3) * 0.83);
+      ctx.fillStyle = 'rgba(' + tr + ',' + tg + ',' + tb + ',' + trailA.toFixed(2) + ')';
+      ctx.fillRect(0, 0, W, H);
+
+      // Update flow field (throttled: every 3 frames — noise evolves slowly)
+      flowFrame++;
+      if (flowFrame >= 3 && flowAngles) {
+        flowFrame = 0;
+        updateFlowField(now * NOISE_SPEED);
+      }
+
+      // Entrance factor
+      var eFactor = entranceDone ? 1 : easeOutCubic(entranceProgress);
+      var scrollFade = Math.max(0, 1 - dissolve * 1.3);
+
+      // ── Text strokes (form letters, wiggle with flow, rain on scroll) ──
+      ctx.lineWidth = 1.4;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#d8cec3';
+      ctx.beginPath();
+      var textAlphaBase = 0.7 * eFactor;
+      for (var ti = 0; ti < textStrokes.length; ti++) {
+        var s = textStrokes[ti];
+
+        // Entrance: staggered fly-in
+        var entF = 1;
+        if (!entranceDone) {
+          entF = Math.max(0, Math.min(1, (entranceProgress - s.entranceDelay) / (1 - s.entranceDelay)));
+          entF = easeInOutCubic(entF);
+          if (entF < 0.01) continue;
+        }
+
+        var effX, effY, sAlpha = 1;
+        getFlowDir(s.targetX, s.targetY);
+        var lfx = _fdx, lfy = _fdy;
+        var wiggle = Math.sin(now * 0.0012 + s.breathOffset) * 3.5;
+
+        if (dissolve < 0.005) {
+          effX = s.targetX + lfx * wiggle;
+          effY = s.targetY + lfy * wiggle;
+        } else if (dissolve <= s.detachAt) {
+          // Shake before detach
+          var shT = Math.max(0, dissolve - (s.detachAt - 0.08)) / 0.08;
+          var shk = shT * shT * 6;
+          effX = s.targetX + lfx * wiggle + Math.sin(now * 0.012 + s.breathOffset * 97) * shk;
+          effY = s.targetY + lfy * wiggle + Math.cos(now * 0.015 + s.breathOffset * 71) * shk;
+        } else {
+          // Detached: follow the flow field (already rotating down = rain)
+          getFlowDir(s.x, s.y);
+          var rainPush = 2.0 + dissolve * 5;
+          s.vx += _fdx * rainPush * 0.12;
+          s.vy += _fdy * rainPush * 0.12;
+          effX = s.x + s.vx;
+          effY = s.y + s.vy;
+          sAlpha = Math.max(0, 1 - (dissolve - s.detachAt) / 0.4);
+        }
+
+        // Spring to target (formation + idle + return from rain)
+        if (dissolve <= s.detachAt) {
+          var dx = effX - s.x, dy = effY - s.y;
+          var dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > 200) {
+            // Returning from rain: warp to 150px from target + kill velocity
+            var warpA = Math.atan2(dy, dx);
+            s.x = effX - Math.cos(warpA) * 150;
+            s.y = effY - Math.sin(warpA) * 150;
+            s.vx = 0; s.vy = 0;
+            dx = effX - s.x; dy = effY - s.y;
+            dist = 150;
+          }
+          var stiff = entranceDone ? (dist > 50 ? 0.19 : 0.055) : 0.01 + entF * 0.06;
+          s.vx += dx * stiff;
+          s.vy += dy * stiff;
+        }
+
+        // Mouse repulsion + heat (Color Blaze)
+        var mdx = s.x - mouse.x, mdy = s.y - mouse.y;
+        var md2 = mdx * mdx + mdy * mdy;
+        if (md2 < 8100 && md2 > 1) {
+          var md = Math.sqrt(md2);
+          s.vx += (mdx / md) * (1 - md / 90) * 3.5;
+          s.vy += (mdy / md) * (1 - md / 90) * 3.5;
+        }
+        // Heat: mouse proximity OR entrance auto-blaze
+        if (mouse.x > -999 && md2 < 16900) {
+          s.heat = Math.min(1, s.heat + (1 - Math.sqrt(md2) / 130) * 0.18);
+        }
+        // Auto-blaze: 2.5s after entrance, wave of chromatic color sweeps across text
+        if (entranceDone && elapsed < ENTRANCE_MS + 3200) {
+          var blazeT = (elapsed - ENTRANCE_MS - 200) / 2400; // 0→1 over 2.4s
+          // Wave from left to right based on stroke's target X position
+          var wavePos = blazeT * 1.4 - 0.2; // sweep with overshoot
+          var distToWave = Math.abs((s.targetX / W) - wavePos);
+          if (distToWave < 0.18) {
+            s.heat = Math.min(1, s.heat + (1 - distToWave / 0.18) * 0.25);
+          }
+        }
+        s.heat *= 0.96; // decay
+
+        s.vx *= 0.87; s.vy *= 0.87;
+        s.x += s.vx; s.y += s.vy;
+
+        if (s.x < -120 || s.x > W + 120 || s.y < -120 || s.y > H + 120) continue;
+        var rA = s.alpha * sAlpha * (entranceDone ? 1 : entF);
+        if (rA < 0.02) continue;
+
+        // Draw stroke aligned with local flow (same visual as flow strokes = synergy)
+        getFlowDir(s.x, s.y);
+        var dL = s.len * (entranceDone ? 1 : entF);
+        var hx = _fdx * dL * 0.5, hy = _fdy * dL * 0.5;
+        ctx.moveTo(s.x - hx, s.y - hy);
+        ctx.lineTo(s.x + hx, s.y + hy);
+      }
+      ctx.globalAlpha = textAlphaBase;
+      ctx.stroke();
+
+      // Chromatic Split: RGB channels separate on heated strokes (hover OR auto-blaze)
+      {
+        var CHROMA_CHANNELS = [
+          { color: 'rgba(255,0,80,',  angle: 0 },           // Hot pink → left
+          { color: 'rgba(0,255,60,',  angle: Math.PI*2/3 }, // Neon green → upper-right
+          { color: 'rgba(40,0,255,',  angle: Math.PI*4/3 }, // Electric blue → lower-right
+        ];
+        ctx.lineWidth = 2.0;
+        ctx.lineCap = 'round';
+        ctx.globalCompositeOperation = 'screen'; // additive blend for RGB
+        for (var ch = 0; ch < 3; ch++) {
+          var chan = CHROMA_CHANNELS[ch];
+          var offCos = Math.cos(chan.angle), offSin = Math.sin(chan.angle);
+          ctx.beginPath();
+          var chanHasAny = false;
+          for (var ci = 0; ci < textStrokes.length; ci++) {
+            var cs = textStrokes[ci];
+            if (cs.heat < 0.04) continue;
+            chanHasAny = true;
+            var split = cs.heat * 18; // max 18px split at full heat
+            var ox = offCos * split, oy = offSin * split;
+            getFlowDir(cs.x + ox, cs.y + oy);
+            var cdL = cs.len;
+            var chx = _fdx * cdL * 0.5, chy = _fdy * cdL * 0.5;
+            ctx.moveTo(cs.x + ox - chx, cs.y + oy - chy);
+            ctx.lineTo(cs.x + ox + chx, cs.y + oy + chy);
+          }
+          if (chanHasAny) {
+            ctx.strokeStyle = chan.color + '0.75)';
+            ctx.stroke();
+          }
+        }
+        ctx.globalCompositeOperation = 'source-over'; // reset
+      }
+      ctx.globalAlpha = 1;
+
+      // Subtitle
+      drawSubtitle(now);
+
+      // Vignette fades out as background transitions to cream
+      if (dissolve < 0.85) {
+        ctx.globalAlpha = Math.max(0, 1 - dissolve * 1.18);
+        drawVignette();
+        ctx.globalAlpha = 1;
+      }
+
+      // Cursor glow (separate canvas)
+      drawCursorGlow();
+      ctx.globalAlpha = 1;
+    }
+
+    // ── Editorial: Intersection Observer ────────────────────────────────────
+    function initRevealObserver() {
+      const els = document.querySelectorAll('.reveal');
+      if (!els.length) return;
+      const observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          // Only reveal once canvas has faded (z-index flip means canvas covers editorial)
+          if (entry.isIntersecting && dissolveTarget >= 0.88) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.05, rootMargin: '0px 0px 0px 0px' });
+      els.forEach(function (el) { observer.observe(el); });
+    }
+
+    // ── Stat counters ───────────────────────────────────────────────────────
+    function initStatCounters() {
+      const stats = document.querySelectorAll('.stat-number[data-target]');
+      if (!stats.length) return;
+      const observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          const el = entry.target;
+          observer.unobserve(el);
+          const target = parseInt(el.dataset.target, 10);
+          const suffix = el.dataset.suffix || '';
+          const duration = 2000;
+          const start = performance.now();
+          function step(now) {
+            const t = Math.min(1, (now - start) / duration);
+            const eased = 1 - Math.pow(1 - t, 3);
+            el.textContent = Math.floor(eased * target) + suffix;
+            if (t < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        });
+      }, { threshold: 0.5 });
+      stats.forEach(function (el) { observer.observe(el); });
+    }
+
+    // ── Pretext bio: canvas character-level cascade reveal ─────────────────
+    var BIO_TEXT = 'Stan Sobolev is a Staff Engineer and System Architect specializing in distributed systems that handle millions of requests daily. With over fifteen years of experience building scalable platforms, he has designed event-driven architectures, led cross-functional engineering teams, and mentored dozens of engineers on their path to Staff+ level roles. His work spans the full spectrum of backend engineering — from low-level performance optimization and database design to high-level system architecture and team leadership. He believes that great engineering is not just about writing code, but about building systems that empower teams to move fast with confidence. Currently focused on helping engineers grow through mentorship, system design coaching, and sharing hard-won lessons from years of building production systems at scale.';
+    var BIO_FONT = "17px 'Futura New Book', sans-serif";
+    var BIO_LINE_H = 28;
+    var bioRevealFn = null;
+
+    function initBioFlow() {
+      var wrap = document.getElementById('bio-flow-wrap');
+      var fallback = document.getElementById('about-fallback');
+      if (!wrap) return;
+      if (!pt.layoutNextLine) { if (fallback) fallback.style.display = ''; return; }
+
+      var dpr = window.devicePixelRatio || 1;
+      var bioW = wrap.offsetWidth || 640;
+
+      // pretext: prepare and lay out lines
+      var prepared;
+      try {
+        prepared = pt.prepareWithSegments
+          ? pt.prepareWithSegments(BIO_TEXT, BIO_FONT)
+          : pt.prepare(BIO_TEXT, BIO_FONT);
+      } catch(e) { if (fallback) fallback.style.display = ''; return; }
+      if (!prepared) { if (fallback) fallback.style.display = ''; return; }
+
+      var lines = [];
+      var cursor = { segmentIndex: 0, graphemeIndex: 0 };
+      for (var s = 0; s < 200; s++) {
+        try {
+          var line = pt.layoutNextLine(prepared, cursor, bioW);
+          if (!line || !line.text) break;
+          lines.push(line.text);
+          cursor = line.end;
+          if (prepared.segments && cursor.segmentIndex >= prepared.segments.length) break;
+        } catch(e) { break; }
+      }
+      if (!lines.length) { if (fallback) fallback.style.display = ''; return; }
+
+      // Canvas for character animation
+      var canvasH = lines.length * BIO_LINE_H + 4;
+      var bioCanvas = document.createElement('canvas');
+      bioCanvas.width = Math.ceil(bioW * dpr);
+      bioCanvas.height = Math.ceil(canvasH * dpr);
+      bioCanvas.style.cssText = 'width:' + bioW + 'px;height:' + canvasH + 'px;display:block;';
+      bioCanvas.setAttribute('role', 'img');
+      bioCanvas.setAttribute('aria-label', 'About Stan Sobolev');
+      var bCtx = bioCanvas.getContext('2d');
+
+      // Per-character positions via prefix measurement (preserves kerning)
+      bCtx.font = BIO_FONT;
+      var chars = [];
+      for (var li = 0; li < lines.length; li++) {
+        var lt = lines[li];
+        var by = li * BIO_LINE_H + BIO_LINE_H * 0.72;
+        for (var ci = 0; ci < lt.length; ci++) {
+          chars.push({
+            c: lt[ci],
+            x: bCtx.measureText(lt.substring(0, ci)).width,
+            y: by,
+            i: chars.length
+          });
+        }
+      }
+
+      wrap.innerHTML = '';
+      wrap.style.display = 'block';
+      wrap.appendChild(bioCanvas);
+      if (fallback) fallback.style.display = 'none';
+
+      // Animation
+      var revealStart = -1, animDone = false;
+      var CHAR_DELAY = 3, FADE_MS = 300, DROP = 5;
+
+      function bioTick(now) {
+        if (animDone) return;
+        requestAnimationFrame(bioTick);
+
+        bCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        bCtx.clearRect(0, 0, bioW, canvasH);
+        bCtx.font = BIO_FONT;
+        bCtx.textBaseline = 'alphabetic';
+
+        var elapsed = now - revealStart;
+        var pending = false;
+
+        for (var j = 0; j < chars.length; j++) {
+          var ch = chars[j];
+          var t = Math.max(0, Math.min(1, (elapsed - ch.i * CHAR_DELAY) / FADE_MS));
+          if (t < 1) pending = true;
+          if (t < 0.005) continue;
+
+          var e = 1 - (1 - t) * (1 - t) * (1 - t); // easeOutCubic
+          var yOff = (1 - e) * DROP;
+
+          // Warm accent sweep: each char briefly flashes in #955f3b as it appears
+          if (t < 0.35) {
+            bCtx.globalAlpha = Math.sin(t / 0.35 * Math.PI) * 0.22 * e;
+            bCtx.fillStyle = '#955f3b';
+            bCtx.fillText(ch.c, ch.x, ch.y - yOff);
+          }
+
+          bCtx.globalAlpha = e;
+          bCtx.fillStyle = '#6d645d';
+          bCtx.fillText(ch.c, ch.x, ch.y - yOff);
+        }
+
+        bCtx.globalAlpha = 1;
+        if (!pending) { animDone = true; swapToDom(); }
+      }
+
+      // After animation: replace canvas with selectable DOM text
+      function swapToDom() {
+        wrap.innerHTML = '';
+        for (var i = 0; i < lines.length; i++) {
+          var p = document.createElement('p');
+          p.textContent = lines[i];
+          p.style.cssText = 'font:' + BIO_FONT + ';color:#6d645d;line-height:'
+            + BIO_LINE_H + 'px;margin:0;white-space:pre-wrap;';
+          wrap.appendChild(p);
+        }
+      }
+
+      bioRevealFn = function() {
+        if (revealStart < 0) {
+          revealStart = performance.now();
+          requestAnimationFrame(bioTick);
+        }
+      };
+    }
+
+    // ── Init ────────────────────────────────────────────────────────────────
+    function debounce(fn, ms) {
+      let t; return function () { clearTimeout(t); t = setTimeout(fn, ms); };
+    }
+
+    function init() {
+      startTime = performance.now();
+      lastInteractionTime = startTime;
+      resize();
+      onScroll();
+
+      window.addEventListener('resize', debounce(resize, 200));
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('mousemove', onMouseMove, { passive: true });
+      window.addEventListener('mouseleave', onMouseLeave);
+      window.addEventListener('click', onClickBurst);
+      window.addEventListener('touchmove', onTouchMove, { passive: true });
+      window.addEventListener('touchend', onTouchEnd);
+
+      initRevealObserver();
+      initStatCounters();
+      initBioFlow();
+
+      requestAnimationFrame(tick);
+    }
+
+    document.fonts.ready.then(init);
+  })();
+  </script>
+</body>
+</html>
