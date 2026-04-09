@@ -66,8 +66,17 @@
     @keyframes pulse-hint { 0%,100%{opacity:.4} 50%{opacity:1} }
 
     /* ─── Editorial ─────────────────────────────────────────── */
-    #editorial { position: relative; z-index: 1; background: #fffdf8; color: #201b18; }
-    .editorial-inner { max-width: 1080px; margin: 0 auto; padding: 80px 40px 120px; }
+    #editorial {
+      position: relative; z-index: 1;
+      background: #0d0a07;
+      color: #fffdf8;
+      min-height: 100vh;
+    }
+    .editorial-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 140px 40px 140px;
+    }
 
     /* Scroll reveal */
     .reveal {
@@ -79,128 +88,126 @@
     .reveal-delay-2 { transition-delay: 0.2s; }
     .reveal-delay-3 { transition-delay: 0.3s; }
 
-    /* Lead statement */
+    /* ── Lead statement ── */
     .lead-statement {
       font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
-      font-size: clamp(28px, 3.5vw, 48px); color: #201b18;
-      line-height: 1.25; letter-spacing: -0.015em;
-      max-width: 780px; margin: 0 auto 32px;
-      text-align: center;
+      font-size: clamp(40px, 6vw, 84px);
+      color: #fffdf8;
+      line-height: 1.05; letter-spacing: -0.025em;
+      max-width: 880px; margin: 0 0 32px;
+      text-align: left;
     }
-    .lead-accent { color: #955f3b; }
+    .lead-accent { color: #c8a882; }
     .lead-sub {
       font-family: 'Futura New Book', sans-serif; font-weight: normal;
-      font-size: 16px; color: #6d645d; line-height: 1.7;
-      max-width: 540px; margin: 0 auto 0; text-align: center;
-      letter-spacing: 0.01em;
+      font-size: clamp(16px, 1.4vw, 19px);
+      color: rgba(255, 253, 248, 0.55);
+      line-height: 1.65;
+      max-width: 640px; margin: 0 0 120px; text-align: left;
+      letter-spacing: 0;
     }
 
-    /* Section divider */
-    .section-divider {
-      height: 1px; max-width: 200px; margin: 64px auto;
-      background: linear-gradient(90deg, transparent, #d8cec3, transparent);
+    /* ── Swiss grid ── */
+    .swiss-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      column-gap: 48px; row-gap: 0;
+      margin: 0 0 120px;
+      border-top: 1px solid rgba(255, 253, 248, 0.12);
+    }
+    .swiss-grid dt {
+      font-family: 'Dank Mono', monospace;
+      font-size: 11px; letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #c8a882;
+      padding: 32px 0;
+      border-bottom: 1px solid rgba(255, 253, 248, 0.12);
+      align-self: start;
+      line-height: 1.6;
+    }
+    .swiss-grid dd {
+      font-family: 'Futura New Book', sans-serif;
+      font-size: clamp(16px, 1.3vw, 18px);
+      color: #fffdf8;
+      padding: 32px 0;
+      border-bottom: 1px solid rgba(255, 253, 248, 0.12);
+      line-height: 1.6;
+      margin: 0;
+    }
+    .swiss-grid dd a {
+      color: #fffdf8;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255, 253, 248, 0.25);
+      padding-bottom: 1px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .swiss-grid dd a:hover {
+      color: #c8a882;
+      border-bottom-color: #c8a882;
     }
 
-    /* About fallback (hidden when pretext active) */
-    .about-text {
-      font-size: 17px; line-height: 1.75; color: #6d645d;
-      max-width: 640px; margin: 0 auto; text-align: center;
+    /* ── Section labels ── */
+    .section-label {
+      font-family: 'Dank Mono', monospace;
+      font-size: 11px; letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #c8a882;
+      margin: 0 0 56px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 253, 248, 0.12);
     }
 
-    /* Stats */
-    .stats-section {
-      display: flex; justify-content: center; gap: 72px;
-      margin-bottom: 0; flex-wrap: wrap;
-    }
-    .stat-item { display: flex; flex-direction: column; gap: 6px; align-items: center; }
-    .stat-number {
-      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
-      font-size: clamp(40px,5vw,60px); color: #955f3b;
-      letter-spacing: -0.02em; line-height: 1;
-    }
-    .stat-label {
-      font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #6d645d;
-    }
-
-    /* Projects */
-    .projects-heading {
-      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
-      font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
-      color: #955f3b; margin-bottom: 28px;
-    }
-    .projects-grid {
-      display: grid; grid-template-columns: repeat(3,1fr);
-      gap: 24px; margin-bottom: 80px;
-    }
-    .project-card {
-      background: #f4f1ea; border-radius: 18px; padding: 36px 32px;
-      box-shadow: 0 18px 40px rgb(54 40 23 / 0.08);
-      transition: transform 0.28s cubic-bezier(0.22,1,0.36,1),
-                  box-shadow 0.28s cubic-bezier(0.22,1,0.36,1);
-      cursor: default; position: relative; overflow: hidden;
-    }
-    .project-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      background: linear-gradient(90deg, transparent, #955f3b, transparent);
-      opacity: 0; transition: opacity 0.3s ease;
-    }
-    .project-card:hover { transform: translateY(-6px); box-shadow: 0 28px 60px rgb(54 40 23 / 0.14); }
-    .project-card:hover::before { opacity: 1; }
-    .project-tag {
-      font-family: 'Dank Mono', monospace; font-size: 11px;
-      letter-spacing: 0.1em; color: #955f3b; margin-bottom: 14px; opacity: 0.8;
-    }
-    .project-title {
-      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
-      font-size: 20px; color: #201b18; line-height: 1.25; margin-bottom: 12px;
-    }
-    .project-desc { font-size: 14px; line-height: 1.65; color: #6d645d; }
-
-    /* Tech pills */
-    .tech-pills {
-      display: flex; flex-wrap: wrap; gap: 10px;
-      justify-content: center; margin: 40px auto 0;
-      max-width: 640px;
-    }
-    .tech-pill {
-      font-family: 'Dank Mono', monospace; font-size: 12px;
-      color: #955f3b; letter-spacing: 0.06em;
-      padding: 6px 16px; border-radius: 100px;
-      border: 1px solid rgba(149,95,59,0.2);
-      background: rgba(149,95,59,0.04);
-      transition: background 0.2s, border-color 0.2s;
-    }
-    .tech-pill:hover {
-      background: rgba(149,95,59,0.1);
-      border-color: rgba(149,95,59,0.4);
-    }
-
-    /* Bio flow container */
+    /* ── Bio paragraph (canvas + fallback) ── */
     #bio-flow-wrap {
-      max-width: 640px; margin: 0 auto;
+      max-width: 720px; margin: 0 0 120px;
+    }
+    .about-text {
+      font-size: 17px; line-height: 1.8;
+      color: rgba(255, 253, 248, 0.65);
+      max-width: 720px; margin: 0 0 120px; text-align: left;
     }
 
-    /* CTA + Social */
-    .cta-section { text-align: center; }
+    /* ── Selected work (numbered list) ── */
+    .work-list {
+      list-style: none; margin: 0 0 120px; padding: 0;
+    }
+    .work-item {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      column-gap: 48px;
+      padding: 44px 0;
+      border-bottom: 1px solid rgba(255, 253, 248, 0.12);
+    }
+    .work-item:first-child {
+      border-top: 1px solid rgba(255, 253, 248, 0.12);
+    }
+    .work-num {
+      font-family: 'Dank Mono', monospace;
+      font-size: 12px; letter-spacing: 0.22em;
+      color: #c8a882;
+      padding-top: 10px;
+    }
+    .work-title {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: clamp(24px, 2.6vw, 34px);
+      color: #fffdf8; line-height: 1.1;
+      margin: 0 0 14px; letter-spacing: -0.015em;
+    }
+    .work-desc {
+      font-size: 16px; line-height: 1.7;
+      color: rgba(255, 253, 248, 0.6);
+      max-width: 620px; margin: 0;
+    }
+
+    /* ── CTA ── */
     .cta-heading {
       font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
-      font-size: clamp(24px, 3vw, 40px); color: #201b18;
-      margin-bottom: 24px; letter-spacing: -0.01em;
+      font-size: clamp(40px, 6vw, 80px);
+      color: #fffdf8;
+      margin: 0 0 64px;
+      line-height: 1.05; letter-spacing: -0.025em;
+      max-width: 820px;
     }
-    .social-links {
-      display: flex; gap: 28px; flex-wrap: wrap; justify-content: center;
-    }
-    .social-link {
-      font-family: 'Futura New Book', sans-serif;
-      font-size: 15px; color: #955f3b; text-decoration: none;
-      letter-spacing: 0.04em; position: relative;
-      padding: 8px 0;
-    }
-    .social-link::after {
-      content: ''; position: absolute; bottom: 6px; left: 0;
-      width: 0; height: 1.5px; background: #955f3b; transition: width 0.24s ease;
-    }
-    .social-link:hover::after { width: 100%; }
 
     /* ─── Mobile ────────────────────────────────────────────── */
     #mobile-hero {
@@ -218,13 +225,15 @@
     @media (max-width: 768px) {
       #hero-canvas, #cursor-canvas, #hero-glow, #scroll-spacer, #scroll-hint { display: none !important; }
       #mobile-hero { display: flex; }
-      .projects-grid { grid-template-columns: 1fr; }
-      .editorial-inner { padding: 60px 24px 80px; }
-      .stats-section { gap: 40px; }
-      .lead-statement { font-size: clamp(24px, 6vw, 36px); }
-    }
-    @media (max-width: 900px) and (min-width: 769px) {
-      .projects-grid { grid-template-columns: repeat(2,1fr); }
+      .editorial-inner { padding: 80px 24px 100px; }
+      .swiss-grid, .work-item { grid-template-columns: 1fr; column-gap: 0; }
+      .swiss-grid dt { padding: 20px 0 8px; border-bottom: none; }
+      .swiss-grid dd { padding: 0 0 20px; }
+      .work-item { padding: 32px 0; gap: 8px; }
+      .work-num { padding-top: 0; }
+      .lead-statement { font-size: clamp(32px, 9vw, 48px); margin-bottom: 24px; }
+      .lead-sub { margin-bottom: 72px; }
+      .cta-heading { font-size: clamp(32px, 9vw, 48px); margin-bottom: 48px; }
     }
   </style>
 </head>
@@ -253,9 +262,29 @@
         and a deep belief that great systems empower great teams.
       </p>
 
-      <div class="section-divider reveal"></div>
+      <!-- Swiss Grid: metadata -->
+      <dl class="swiss-grid reveal">
+        <dt>Role</dt>
+        <dd>Staff Engineer · System Architect · Mentor</dd>
 
-      <!-- Pretext bio: character cascade reveal on canvas -->
+        <dt>Focus</dt>
+        <dd>Distributed systems, event-driven platforms, engineering leadership</dd>
+
+        <dt>Experience</dt>
+        <dd>15+ years in production</dd>
+
+        <dt>Stack</dt>
+        <dd>Scala · Go · Kubernetes · Kafka · PostgreSQL</dd>
+
+        <dt>Scale</dt>
+        <dd>10M+ requests/day · 20+ engineers mentored to Staff+</dd>
+
+        <dt>Location</dt>
+        <dd>Remote · Global</dd>
+      </dl>
+
+      <!-- Bio paragraph (pretext canvas cascade) -->
+      <p class="section-label reveal">About</p>
       <p class="about-text reveal" id="about-fallback">
         Stan Sobolev is a Staff Engineer and System Architect specializing
         in distributed systems that handle millions of requests daily.
@@ -265,78 +294,56 @@
       </p>
       <div id="bio-flow-wrap" style="display:none;"></div>
 
-      <!-- Tech stack pills -->
-      <div class="tech-pills reveal" id="tech-pills">
-        <span class="tech-pill">Scala</span>
-        <span class="tech-pill">Go</span>
-        <span class="tech-pill">Kubernetes</span>
-        <span class="tech-pill">Kafka</span>
-        <span class="tech-pill">PostgreSQL</span>
-        <span class="tech-pill">System Design</span>
-        <span class="tech-pill">Event-Driven</span>
-      </div>
+      <!-- Selected work -->
+      <p class="section-label reveal">Selected Work</p>
+      <ol class="work-list">
+        <li class="work-item reveal reveal-delay-1">
+          <span class="work-num">01 · Infrastructure</span>
+          <div>
+            <h3 class="work-title">Distributed Systems</h3>
+            <p class="work-desc">
+              Multi-region event-driven architectures handling millions of daily
+              transactions with sub-50ms p99 latency at steady state.
+            </p>
+          </div>
+        </li>
+        <li class="work-item reveal reveal-delay-2">
+          <span class="work-num">02 · Leadership</span>
+          <div>
+            <h3 class="work-title">Engineering Mentorship</h3>
+            <p class="work-desc">
+              Structured mentorship that moved engineers from mid to staff level —
+              pairing technical coaching with career navigation.
+            </p>
+          </div>
+        </li>
+        <li class="work-item reveal reveal-delay-3">
+          <span class="work-num">03 · Platform</span>
+          <div>
+            <h3 class="work-title">Platform Architecture</h3>
+            <p class="work-desc">
+              Consolidated fragmented services into coherent internal platforms,
+              reducing time-to-production from weeks to days.
+            </p>
+          </div>
+        </li>
+      </ol>
 
-      <div class="section-divider reveal"></div>
+      <!-- CTA -->
+      <h2 class="cta-heading reveal">Let's build something.</h2>
+      <dl class="swiss-grid reveal">
+        <dt>Github</dt>
+        <dd><a href="https://github.com/Jacke" target="_blank" rel="noopener">github.com/Jacke</a></dd>
 
-      <!-- Stats -->
-      <div class="stats-section reveal">
-        <div class="stat-item">
-          <span class="stat-number" data-target="10" data-suffix="M+">0</span>
-          <span class="stat-label">Requests per day</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-number" data-target="15" data-suffix="+">0</span>
-          <span class="stat-label">Years in production</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-number" data-target="20" data-suffix="+">0</span>
-          <span class="stat-label">Engineers mentored</span>
-        </div>
-      </div>
+        <dt>Linkedin</dt>
+        <dd><a href="https://www.linkedin.com/in/jacke1/" target="_blank" rel="noopener">linkedin.com/in/jacke1</a></dd>
 
-      <div class="section-divider reveal"></div>
+        <dt>Twitter</dt>
+        <dd><a href="https://twitter.com/stanthoughts" target="_blank" rel="noopener">twitter.com/stanthoughts</a></dd>
 
-      <!-- Projects -->
-      <p class="projects-heading reveal">Selected work</p>
-      <div class="projects-grid">
-        <div class="project-card reveal reveal-delay-1">
-          <div class="project-tag">// INFRASTRUCTURE</div>
-          <div class="project-title">Distributed Systems</div>
-          <p class="project-desc">
-            Multi-region event-driven architectures handling millions of daily
-            transactions with sub-50ms p99 latency at steady state.
-          </p>
-        </div>
-        <div class="project-card reveal reveal-delay-2">
-          <div class="project-tag">// LEADERSHIP</div>
-          <div class="project-title">Engineering Mentorship</div>
-          <p class="project-desc">
-            Structured mentorship that moved engineers from mid to staff level —
-            pairing technical coaching with career navigation.
-          </p>
-        </div>
-        <div class="project-card reveal reveal-delay-3">
-          <div class="project-tag">// PLATFORM</div>
-          <div class="project-title">Platform Architecture</div>
-          <p class="project-desc">
-            Consolidated fragmented services into coherent internal platforms,
-            reducing time-to-production from weeks to days.
-          </p>
-        </div>
-      </div>
-
-      <div class="section-divider reveal"></div>
-
-      <!-- CTA + Social -->
-      <div class="cta-section reveal">
-        <h2 class="cta-heading">Let's build something.</h2>
-        <div class="social-links">
-          <a href="https://github.com/Jacke" class="social-link" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://www.linkedin.com/in/jacke1/" class="social-link" target="_blank" rel="noopener">LinkedIn</a>
-          <a href="https://twitter.com/stanthoughts" class="social-link" target="_blank" rel="noopener">Twitter</a>
-          <a href="mailto:stan@iamjacke.com" class="social-link">stan@iamjacke.com</a>
-        </div>
-      </div>
+        <dt>Email</dt>
+        <dd><a href="mailto:stan@iamjacke.com">stan@iamjacke.com</a></dd>
+      </dl>
 
     </div>
   </section>
@@ -404,6 +411,7 @@
     // Flow field state
     let flowCols = 0, flowRows = 0, flowAngles = null, flowCos = null, flowSin = null;
     let flowFrame = 0; // throttle: update flow every 3 frames
+    let lastDissolve = 0; // previous frame's dissolve (for direction detection)
     let strokes = [];      // flow strokes (decorative, repelled from text)
     let textStrokes = [];  // text-forming strokes (fly in, anchor, wiggle with flow, rain on scroll)
     // Text mask state
@@ -611,6 +619,8 @@
               alpha: 0.55 + Math.random() * 0.45,
               hue: 18 + (px / W) * 20,
               heat: 0,
+              wh: 0, // whitened by chromatic wave
+              det: 0, // was detached last frame (for clean re-attach)
             });
           }
         }
@@ -656,10 +666,7 @@
       glow.style.opacity = Math.max(0, 1 - dissolveTarget * 1.5);
       if (dissolveTarget > 0.01 && hint.parentNode) hint.parentNode.removeChild(hint);
 
-      // Body bg transitions dark→cream so nothing dark shows behind fading canvas
-      var bgBodyT = Math.max(0, Math.min(1, (dissolveTarget - 0.7) / 0.3));
-      var r = Math.round(13 + 242 * bgBodyT), g = Math.round(10 + 243 * bgBodyT), b = Math.round(7 + 241 * bgBodyT);
-      document.body.style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
+      // Body bg stays dark throughout — editorial section is also dark (unified theme)
 
       // Unlock editorial reveal once canvas is nearly gone
       if (dissolveTarget >= 0.88 && !editorialUnlocked) {
@@ -732,66 +739,161 @@
       cursorCtx.fillRect(mouse.x - CURSOR_GLOW_R, mouse.y - CURSOR_GLOW_R, CURSOR_GLOW_R * 2, CURSOR_GLOW_R * 2);
     }
 
-    // ── Vignette ────────────────────────────────────────────────────────────
+    // ── Vignette (subtle — wider transparent center to avoid dimming text edges) ──
     function drawVignette() {
-      const grad = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.75);
+      const grad = ctx.createRadialGradient(W/2, H/2, Math.max(W,H)*0.5, W/2, H/2, Math.max(W,H)*0.85);
       grad.addColorStop(0, 'transparent');
-      grad.addColorStop(1, 'rgba(13,10,7,0.5)');
+      grad.addColorStop(1, 'rgba(13,10,7,0.35)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
     }
 
-    // ── Main tick ───────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // ANIMATION TIMELINE — step-by-step description of what happens on screen:
+    //
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 1: ENTRANCE  (time 0 → 1.6s)
+    // ───────────────────────────────────────────────────────────────────────
+    //   • ~7000 text strokes are sampled from the pixels of "STAN SOBOLEV"
+    //     rendered on an offscreen canvas. Each stroke has a target position
+    //     at a letter pixel.
+    //   • Initial position: each stroke starts on a ring FAR outside the
+    //     viewport (radius = ~0.7 * max(W,H) + random offset).
+    //   • Staggered fly-in: entranceDelay is based on distance from center —
+    //     strokes near the center of the text arrive first, edges later.
+    //   • Spring physics pulls each stroke to its target (eased with cubic).
+    //   • Strokes are drawn as short line segments, oriented along the local
+    //     Perlin noise flow field direction, in cream color (#d8cec3).
+    //   • The trail fill (rgba(13,10,7,0.32) per frame) creates motion blur —
+    //     strokes leave fading streaks as they fly in.
+    //   • Background noise: Perlin flow field evolves slowly (throttled to
+    //     every 3rd frame), but during Phase 1 it only controls stroke
+    //     wiggle direction — strokes are mostly driven by the spring.
+    //
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 2: CHROMATIC WAVE  (time 1.8s → 4.2s, starts after entrance)
+    // ───────────────────────────────────────────────────────────────────────
+    //   • A virtual "wave" position sweeps from left to right across the text,
+    //     normalized to (-0.2 → 1.2) over 2.4 seconds.
+    //   • Strokes within 18% screen-width of the wave front get "heated"
+    //     (heat value ramps up, max 1.0). Heat always decays 4% per frame.
+    //   • Heated strokes are drawn in a SECOND pass after the main text:
+    //     three RGB channels (hot pink, neon green, electric blue) are
+    //     rendered separately, each offset by heat * 18 pixels in a
+    //     different direction (120° apart). Additive blending (globalComposite
+    //     'screen') creates an acid chromatic-aberration split effect.
+    //   • As the wave passes each stroke (wavePos - 12% past its normX),
+    //     its `wh` flag is permanently set to 1 (whitened).
+    //   • Whitened strokes are drawn in pure white (#ffffff) instead of cream.
+    //   • After the wave finishes, all strokes are whitened, all heat decays
+    //     to 0, and chromatic split fades out completely.
+    //
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 3: SCROLL DOWN — RAIN  (dissolve 0 → 1, user scrolls down)
+    // ───────────────────────────────────────────────────────────────────────
+    //   • `dissolve` is smoothed from `dissolveTarget` which is tied to scrollY.
+    //   • Each stroke has a `detachAt` threshold (0.04 → 0.42 based on
+    //     distance from center — outer strokes detach first).
+    //   • Pre-detach (dissolve in last 0.08 before detachAt): stroke shakes
+    //     with amplitude = shT² * 6 pixels.
+    //   • The Perlin flow field itself is blended toward downward (π/2) as
+    //     dissolve increases → all flow vectors point down during rain.
+    //   • Detached strokes are pushed by the flow field (no more spring).
+    //     Velocity accumulates, strokes accelerate, fall off the viewport.
+    //   • Canvas trail color transitions from dark (#0d0a07) to cream
+    //     (#fffdf8) as dissolve goes 0.5 → 1.0.
+    //   • Canvas opacity (CSS) stays 1 until dissolve 0.85, then fades to 0.
+    //   • Body background also transitions to cream in onScroll.
+    //   • Editorial section (below the 120vh spacer) is revealed.
+    //   • The reveal observer for editorial elements is gated on
+    //     `dissolveTarget >= 0.88` so content only appears after canvas fades.
+    //
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 4: SCROLL BACK UP — REFORM  (dissolve 1 → 0)
+    // ───────────────────────────────────────────────────────────────────────
+    //   • When `dissolve` drops below a stroke's `detachAt`, it re-attaches.
+    //   • If the stroke is far from target (dist > 200px, happens when rain
+    //     carried it off-screen): warp it to 150px away from target in the
+    //     direction it came from, and zero its velocity.
+    //   • Stiff spring (0.19) pulls it back to letter position in ~15 frames.
+    //   • Canvas background, body bg, and flow field all reverse symmetrically.
+    //   • The text reforms. Strokes remain whitened (wh stays 1) so they
+    //     come back in white, not cream — Phase 2 only happens once.
+    //
+    // ───────────────────────────────────────────────────────────────────────
+    // PHASE 5: IDLE  (persistent final state, active after Phase 2 completes
+    //                 whenever dissolve < 0.005)
+    // ───────────────────────────────────────────────────────────────────────
+    //   • All strokes are white (#ffffff), sitting at their letter positions.
+    //   • Gentle wiggle: each stroke oscillates by up to ±3.5px in the
+    //     direction of the local flow field (so the text subtly "breathes"
+    //     along the noise currents — different parts of the text wiggle in
+    //     different directions at different phases).
+    //   • The flow field itself continuously evolves via Perlin noise time
+    //     offset, so wiggle directions drift slowly.
+    //   • Mouse/touch interaction:
+    //       - Strokes within 90px of the pointer are physically repelled.
+    //       - Strokes within 130px of the pointer get heat (same heat system
+    //         as Phase 2). Heated strokes trigger the chromatic RGB split.
+    //       - Heat decays 4%/frame, creating a fading acid trail behind
+    //         mouse movement / touch drags.
+    //   • No other ambient animation — no shimmer, no pulse, no flicker.
+    //     The text is a stable white anchor that only reacts to user input
+    //     (hover/touch → chromatic) or scroll (→ rain).
+    // ══════════════════════════════════════════════════════════════════════════
+
     function tick(now) {
       requestAnimationFrame(tick);
       if (window.innerWidth <= 768) return;
 
       var elapsed = now - startTime;
 
-      // Smooth dissolve
+      // ── Smooth dissolve (lerp toward scroll target) ──
       dissolve += (dissolveTarget - dissolve) * 0.14;
       if (Math.abs(dissolve - dissolveTarget) < 0.0005) dissolve = dissolveTarget;
+      // Detect scroll direction: positive delta = scrolling down (triggers RGB split)
+      var dissolveDelta = dissolve - lastDissolve;
+      lastDissolve = dissolve;
+      var scrollingDown = dissolveDelta > 0.0004 && dissolve > 0.02;
 
-      // Entrance
+      // ── Phase 1: entrance progress (0→1 over ENTRANCE_MS) ──
       if (!entranceDone) {
         entranceProgress = Math.min(1, elapsed / ENTRANCE_MS);
         if (entranceProgress >= 1) entranceDone = true;
       }
 
-      // Smooth mouse
+      // ── Smooth mouse position for parallax ──
       if (mouse.x > -999) {
         smoothMouseX += ((mouse.x - W / 2) / (W / 2) - smoothMouseX) * 0.04;
         smoothMouseY += ((mouse.y - H / 2) / (H / 2) - smoothMouseY) * 0.04;
       } else { smoothMouseX *= 0.96; smoothMouseY *= 0.96; }
 
-      // Trail: bg transitions dark→cream
-      var bgT = Math.max(0, Math.min(1, (dissolve - 0.5) / 0.5));
-      var tr = Math.round(13 + 242 * bgT), tg = Math.round(10 + 243 * bgT), tb = Math.round(7 + 241 * bgT);
+      // ── Trail: fills canvas with semi-transparent dark bg each frame ──
+      // Creates motion blur. Background stays dark — unified theme with editorial.
       var trailA = Math.min(1, 0.32 + Math.max(0, dissolve - 0.3) * 0.83);
-      ctx.fillStyle = 'rgba(' + tr + ',' + tg + ',' + tb + ',' + trailA.toFixed(2) + ')';
+      ctx.fillStyle = 'rgba(13,10,7,' + trailA.toFixed(2) + ')';
       ctx.fillRect(0, 0, W, H);
 
-      // Update flow field (throttled: every 3 frames — noise evolves slowly)
+      // ── Update Perlin noise flow field (throttled: every 3 frames) ──
       flowFrame++;
       if (flowFrame >= 3 && flowAngles) {
         flowFrame = 0;
         updateFlowField(now * NOISE_SPEED);
       }
 
-      // Entrance factor
       var eFactor = entranceDone ? 1 : easeOutCubic(entranceProgress);
       var scrollFade = Math.max(0, 1 - dissolve * 1.3);
 
-      // ── Text strokes (form letters, wiggle with flow, rain on scroll) ──
-      ctx.lineWidth = 1.4;
+      // ── Text strokes: physics + state updates ──
+      ctx.lineWidth = 1.6;
       ctx.lineCap = 'round';
-      ctx.strokeStyle = '#d8cec3';
-      ctx.beginPath();
-      var textAlphaBase = 0.7 * eFactor;
+      var _creamPath = [], _whitePath = [];
+      var textAlphaBase = 0.95 * eFactor;
+
       for (var ti = 0; ti < textStrokes.length; ti++) {
         var s = textStrokes[ti];
 
-        // Entrance: staggered fly-in
+        // Phase 1: staggered entrance — skip strokes that haven't started yet
         var entF = 1;
         if (!entranceDone) {
           entF = Math.max(0, Math.min(1, (entranceProgress - s.entranceDelay) / (1 - s.entranceDelay)));
@@ -799,50 +901,65 @@
           if (entF < 0.01) continue;
         }
 
+        // ── Compute target position (where this stroke wants to be) ──
         var effX, effY, sAlpha = 1;
         getFlowDir(s.targetX, s.targetY);
         var lfx = _fdx, lfy = _fdy;
-        var wiggle = Math.sin(now * 0.0012 + s.breathOffset) * 3.5;
+        var wiggle = Math.sin(now * 0.0012 + s.breathOffset) * 1.0;
 
         if (dissolve < 0.005) {
+          // Phase 3 (idle): sit at letter position + gentle flow-aligned wiggle
           effX = s.targetX + lfx * wiggle;
           effY = s.targetY + lfy * wiggle;
         } else if (dissolve <= s.detachAt) {
-          // Shake before detach
+          // Phase 4 (pre-detach): shake with increasing intensity before breaking off
           var shT = Math.max(0, dissolve - (s.detachAt - 0.08)) / 0.08;
           var shk = shT * shT * 6;
           effX = s.targetX + lfx * wiggle + Math.sin(now * 0.012 + s.breathOffset * 97) * shk;
           effY = s.targetY + lfy * wiggle + Math.cos(now * 0.015 + s.breathOffset * 71) * shk;
         } else {
-          // Detached: follow the flow field (already rotating down = rain)
+          // Phase 4 (detached): follow flow field + cap velocity magnitude
           getFlowDir(s.x, s.y);
           var rainPush = 2.0 + dissolve * 5;
           s.vx += _fdx * rainPush * 0.12;
           s.vy += _fdy * rainPush * 0.12;
+          // Cap velocity — prevents runaway accumulation during long holds
+          var vSq = s.vx * s.vx + s.vy * s.vy;
+          if (vSq > 100) { // > 10 px/frame
+            var vLen = Math.sqrt(vSq);
+            s.vx = (s.vx / vLen) * 10;
+            s.vy = (s.vy / vLen) * 10;
+          }
           effX = s.x + s.vx;
           effY = s.y + s.vy;
           sAlpha = Math.max(0, 1 - (dissolve - s.detachAt) / 0.4);
+          s.det = 1;
         }
 
-        // Spring to target (formation + idle + return from rain)
+        // ── Attached: aggressive direct interp, no spring residue ──
         if (dissolve <= s.detachAt) {
-          var dx = effX - s.x, dy = effY - s.y;
-          var dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist > 200) {
-            // Returning from rain: warp to 150px from target + kill velocity
-            var warpA = Math.atan2(dy, dx);
-            s.x = effX - Math.cos(warpA) * 150;
-            s.y = effY - Math.sin(warpA) * 150;
+          // Just transitioned back from rain? Kill all residual velocity
+          if (s.det) {
             s.vx = 0; s.vy = 0;
-            dx = effX - s.x; dy = effY - s.y;
-            dist = 150;
+            s.det = 0;
           }
-          var stiff = entranceDone ? (dist > 50 ? 0.19 : 0.055) : 0.01 + entF * 0.06;
-          s.vx += dx * stiff;
-          s.vy += dy * stiff;
+          var dx = effX - s.x, dy = effY - s.y;
+          var dist2 = dx * dx + dy * dy;
+          if (dist2 > 400) { // > 20px: direct interp, no spring
+            // Exponential pull toward target, velocity kept minimal
+            s.x += dx * 0.32;
+            s.y += dy * 0.32;
+            s.vx *= 0.4; // dampen any leftover velocity hard
+            s.vy *= 0.4;
+          } else {
+            // Very close (<20px): soft spring for gentle wiggle/breathing
+            var stiff = entranceDone ? 0.12 : 0.01 + entF * 0.06;
+            s.vx += dx * stiff;
+            s.vy += dy * stiff;
+          }
         }
 
-        // Mouse repulsion + heat (Color Blaze)
+        // ── Mouse interaction: repulsion + heat for chromatic effect ──
         var mdx = s.x - mouse.x, mdy = s.y - mouse.y;
         var md2 = mdx * mdx + mdy * mdy;
         if (md2 < 8100 && md2 > 1) {
@@ -850,45 +967,93 @@
           s.vx += (mdx / md) * (1 - md / 90) * 3.5;
           s.vy += (mdy / md) * (1 - md / 90) * 3.5;
         }
-        // Heat: mouse proximity OR entrance auto-blaze
+        // Heat from mouse proximity (drives chromatic split)
         if (mouse.x > -999 && md2 < 16900) {
           s.heat = Math.min(1, s.heat + (1 - Math.sqrt(md2) / 130) * 0.18);
         }
-        // Auto-blaze: 2.5s after entrance, wave of chromatic color sweeps across text
-        if (entranceDone && elapsed < ENTRANCE_MS + 3200) {
-          var blazeT = (elapsed - ENTRANCE_MS - 200) / 2400; // 0→1 over 2.4s
-          // Wave from left to right based on stroke's target X position
-          var wavePos = blazeT * 1.4 - 0.2; // sweep with overshoot
-          var distToWave = Math.abs((s.targetX / W) - wavePos);
+        // Heat from scroll-down rain: all strokes get chromatic split during fall
+        if (scrollingDown) {
+          s.heat = Math.min(1, s.heat + 0.12 + dissolve * 0.15);
+        }
+
+        // ── Phase 2: auto-blaze chromatic wave (left→right) ──
+        if (entranceDone && elapsed < ENTRANCE_MS + 3500) {
+          var blazeT = (elapsed - ENTRANCE_MS - 200) / 2400;
+          var wavePos = blazeT * 1.4 - 0.2;
+          var normX = s.targetX / W;
+          var distToWave = Math.abs(normX - wavePos);
+          // Heat strokes near the wave front (triggers chromatic RGB split)
           if (distToWave < 0.18) {
             s.heat = Math.min(1, s.heat + (1 - distToWave / 0.18) * 0.25);
           }
+          // Permanently whiten strokes the wave has passed
+          if (normX < wavePos - 0.12) s.wh = 1;
         }
-        s.heat *= 0.96; // decay
+        // After wave ends: whiten any remaining strokes
+        if (entranceDone && elapsed >= ENTRANCE_MS + 3500 && !s.wh) s.wh = 1;
 
+        s.heat *= 0.96; // heat always decays
+
+        // ── Apply friction + update position ──
         s.vx *= 0.87; s.vy *= 0.87;
         s.x += s.vx; s.y += s.vy;
 
+        // Skip offscreen strokes
         if (s.x < -120 || s.x > W + 120 || s.y < -120 || s.y > H + 120) continue;
         var rA = s.alpha * sAlpha * (entranceDone ? 1 : entF);
         if (rA < 0.02) continue;
 
-        // Draw stroke aligned with local flow (same visual as flow strokes = synergy)
+        // ── Collect for batched draw (cream vs white) ──
         getFlowDir(s.x, s.y);
         var dL = s.len * (entranceDone ? 1 : entF);
         var hx = _fdx * dL * 0.5, hy = _fdy * dL * 0.5;
-        ctx.moveTo(s.x - hx, s.y - hy);
-        ctx.lineTo(s.x + hx, s.y + hy);
+        var dest = s.wh ? _whitePath : _creamPath;
+        dest.push(s.x - hx, s.y - hy, s.x + hx, s.y + hy);
       }
-      ctx.globalAlpha = textAlphaBase;
-      ctx.stroke();
+
+      // ── Draw pass 1: cream strokes (pre-whitening) ──
+      if (_creamPath.length) {
+        ctx.strokeStyle = '#d8cec3';
+        ctx.globalAlpha = textAlphaBase;
+        ctx.beginPath();
+        for (var ci = 0; ci < _creamPath.length; ci += 4) {
+          ctx.moveTo(_creamPath[ci], _creamPath[ci+1]);
+          ctx.lineTo(_creamPath[ci+2], _creamPath[ci+3]);
+        }
+        ctx.stroke();
+      }
+
+      // ── Draw pass 2: white strokes (post-whitening, permanent) ──
+      if (_whitePath.length) {
+        // Glow layer (wider, lower alpha) — maintains peak wave brightness
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = textAlphaBase * 0.58;
+        ctx.lineWidth = 4.0;
+        ctx.beginPath();
+        for (var wgi = 0; wgi < _whitePath.length; wgi += 4) {
+          ctx.moveTo(_whitePath[wgi], _whitePath[wgi+1]);
+          ctx.lineTo(_whitePath[wgi+2], _whitePath[wgi+3]);
+        }
+        ctx.stroke();
+        // Core layer (crisp, full alpha)
+        ctx.globalAlpha = textAlphaBase;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        for (var wi = 0; wi < _whitePath.length; wi += 4) {
+          ctx.moveTo(_whitePath[wi], _whitePath[wi+1]);
+          ctx.lineTo(_whitePath[wi+2], _whitePath[wi+3]);
+        }
+        ctx.stroke();
+      }
+
+      ctx.globalAlpha = 1;
 
       // Chromatic Split: RGB channels separate on heated strokes (hover OR auto-blaze)
       {
         var CHROMA_CHANNELS = [
-          { color: 'rgba(255,0,80,',  angle: 0 },           // Hot pink → left
-          { color: 'rgba(0,255,60,',  angle: Math.PI*2/3 }, // Neon green → upper-right
-          { color: 'rgba(40,0,255,',  angle: Math.PI*4/3 }, // Electric blue → lower-right
+          { color: 'rgba(255,0,0,',  angle: 0 },           // Pure red pixel → left
+          { color: 'rgba(0,255,0,',  angle: Math.PI*2/3 }, // Pure green pixel → upper-right
+          { color: 'rgba(0,0,255,',  angle: Math.PI*4/3 }, // Pure blue pixel → lower-right
         ];
         ctx.lineWidth = 2.0;
         ctx.lineCap = 'round';
@@ -973,6 +1138,26 @@
         });
       }, { threshold: 0.5 });
       stats.forEach(function (el) { observer.observe(el); });
+    }
+
+    // ── Holographic cards: 3D tilt on mouse move, RGB intensity driven by angle ──
+    function initHoloCards() {
+      var cards = document.querySelectorAll('.holo');
+      cards.forEach(function (card) {
+        card.addEventListener('mousemove', function (e) {
+          var rect = card.getBoundingClientRect();
+          var x = (e.clientX - rect.left) / rect.width - 0.5;  // -0.5 to 0.5
+          var y = (e.clientY - rect.top) / rect.height - 0.5;
+          card.style.setProperty('--tx', x.toFixed(3));
+          card.style.setProperty('--ty', y.toFixed(3));
+          card.style.setProperty('--intensity', Math.max(Math.abs(x), Math.abs(y)).toFixed(3));
+        });
+        card.addEventListener('mouseleave', function () {
+          card.style.setProperty('--tx', '0');
+          card.style.setProperty('--ty', '0');
+          card.style.setProperty('--intensity', '0');
+        });
+      });
     }
 
     // ── Pretext bio: canvas character-level cascade reveal ─────────────────
@@ -1071,12 +1256,12 @@
           // Warm accent sweep: each char briefly flashes in #955f3b as it appears
           if (t < 0.35) {
             bCtx.globalAlpha = Math.sin(t / 0.35 * Math.PI) * 0.22 * e;
-            bCtx.fillStyle = '#955f3b';
+            bCtx.fillStyle = '#c8a882';
             bCtx.fillText(ch.c, ch.x, ch.y - yOff);
           }
 
           bCtx.globalAlpha = e;
-          bCtx.fillStyle = '#6d645d';
+          bCtx.fillStyle = 'rgba(255,253,248,0.72)';
           bCtx.fillText(ch.c, ch.x, ch.y - yOff);
         }
 
@@ -1090,7 +1275,7 @@
         for (var i = 0; i < lines.length; i++) {
           var p = document.createElement('p');
           p.textContent = lines[i];
-          p.style.cssText = 'font:' + BIO_FONT + ';color:#6d645d;line-height:'
+          p.style.cssText = 'font:' + BIO_FONT + ';color:rgba(255,253,248,0.72);line-height:'
             + BIO_LINE_H + 'px;margin:0;white-space:pre-wrap;';
           wrap.appendChild(p);
         }
@@ -1126,6 +1311,7 @@
       initRevealObserver();
       initStatCounters();
       initBioFlow();
+      initHoloCards();
 
       requestAnimationFrame(tick);
     }
