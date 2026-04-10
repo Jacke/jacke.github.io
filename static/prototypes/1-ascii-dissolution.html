@@ -65,6 +65,66 @@
     }
     @keyframes pulse-hint { 0%,100%{opacity:.4} 50%{opacity:1} }
 
+    /* ─── RGB animation trigger button ───────────────────────── */
+    .rgb-btn {
+      position: fixed; top: 32px; right: 32px; z-index: 20;
+      background: transparent;
+      border: 1px solid rgba(255, 253, 248, 0.18);
+      color: rgba(255, 253, 248, 0.55);
+      padding: 11px 20px;
+      font-family: 'Dank Mono', monospace;
+      font-size: 12px; letter-spacing: 0.18em;
+      cursor: pointer;
+      transition: color 0.3s ease, border-color 0.3s ease,
+                  text-shadow 0.3s ease, transform 0.2s ease,
+                  opacity 0.4s ease;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .rgb-btn:hover {
+      color: #fffdf8;
+      border-color: rgba(255, 253, 248, 0.55);
+      text-shadow: -2px 0 rgba(255, 0, 0, 0.75), 2px 0 rgba(0, 120, 255, 0.75);
+      transform: scale(1.04);
+    }
+    .rgb-btn:active { transform: scale(0.96); }
+    .rgb-btn.pulsing {
+      color: #fffdf8;
+      border-color: #fffdf8;
+      text-shadow: -3px 0 #ff0000, 3px 0 #00aaff, 0 0 12px rgba(255,255,255,0.5);
+      animation: rgb-btn-pulse 0.4s ease;
+    }
+    @keyframes rgb-btn-pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    /* Animated emoji inside button — continuous spin, faster on hover/active */
+    .rgb-btn-emoji {
+      display: inline-block;
+      font-size: 14px;
+      animation: rgb-emoji-spin 4s linear infinite;
+      filter: drop-shadow(0 0 4px rgba(255,255,255,0.25));
+      transform-origin: center center;
+    }
+    .rgb-btn:hover .rgb-btn-emoji {
+      animation-duration: 1.2s;
+      filter: drop-shadow(-1px 0 2px #ff0055) drop-shadow(1px 0 2px #00aaff);
+    }
+    .rgb-btn.pulsing .rgb-btn-emoji {
+      animation: rgb-emoji-burst 0.4s cubic-bezier(0.2,0.8,0.3,1);
+    }
+    @keyframes rgb-emoji-spin {
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes rgb-emoji-burst {
+      0%   { transform: rotate(0deg) scale(1); }
+      50%  { transform: rotate(540deg) scale(1.6); }
+      100% { transform: rotate(1080deg) scale(1); }
+    }
+
     /* ─── Editorial ─────────────────────────────────────────── */
     #editorial {
       position: relative; z-index: 1;
@@ -244,6 +304,7 @@
   <canvas id="hero-canvas"></canvas>
   <div id="scroll-spacer"></div>
   <div id="scroll-hint">&#x2193;&nbsp; scroll to explore</div>
+  <button id="rgb-trigger" class="rgb-btn" aria-label="Trigger animation">A&nbsp;[&nbsp;<span class="rgb-btn-emoji">🌀</span>&nbsp;]</button>
 
   <div id="mobile-hero">
     <div class="mobile-name">Stan Sobolev</div>
@@ -412,6 +473,46 @@
     let flowCols = 0, flowRows = 0, flowAngles = null, flowCos = null, flowSin = null;
     let flowFrame = 0; // throttle: update flow every 3 frames
     let lastDissolve = 0; // previous frame's dissolve (for direction detection)
+    // RGB decomposition animation (triggered by A/Ф button)
+    // 30 animation modes cycle randomly on each trigger, no immediate repeats
+    let rgbAnimActive = false;
+    let rgbAnimStart = 0;
+    let rgbAnimType = 0;
+    let rgbAnimLast = -1;
+    const RGB_ANIM_COUNT = 30;
+    // Per-mode durations (ms)
+    const RGB_ANIM_DURATIONS = [
+      2200, // 0  spiral vortex
+      1500, // 1  shockwave
+      1800, // 2  waveform
+      2000, // 3  implode + explode
+      900,  // 4  glitch flicker
+      1600, // 5  pixelation
+      2000, // 6  twist rotation
+      1700, // 7  disassemble
+      2000, // 8  noise warp
+      2200, // 9  column sweep
+      1500, // 10 zoom burst
+      1400, // 11 slice shift
+      1600, // 12 acid drip
+      2000, // 13 flow storm
+      2400, // 14 galaxy orbit
+      1500, // 15 breathing pulse
+      1600, // 16 corner pull
+      2200, // 17 double helix
+      2400, // 18 ripple pond
+      1800, // 19 spring bounce
+      2000, // 20 waterfall
+      1600, // 21 typewriter flash
+      2000, // 22 gravity tilt
+      1500, // 23 split mirror
+      1000, // 24 electric arc
+      2300, // 25 black hole drag
+      1800, // 26 wind blown
+      2000, // 27 sine grid
+      1200, // 28 teleport blink
+      2200, // 29 concentric rings
+    ];
     let strokes = [];      // flow strokes (decorative, repelled from text)
     let textStrokes = [];  // text-forming strokes (fly in, anchor, wiggle with flow, rain on scroll)
     // Text mask state
@@ -665,6 +766,9 @@
       cursorCanvas.style.opacity = fade;
       glow.style.opacity = Math.max(0, 1 - dissolveTarget * 1.5);
       if (dissolveTarget > 0.01 && hint.parentNode) hint.parentNode.removeChild(hint);
+      var _rgbBtn = document.getElementById('rgb-trigger');
+      if (_rgbBtn) _rgbBtn.style.opacity = dissolveTarget > 0.05 ? '0' : '';
+      if (_rgbBtn) _rgbBtn.style.pointerEvents = dissolveTarget > 0.05 ? 'none' : '';
 
       // Body bg stays dark throughout — editorial section is also dark (unified theme)
 
@@ -856,6 +960,26 @@
       lastDissolve = dissolve;
       var scrollingDown = dissolveDelta > 0.0004 && dissolve > 0.02;
 
+      // RGB decomposition animation: bell curve factor + raw progress
+      var rgbFactor = 0;
+      var rgbAnimT = 0; // raw linear progress 0→1 (used by modes that need it)
+      if (rgbAnimActive) {
+        var animT = (now - rgbAnimStart) / RGB_ANIM_DURATIONS[rgbAnimType];
+        if (animT >= 1) {
+          rgbAnimActive = false;
+        } else {
+          rgbAnimT = animT;
+          // Asymmetric bell curve (shared across modes)
+          if (animT < 0.25) {
+            rgbFactor = easeOutCubic(animT / 0.25);
+          } else if (animT < 0.6) {
+            rgbFactor = 1;
+          } else {
+            rgbFactor = 1 - easeOutCubic((animT - 0.6) / 0.4);
+          }
+        }
+      }
+
       // ── Phase 1: entrance progress (0→1 over ENTRANCE_MS) ──
       if (!entranceDone) {
         entranceProgress = Math.min(1, elapsed / ENTRANCE_MS);
@@ -911,6 +1035,305 @@
           // Phase 3 (idle): sit at letter position + gentle flow-aligned wiggle
           effX = s.targetX + lfx * wiggle;
           effY = s.targetY + lfy * wiggle;
+
+          // ── A/Ф button: one of 5 random animation modes ──
+          if (rgbFactor > 0) {
+            if (rgbAnimType === 0) {
+              // Mode 0: Spiral vortex — orbit around letter position
+              var spiralA = now * 0.009 + s.breathOffset * 4 + s.targetX * 0.01;
+              var spiralR = rgbFactor * 22;
+              effX += Math.cos(spiralA) * spiralR;
+              effY += Math.sin(spiralA) * spiralR;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 1) {
+              // Mode 1: Shockwave — radial ring from center pushes strokes out
+              var sCX = W / 2, sCY = H * 0.46;
+              var sdx = s.targetX - sCX, sdy = s.targetY - sCY;
+              var sdist = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
+              var waveR = easeOutCubic(rgbAnimT) * Math.max(W, H) * 0.75;
+              var wdiff = Math.abs(sdist - waveR);
+              if (wdiff < 100) {
+                var winf = 1 - wdiff / 100;
+                var push = winf * winf * 38;
+                effX += (sdx / sdist) * push;
+                effY += (sdy / sdist) * push;
+                s.heat = Math.max(s.heat, winf);
+              }
+            } else if (rgbAnimType === 2) {
+              // Mode 2: Waveform distortion — horizontal sine sweep
+              var wavePhase = rgbAnimT * Math.PI * 5 - (s.targetX / W) * Math.PI * 3.5;
+              var waveAmp = rgbFactor * 28;
+              effY += Math.sin(wavePhase) * waveAmp;
+              effX += Math.cos(wavePhase * 0.5) * rgbFactor * 7;
+              s.heat = Math.max(s.heat, rgbFactor * Math.abs(Math.sin(wavePhase)));
+            } else if (rgbAnimType === 3) {
+              // Mode 3: Implode + explode — collapse to center then burst outward
+              var iCX = W / 2, iCY = H * 0.46;
+              var idx = iCX - s.targetX, idy = iCY - s.targetY;
+              var phase;
+              if (rgbAnimT < 0.4) {
+                // Implode toward center
+                phase = (rgbAnimT / 0.4) * (rgbAnimT / 0.4) * (rgbAnimT / 0.4) * 0.6;
+              } else if (rgbAnimT < 0.75) {
+                // Explode outward (negative = away from center)
+                var ep = (rgbAnimT - 0.4) / 0.35;
+                phase = 0.6 - easeOutCubic(ep) * 1.0;
+              } else {
+                // Recover back to 0
+                var rp = (rgbAnimT - 0.75) / 0.25;
+                phase = -0.4 * (1 - easeOutCubic(rp));
+              }
+              effX += idx * phase;
+              effY += idy * phase;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 4) {
+              // Mode 4: Glitch flicker — random jitter + max RGB split
+              var jSeed = Math.floor(now * 0.04) + ti;
+              var jx = Math.sin(jSeed * 12.9898) * 43758.5453;
+              var jy = Math.sin(jSeed * 78.233) * 43758.5453;
+              jx = jx - Math.floor(jx);
+              jy = jy - Math.floor(jy);
+              var jitterAmp = rgbFactor * 18;
+              effX += (jx - 0.5) * jitterAmp;
+              effY += (jy - 0.5) * jitterAmp;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 5) {
+              // Mode 5: Pixelation — snap to 40px grid during peak
+              var gridSize = 40;
+              var gxp = Math.round(s.targetX / gridSize) * gridSize + gridSize * 0.5;
+              var gyp = Math.round(s.targetY / gridSize) * gridSize + gridSize * 0.5;
+              effX = s.targetX + (gxp - s.targetX) * rgbFactor;
+              effY = s.targetY + (gyp - s.targetY) * rgbFactor;
+              s.heat = Math.max(s.heat, rgbFactor * 0.85);
+            } else if (rgbAnimType === 6) {
+              // Mode 6: Twist rotation — text rotates around center
+              var tCX = W / 2, tCY = H * 0.46;
+              var tdx = s.targetX - tCX, tdy = s.targetY - tCY;
+              var twistAngle = Math.sin(rgbAnimT * Math.PI * 2) * rgbFactor * 0.6;
+              var tcos = Math.cos(twistAngle), tsin = Math.sin(twistAngle);
+              effX = tCX + tdx * tcos - tdy * tsin;
+              effY = tCY + tdx * tsin + tdy * tcos;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 7) {
+              // Mode 7: Disassemble — each stroke flies in its own random direction
+              var dseedX = Math.cos(s.breathOffset * 11.3 + s.targetX * 0.01) * 70;
+              var dseedY = Math.sin(s.breathOffset * 9.7 + s.targetY * 0.01) * 70;
+              effX += dseedX * rgbFactor;
+              effY += dseedY * rgbFactor;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 8) {
+              // Mode 8: Noise warp — Perlin displacement (text distorts through hot air)
+              var nxw = noise2D(s.targetX * 0.008 + rgbAnimT * 2.5, s.targetY * 0.008);
+              var nyw = noise2D(s.targetX * 0.008 + 500, s.targetY * 0.008 + rgbAnimT * 2.5);
+              effX += nxw * rgbFactor * 55;
+              effY += nyw * rgbFactor * 55;
+              s.heat = Math.max(s.heat, rgbFactor * 0.9);
+            } else if (rgbAnimType === 9) {
+              // Mode 9: Column sweep — vertical scanner L→R, heat only in the column
+              var colPos = rgbAnimT * W * 1.15 - W * 0.075;
+              var colDist = Math.abs(s.targetX - colPos);
+              if (colDist < 130) {
+                var colInf = 1 - colDist / 130;
+                s.heat = Math.max(s.heat, colInf);
+                effY += Math.sin(now * 0.03 + s.targetX * 0.05) * colInf * 14;
+                effX += colInf * 8;
+              }
+            } else if (rgbAnimType === 10) {
+              // Mode 10: Zoom burst — scale out from center then back
+              var zCX = W / 2, zCY = H * 0.46;
+              var zdx = s.targetX - zCX, zdy = s.targetY - zCY;
+              var zoomScale = 1 + rgbFactor * 0.45;
+              effX = zCX + zdx * zoomScale;
+              effY = zCY + zdy * zoomScale;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 11) {
+              // Mode 11: Slice shift — horizontal strips shift L/R alternately
+              var stripH = 24;
+              var stripIdx = Math.floor(s.targetY / stripH);
+              var stripDir = (stripIdx % 2 === 0) ? 1 : -1;
+              var stripShift = stripDir * rgbFactor * Math.sin(rgbAnimT * Math.PI * 3) * 35;
+              effX += stripShift;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 12) {
+              // Mode 12: Acid drip — text melts downward with per-column variation
+              var dripAmt = (20 + Math.sin(s.targetX * 0.035 + s.breathOffset) * 18);
+              effY += rgbFactor * dripAmt;
+              effX += Math.sin(s.targetY * 0.02 + rgbAnimT * 4) * rgbFactor * 4;
+              s.heat = Math.max(s.heat, rgbFactor * 0.9);
+            } else if (rgbAnimType === 13) {
+              // Mode 13: Flow storm — amplified flow field (text flows along Perlin currents)
+              effX += lfx * rgbFactor * 55;
+              effY += lfy * rgbFactor * 55;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 14) {
+              // Mode 14: Galaxy orbit — 1 full rotation around text center + radial pulse
+              var gCX = W / 2, gCY = H * 0.46;
+              var gdx = s.targetX - gCX, gdy = s.targetY - gCY;
+              var gdist = Math.sqrt(gdx * gdx + gdy * gdy) || 1;
+              var baseAngle = Math.atan2(gdy, gdx);
+              var orbitAngle = rgbAnimT * Math.PI * 2;
+              var depthFactor = Math.max(0.2, Math.min(1, 200 / (gdist + 60)));
+              var radiusScale = 1 + Math.sin(rgbAnimT * Math.PI) * depthFactor * 0.35;
+              var gAng = baseAngle + orbitAngle;
+              effX = gCX + Math.cos(gAng) * gdist * radiusScale;
+              effY = gCY + Math.sin(gAng) * gdist * radiusScale;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 15) {
+              // Mode 15: Breathing pulse — 3 rhythmic scale pulses from center
+              var bpCX = W / 2, bpCY = H * 0.46;
+              var bpdx = s.targetX - bpCX, bpdy = s.targetY - bpCY;
+              var breathScale = 1 + Math.sin(rgbAnimT * Math.PI * 6) * rgbFactor * 0.14;
+              effX = bpCX + bpdx * breathScale;
+              effY = bpCY + bpdy * breathScale;
+              s.heat = Math.max(s.heat, rgbFactor * Math.abs(Math.sin(rgbAnimT * Math.PI * 6)));
+            } else if (rgbAnimType === 16) {
+              // Mode 16: Corner pull — strokes drawn toward nearest viewport corner
+              var cornerX = s.targetX < W / 2 ? 0 : W;
+              var cornerY = s.targetY < H * 0.46 ? 0 : H;
+              var cpdx = cornerX - s.targetX;
+              var cpdy = cornerY - s.targetY;
+              var cplen = Math.sqrt(cpdx * cpdx + cpdy * cpdy) || 1;
+              var pullAmt = Math.sin(rgbAnimT * Math.PI) * rgbFactor * 70;
+              effX += (cpdx / cplen) * pullAmt;
+              effY += (cpdy / cplen) * pullAmt;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 17) {
+              // Mode 17: Double helix — sinusoidal position weave based on X
+              var helixPhase = s.targetX * 0.025 - rgbAnimT * Math.PI * 3;
+              var helixAmp = rgbFactor * 32;
+              effY += Math.sin(helixPhase) * helixAmp;
+              effX += Math.cos(helixPhase) * helixAmp * 0.5;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 18) {
+              // Mode 18: Ripple pond — 3 concentric shockwaves at offset phases
+              var rpCX = W / 2, rpCY = H * 0.46;
+              var rpdx = s.targetX - rpCX, rpdy = s.targetY - rpCY;
+              var rpdist = Math.sqrt(rpdx * rpdx + rpdy * rpdy) || 1;
+              var ripSum = 0;
+              for (var rk = 0; rk < 3; rk++) {
+                var rPhase = rgbAnimT - rk * 0.18;
+                if (rPhase <= 0 || rPhase >= 1) continue;
+                var rR = rPhase * Math.max(W, H) * 0.7;
+                var rDiff = Math.abs(rpdist - rR);
+                if (rDiff < 85) {
+                  ripSum += (1 - rDiff / 85) * (1 - rPhase);
+                }
+              }
+              var ripPush = ripSum * 28;
+              effX += (rpdx / rpdist) * ripPush;
+              effY += (rpdy / rpdist) * ripPush;
+              s.heat = Math.max(s.heat, Math.min(1, ripSum * 1.3));
+            } else if (rgbAnimType === 19) {
+              // Mode 19: Spring bounce — elastic damped oscillation from center
+              var sbCX = W / 2, sbCY = H * 0.46;
+              var sbdx = s.targetX - sbCX, sbdy = s.targetY - sbCY;
+              var bounce = Math.sin(rgbAnimT * Math.PI * 5) * Math.exp(-rgbAnimT * 3) * 0.32;
+              effX = sbCX + sbdx * (1 + bounce);
+              effY = sbCY + sbdy * (1 + bounce);
+              s.heat = Math.max(s.heat, Math.abs(bounce) * 2.5);
+            } else if (rgbAnimType === 20) {
+              // Mode 20: Waterfall — vertical cascade, different speed per column
+              var colVar = Math.sin(s.targetX * 0.04) * 0.5 + 0.5;
+              var fallSpeed = 22 + colVar * 46;
+              var fallPulse = Math.sin(rgbAnimT * Math.PI);
+              effY += fallPulse * fallSpeed * rgbFactor;
+              effX += Math.sin(s.targetY * 0.015 + rgbAnimT * 5) * rgbFactor * 3;
+              s.heat = Math.max(s.heat, rgbFactor * 0.85);
+            } else if (rgbAnimType === 21) {
+              // Mode 21: Typewriter flash — sharp heat column sweeps L→R, minimal motion
+              var flashPos = rgbAnimT * W * 1.15 - W * 0.075;
+              var flashDist = Math.abs(s.targetX - flashPos);
+              if (flashDist < 55) {
+                var flashInf = 1 - flashDist / 55;
+                s.heat = Math.max(s.heat, flashInf);
+                effY += Math.sin(now * 0.04 + s.targetY * 0.02) * flashInf * 4;
+              }
+            } else if (rgbAnimType === 22) {
+              // Mode 22: Gravity tilt — rotating gravity vector drags strokes
+              var gravAngle = rgbAnimT * Math.PI * 2;
+              var gravMag = Math.sin(rgbAnimT * Math.PI) * rgbFactor * 28;
+              effX += Math.cos(gravAngle) * gravMag;
+              effY += Math.sin(gravAngle) * gravMag;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 23) {
+              // Mode 23: Split mirror — top/bottom halves separate vertically
+              var smCY = H * 0.46;
+              var splitDir = s.targetY < smCY ? -1 : 1;
+              var splitAmt = Math.sin(rgbAnimT * Math.PI) * rgbFactor * 45;
+              effY += splitDir * splitAmt;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 24) {
+              // Mode 24: Electric arc — random subset of strokes gets violent jitter
+              var arcSeed = Math.floor(now * 0.025) * 997 + ti;
+              var arcR1 = Math.sin(arcSeed * 12.9898) * 43758.5453;
+              arcR1 = arcR1 - Math.floor(arcR1);
+              if (arcR1 > 0.88) {
+                var arcAng = Math.sin(arcSeed * 78.233) * Math.PI * 2;
+                var arcMag = rgbFactor * 32;
+                effX += Math.cos(arcAng) * arcMag;
+                effY += Math.sin(arcAng) * arcMag;
+                s.heat = 1;
+              } else {
+                s.heat = Math.max(s.heat, rgbFactor * 0.35);
+              }
+            } else if (rgbAnimType === 25) {
+              // Mode 25: Black hole drag — moving attractor orbits text, pulls strokes
+              var bhCX = W / 2, bhCY = H * 0.46;
+              var bhOrbitR = Math.min(W, H) * 0.38;
+              var bhAng = rgbAnimT * Math.PI * 2;
+              var bhX = bhCX + Math.cos(bhAng) * bhOrbitR;
+              var bhY = bhCY + Math.sin(bhAng) * bhOrbitR;
+              var bhDx = bhX - s.targetX, bhDy = bhY - s.targetY;
+              var bhDist = Math.sqrt(bhDx * bhDx + bhDy * bhDy) + 40;
+              var bhPull = Math.min(1, 170 / bhDist) * rgbFactor;
+              effX += (bhDx / bhDist) * bhPull * 40;
+              effY += (bhDy / bhDist) * bhPull * 40;
+              s.heat = Math.max(s.heat, bhPull);
+            } else if (rgbAnimType === 26) {
+              // Mode 26: Wind blown — uniform drift with per-stroke variation
+              var windDir = Math.PI * 0.22;
+              var windCos = Math.cos(windDir), windSin = Math.sin(windDir);
+              var windVary = (Math.sin(s.breathOffset * 7 + s.targetY * 0.01) + 1) * 0.5;
+              var windMag = Math.sin(rgbAnimT * Math.PI) * rgbFactor * 40 * (0.5 + windVary);
+              effX += windCos * windMag;
+              effY += windSin * windMag;
+              s.heat = Math.max(s.heat, rgbFactor * 0.9);
+            } else if (rgbAnimType === 27) {
+              // Mode 27: Sine grid — cross-axis sine weave pattern
+              var sgPhaseX = s.targetX * 0.022 - rgbAnimT * Math.PI * 3;
+              var sgPhaseY = s.targetY * 0.028 + rgbAnimT * Math.PI * 3;
+              effX += Math.sin(sgPhaseY) * rgbFactor * 22;
+              effY += Math.sin(sgPhaseX) * rgbFactor * 22;
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 28) {
+              // Mode 28: Teleport blink — random strokes teleport to random offsets
+              var tpSeed = Math.floor(now * 0.008) * 1009 + ti;
+              var tpR1 = Math.sin(tpSeed * 12.9898) * 43758.5453;
+              tpR1 = tpR1 - Math.floor(tpR1);
+              if (tpR1 > 0.65) {
+                var tpR2 = Math.sin(tpSeed * 78.233) * 43758.5453;
+                var tpR3 = Math.sin(tpSeed * 39.346) * 43758.5453;
+                tpR2 = (tpR2 - Math.floor(tpR2)) * 2 - 1;
+                tpR3 = (tpR3 - Math.floor(tpR3)) * 2 - 1;
+                effX += tpR2 * rgbFactor * 120;
+                effY += tpR3 * rgbFactor * 60;
+              }
+              s.heat = Math.max(s.heat, rgbFactor);
+            } else if (rgbAnimType === 29) {
+              // Mode 29: Concentric rings — rings at different radii rotate opposite directions
+              var crCX = W / 2, crCY = H * 0.46;
+              var crdx = s.targetX - crCX, crdy = s.targetY - crCY;
+              var crDist = Math.sqrt(crdx * crdx + crdy * crdy) || 1;
+              var crBase = Math.atan2(crdy, crdx);
+              var ringIdx = Math.floor(crDist / 55);
+              var ringDir = (ringIdx % 2 === 0) ? 1 : -1;
+              var ringDelta = Math.sin(rgbAnimT * Math.PI) * rgbFactor * ringDir * 0.9;
+              var crAng = crBase + ringDelta;
+              effX = crCX + Math.cos(crAng) * crDist;
+              effY = crCY + Math.sin(crAng) * crDist;
+              s.heat = Math.max(s.heat, rgbFactor);
+            }
+          }
         } else if (dissolve <= s.detachAt) {
           // Phase 4 (pre-detach): shake with increasing intensity before breaking off
           var shT = Math.max(0, dissolve - (s.detachAt - 0.08)) / 0.08;
@@ -975,6 +1398,7 @@
         if (scrollingDown) {
           s.heat = Math.min(1, s.heat + 0.12 + dissolve * 0.15);
         }
+        // (RGB anim heat is set per-mode inside the idle branch above)
 
         // ── Phase 2: auto-blaze chromatic wave (left→right) ──
         if (entranceDone && elapsed < ENTRANCE_MS + 3500) {
@@ -1067,7 +1491,7 @@
             var cs = textStrokes[ci];
             if (cs.heat < 0.04) continue;
             chanHasAny = true;
-            var split = cs.heat * 18; // max 18px split at full heat
+            var split = cs.heat * (18 + rgbFactor * 60); // +60px extra split during A/Ф animation
             var ox = offCos * split, oy = offSin * split;
             getFlowDir(cs.x + ox, cs.y + oy);
             var cdL = cs.len;
@@ -1312,6 +1736,32 @@
       initStatCounters();
       initBioFlow();
       initHoloCards();
+
+      // RGB decomposition trigger button
+      var rgbBtn = document.getElementById('rgb-trigger');
+      if (rgbBtn) {
+        var triggerRgb = function () {
+          // Pick random animation type, avoiding immediate repeat
+          var type;
+          do {
+            type = Math.floor(Math.random() * RGB_ANIM_COUNT);
+          } while (type === rgbAnimLast && RGB_ANIM_COUNT > 1);
+          rgbAnimType = type;
+          rgbAnimLast = type;
+          rgbAnimActive = true;
+          rgbAnimStart = performance.now();
+          lastInteractionTime = performance.now();
+          rgbBtn.classList.add('pulsing');
+          setTimeout(function () { rgbBtn.classList.remove('pulsing'); }, 400);
+        };
+        rgbBtn.addEventListener('click', function (e) { e.stopPropagation(); triggerRgb(); });
+        // Keyboard shortcut: A or Ф (same physical key)
+        window.addEventListener('keydown', function (e) {
+          if ((e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            triggerRgb();
+          }
+        });
+      }
 
       requestAnimationFrame(tick);
     }
