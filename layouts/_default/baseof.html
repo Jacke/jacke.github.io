@@ -1,3 +1,6 @@
+{{- if .IsHome -}}
+{{- block "main" . }}{{ end -}}
+{{- else -}}
 <!DOCTYPE html>
 <html lang="{{ site.Language }}" dir="{{ .Language.LanguageDirection | default "auto" }}">
 
@@ -23,3 +26,4 @@
 </body>
 
 </html>
+{{- end -}}
