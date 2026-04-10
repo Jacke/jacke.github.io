@@ -700,15 +700,21 @@
     function initStrokes() {
       // ── Text strokes: sampled from letter pixels, fly in and form text ──
       textStrokes = [];
+      var isMobile = W <= 768;
       var off = document.createElement('canvas');
       off.width = W; off.height = H;
       var oc = off.getContext('2d');
-      var fontSize = Math.max(50, Math.min(160, Math.floor(W * 0.13)));
+      // Mobile uses larger relative font so text looks bolder and denser on small screens
+      var fontSize = isMobile
+        ? Math.max(56, Math.floor(W * 0.16))
+        : Math.max(50, Math.min(160, Math.floor(W * 0.13)));
       oc.font = 'bold ' + fontSize + "px 'Futura Now Headline', Impact, sans-serif";
       oc.textAlign = 'center'; oc.textBaseline = 'middle'; oc.fillStyle = '#fff';
       var textY = H * 0.46;
       if (oc.measureText('STAN SOBOLEV').width > W * 0.92) {
-        var lf = Math.max(40, Math.floor(W * 0.11));
+        var lf = isMobile
+          ? Math.max(52, Math.floor(W * 0.18))
+          : Math.max(40, Math.floor(W * 0.11));
         oc.font = 'bold ' + lf + "px 'Futura Now Headline', Impact, sans-serif";
         oc.fillText('STAN', W / 2, H * 0.4);
         oc.fillText('SOBOLEV', W / 2, H * 0.55);
@@ -718,8 +724,11 @@
       var data = oc.getImageData(0, 0, W, H).data;
       var cx = W / 2, cy = H * 0.46;
       var maxDist = Math.sqrt(cx * cx + cy * cy);
-      // Larger sampling gap on mobile → fewer strokes → smoother GPU load
-      var gap = W <= 768 ? 6 : 4;
+      // Denser sampling on mobile (gap=3 → ~1.8x more strokes than gap=4)
+      var gap = isMobile ? 3 : 4;
+      // Slightly longer strokes on mobile for bolder visual presence
+      var lenBase = isMobile ? 5 : 4;
+      var lenVar  = isMobile ? 5 : 4;
       for (var py = 0; py < H; py += gap) {
         for (var px = 0; px < W; px += gap) {
           if (data[(py * W + px) * 4 + 3] > 128) {
@@ -730,7 +739,7 @@
               x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad,
               targetX: px, targetY: py,
               vx: 0, vy: 0,
-              len: 4 + Math.random() * 4,
+              len: lenBase + Math.random() * lenVar,
               entranceDelay: (dToC / maxDist) * 0.4,
               detachAt: 0.04 + (1 - dToC / maxDist) * 0.38,
               breathOffset: Math.random() * Math.PI * 2,
@@ -1453,6 +1462,7 @@
       if (_creamPath.length) {
         ctx.strokeStyle = '#d8cec3';
         ctx.globalAlpha = textAlphaBase;
+        ctx.lineWidth = W <= 768 ? 2.2 : 1.6;
         ctx.beginPath();
         for (var ci = 0; ci < _creamPath.length; ci += 4) {
           ctx.moveTo(_creamPath[ci], _creamPath[ci+1]);
@@ -1463,10 +1473,11 @@
 
       // ── Draw pass 2: white strokes (post-whitening, permanent) ──
       if (_whitePath.length) {
+        var _isMobile = W <= 768;
         // Glow layer (wider, lower alpha) — maintains peak wave brightness
         ctx.strokeStyle = '#ffffff';
         ctx.globalAlpha = textAlphaBase * 0.58;
-        ctx.lineWidth = 4.0;
+        ctx.lineWidth = _isMobile ? 5.5 : 4.0;
         ctx.beginPath();
         for (var wgi = 0; wgi < _whitePath.length; wgi += 4) {
           ctx.moveTo(_whitePath[wgi], _whitePath[wgi+1]);
@@ -1475,7 +1486,7 @@
         ctx.stroke();
         // Core layer (crisp, full alpha)
         ctx.globalAlpha = textAlphaBase;
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = _isMobile ? 2.2 : 1.6;
         ctx.beginPath();
         for (var wi = 0; wi < _whitePath.length; wi += 4) {
           ctx.moveTo(_whitePath[wi], _whitePath[wi+1]);
@@ -1493,7 +1504,7 @@
           { color: 'rgba(0,255,0,',  angle: Math.PI*2/3 }, // Pure green pixel → upper-right
           { color: 'rgba(0,0,255,',  angle: Math.PI*4/3 }, // Pure blue pixel → lower-right
         ];
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = W <= 768 ? 2.8 : 2.0;
         ctx.lineCap = 'round';
         ctx.globalCompositeOperation = 'screen'; // additive blend for RGB
         for (var ch = 0; ch < 3; ch++) {
