@@ -76,7 +76,10 @@
 
     /* ─── RGB animation trigger button ───────────────────────── */
     .rgb-btn {
-      position: fixed; top: 32px; right: 32px; z-index: 20;
+      position: fixed;
+      top: calc(32px + env(safe-area-inset-top, 0px));
+      right: calc(32px + env(safe-area-inset-right, 0px));
+      z-index: 20;
       background: transparent;
       border: 1px solid rgba(255, 253, 248, 0.18);
       color: rgba(255, 253, 248, 0.55);
@@ -297,8 +300,7 @@
     .mobile-title { font-size: 15px; color: #6d645d; letter-spacing: 0.1em; }
 
     @media (max-width: 768px) {
-      #hero-canvas, #cursor-canvas, #hero-glow, #scroll-spacer, #scroll-hint, .rgb-btn { display: none !important; }
-      #mobile-hero { display: flex; }
+      #mobile-hero { display: none !important; }
       .editorial-inner { padding: 80px 24px 100px; }
       .swiss-grid, .work-item { grid-template-columns: 1fr; column-gap: 0; }
       .swiss-grid dt { padding: 20px 0 8px; border-bottom: none; }
@@ -716,7 +718,8 @@
       var data = oc.getImageData(0, 0, W, H).data;
       var cx = W / 2, cy = H * 0.46;
       var maxDist = Math.sqrt(cx * cx + cy * cy);
-      var gap = 4;
+      // Larger sampling gap on mobile → fewer strokes → smoother GPU load
+      var gap = W <= 768 ? 6 : 4;
       for (var py = 0; py < H; py += gap) {
         for (var px = 0; px < W; px += gap) {
           if (data[(py * W + px) * 4 + 3] > 128) {
@@ -746,10 +749,10 @@
 
     // ── Resize ──────────────────────────────────────────────────────────────
     function resize() {
-      const dpr = window.devicePixelRatio || 1;
       W = window.innerWidth;
       H = window.innerHeight;
-      // Retina-crisp rendering
+      // Cap DPR on mobile to halve the pixel fill cost (3x retina on iPhone Pro Max → 2x)
+      const dpr = Math.min(window.devicePixelRatio || 1, W <= 768 ? 2 : 3);
       canvas.width = W * dpr;
       canvas.height = H * dpr;
       canvas.style.width = W + 'px';
@@ -762,11 +765,9 @@
       cursorCanvas.style.height = H + 'px';
       cursorCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      if (W > 768) {
-        createTextField();
-        initFlowGrid();
-        initStrokes();
-      }
+      createTextField();
+      initFlowGrid();
+      initStrokes();
     }
 
     // ── Scroll ──────────────────────────────────────────────────────────────
@@ -962,7 +963,6 @@
 
     function tick(now) {
       requestAnimationFrame(tick);
-      if (window.innerWidth <= 768) return;
 
       var elapsed = now - startTime;
 
@@ -1541,12 +1541,10 @@
     function initRevealObserver() {
       const els = document.querySelectorAll('.reveal');
       if (!els.length) return;
-      // On mobile: no canvas, no scroll-spacer, no dissolve gating — reveal normally.
-      // On desktop: gate until canvas has faded (dissolveTarget >= 0.88).
-      const isMobile = window.innerWidth <= 768;
+      // Gate reveals until the hero canvas has faded during scroll (dissolveTarget >= 0.88)
       const observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
-          if (entry.isIntersecting && (isMobile || dissolveTarget >= 0.88)) {
+          if (entry.isIntersecting && dissolveTarget >= 0.88) {
             entry.target.classList.add('visible');
             observer.unobserve(entry.target);
           }
@@ -1765,12 +1763,6 @@
       initStatCounters();
       initBioFlow();
       initHoloCards();
-
-      // Mobile: no hero canvas / scroll animation — unlock editorial + bio immediately
-      if (window.innerWidth <= 768) {
-        editorialUnlocked = true;
-        setTimeout(function () { if (bioRevealFn) bioRevealFn(); }, 400);
-      }
 
       // RGB decomposition trigger button
       var rgbBtn = document.getElementById('rgb-trigger');
