@@ -220,17 +220,16 @@
       100% { transform: scale(1); }
     }
 
-    /* Pause button — sits left of the A/Ф button, shares .rgb-btn styling */
+    /* Pause button — sits left of the A/Ф button, same look as the shuffle button */
     .pause-btn {
-      right: calc(165px + env(safe-area-inset-right, 0px));
-      padding: 11px 15px;
-      min-width: 44px;
+      right: calc(170px + env(safe-area-inset-right, 0px));
     }
     .pause-btn .pause-icon {
       display: inline-block;
-      font-size: 16px;
+      font-size: 14px;
       line-height: 1;
       font-family: 'Apple Symbols', 'Segoe UI Symbol', system-ui, sans-serif;
+      filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.25));
     }
     .pause-btn.is-paused {
       color: #c8a882;
@@ -454,8 +453,8 @@
   <canvas id="hero-canvas"></canvas>
   <div id="scroll-spacer"></div>
   <div id="scroll-hint">&#x2193;&nbsp; scroll to explore</div>
-  <button id="rgb-trigger" class="rgb-btn" aria-label="Trigger animation">A&nbsp;[&nbsp;<span class="rgb-btn-emoji">🌀</span>&nbsp;]</button>
-  <button id="pause-trigger" class="rgb-btn pause-btn" aria-label="Pause animation"><span class="pause-icon">&#x23F8;</span></button>
+  <button id="rgb-trigger" class="rgb-btn" aria-label="Trigger animation (shortcut A or Ф)" title="Shuffle animation  ·  press A / Ф">A&nbsp;[&nbsp;<span class="rgb-btn-emoji">🌀</span>&nbsp;]</button>
+  <button id="pause-trigger" class="rgb-btn pause-btn" aria-label="Pause animation (shortcut P or З)" title="Pause / resume  ·  press P / З">P&nbsp;[&nbsp;<span class="pause-icon">&#x23F8;</span>&nbsp;]</button>
 
   <div id="mobile-hero">
     <div class="mobile-name">Stan Sobolev</div>
