@@ -220,6 +220,32 @@
       100% { transform: scale(1); }
     }
 
+    /* Pause button — sits left of the A/Ф button, shares .rgb-btn styling */
+    .pause-btn {
+      right: calc(165px + env(safe-area-inset-right, 0px));
+      padding: 11px 15px;
+      min-width: 44px;
+    }
+    .pause-btn .pause-icon {
+      display: inline-block;
+      font-size: 16px;
+      line-height: 1;
+      font-family: 'Apple Symbols', 'Segoe UI Symbol', system-ui, sans-serif;
+    }
+    .pause-btn.is-paused {
+      color: #c8a882;
+      border-color: #c8a882;
+      text-shadow: -2px 0 rgba(255, 0, 0, 0.6), 2px 0 rgba(0, 120, 255, 0.6);
+      box-shadow: 0 0 24px rgba(200, 168, 130, 0.25);
+    }
+    .pause-btn.is-paused .pause-icon {
+      animation: pause-pulse 2s ease-in-out infinite;
+    }
+    @keyframes pause-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.7; transform: scale(1.08); }
+    }
+
     /* Animated emoji inside button — continuous spin, faster on hover/active */
     .rgb-btn-emoji {
       display: inline-block;
@@ -429,6 +455,7 @@
   <div id="scroll-spacer"></div>
   <div id="scroll-hint">&#x2193;&nbsp; scroll to explore</div>
   <button id="rgb-trigger" class="rgb-btn" aria-label="Trigger animation">A&nbsp;[&nbsp;<span class="rgb-btn-emoji">🌀</span>&nbsp;]</button>
+  <button id="pause-trigger" class="rgb-btn pause-btn" aria-label="Pause animation"><span class="pause-icon">&#x23F8;</span></button>
 
   <div id="mobile-hero">
     <div class="mobile-name">Stan Sobolev</div>
@@ -597,6 +624,10 @@
     let flowCols = 0, flowRows = 0, flowAngles = null, flowCos = null, flowSin = null;
     let flowFrame = 0; // throttle: update flow every 3 frames
     let lastDissolve = 0; // previous frame's dissolve (for direction detection)
+    // Pause state — freezes all time-based animation while keeping mouse/touch heat active
+    let paused = false;
+    let pauseStart = 0;       // real timestamp when current pause started
+    let pauseTimeOffset = 0;  // accumulated paused ms (subtracted from real time)
     // RGB decomposition animation (triggered by A/Ф button)
     // 30 animation modes cycle randomly on each trigger, no immediate repeats
     let rgbAnimActive = false;
@@ -899,8 +930,15 @@
       glow.style.opacity = Math.max(0, 1 - dissolveTarget * 1.5);
       if (dissolveTarget > 0.01 && hint.parentNode) hint.parentNode.removeChild(hint);
       var _rgbBtn = document.getElementById('rgb-trigger');
-      if (_rgbBtn) _rgbBtn.style.opacity = dissolveTarget > 0.05 ? '0' : '';
-      if (_rgbBtn) _rgbBtn.style.pointerEvents = dissolveTarget > 0.05 ? 'none' : '';
+      if (_rgbBtn) {
+        _rgbBtn.style.opacity = dissolveTarget > 0.05 ? '0' : '';
+        _rgbBtn.style.pointerEvents = dissolveTarget > 0.05 ? 'none' : '';
+      }
+      var _pauseBtn = document.getElementById('pause-trigger');
+      if (_pauseBtn) {
+        _pauseBtn.style.opacity = dissolveTarget > 0.05 ? '0' : '';
+        _pauseBtn.style.pointerEvents = dissolveTarget > 0.05 ? 'none' : '';
+      }
 
       // Body bg stays dark throughout — editorial section is also dark (unified theme)
 
@@ -1078,14 +1116,19 @@
     //     (hover/touch → chromatic) or scroll (→ rain).
     // ══════════════════════════════════════════════════════════════════════════
 
-    function tick(now) {
+    function tick(realNow) {
       requestAnimationFrame(tick);
 
+      // Effective time — when paused, time is frozen at pauseStart minus offset.
+      // All downstream code uses `now` which is this effective time.
+      var now = paused ? pauseStart - pauseTimeOffset : realNow - pauseTimeOffset;
       var elapsed = now - startTime;
 
-      // ── Smooth dissolve (lerp toward scroll target) ──
-      dissolve += (dissolveTarget - dissolve) * 0.14;
-      if (Math.abs(dissolve - dissolveTarget) < 0.0005) dissolve = dissolveTarget;
+      // ── Smooth dissolve (lerp toward scroll target) — frozen during pause ──
+      if (!paused) {
+        dissolve += (dissolveTarget - dissolve) * 0.14;
+        if (Math.abs(dissolve - dissolveTarget) < 0.0005) dissolve = dissolveTarget;
+      }
       // Detect scroll direction: positive delta = scrolling down (triggers RGB split)
       var dissolveDelta = dissolve - lastDissolve;
       lastDissolve = dissolve;
@@ -1129,11 +1172,13 @@
       ctx.fillStyle = 'rgba(13,10,7,' + trailA.toFixed(2) + ')';
       ctx.fillRect(0, 0, W, H);
 
-      // ── Update Perlin noise flow field (throttled: every 3 frames) ──
-      flowFrame++;
-      if (flowFrame >= 3 && flowAngles) {
-        flowFrame = 0;
-        updateFlowField(now * NOISE_SPEED);
+      // ── Update Perlin noise flow field (throttled: every 3 frames, frozen on pause) ──
+      if (!paused) {
+        flowFrame++;
+        if (flowFrame >= 3 && flowAngles) {
+          flowFrame = 0;
+          updateFlowField(now * NOISE_SPEED);
+        }
       }
 
       var eFactor = entranceDone ? 1 : easeOutCubic(entranceProgress);
@@ -1154,6 +1199,26 @@
           entF = Math.max(0, Math.min(1, (entranceProgress - s.entranceDelay) / (1 - s.entranceDelay)));
           entF = easeInOutCubic(entF);
           if (entF < 0.01) continue;
+        }
+
+        // ── PAUSED fast-path: no physics, just mouse heat + render ──
+        // Hover/tap still generates heat → chromatic split stays interactive on frozen strokes.
+        if (paused) {
+          var pmdx = s.x - mouse.x, pmdy = s.y - mouse.y;
+          var pmd2 = pmdx * pmdx + pmdy * pmdy;
+          if (mouse.x > -999 && pmd2 < 16900) {
+            s.heat = Math.min(1, s.heat + (1 - Math.sqrt(pmd2) / 130) * 0.18);
+          }
+          s.heat *= 0.96; // heat still decays so chromatic trails fade naturally
+          if (s.x < -120 || s.x > W + 120 || s.y < -120 || s.y > H + 120) continue;
+          var prA = s.alpha * (entranceDone ? 1 : entF);
+          if (prA < 0.02) continue;
+          getFlowDir(s.x, s.y);
+          var pdL = s.len * (entranceDone ? 1 : entF);
+          var phx = _fdx * pdL * 0.5, phy = _fdy * pdL * 0.5;
+          var pdest = s.wh ? _whitePath : _creamPath;
+          pdest.push(s.x - phx, s.y - phy, s.x + phx, s.y + phy);
+          continue;
         }
 
         // ── Compute target position (where this stroke wants to be) ──
@@ -1895,7 +1960,9 @@
           rgbAnimType = type;
           rgbAnimLast = type;
           rgbAnimActive = true;
-          rgbAnimStart = performance.now();
+          // Use effective time so pause-freeze doesn't break animT math
+          var eNow = paused ? pauseStart - pauseTimeOffset : performance.now() - pauseTimeOffset;
+          rgbAnimStart = eNow;
           lastInteractionTime = performance.now();
           rgbBtn.classList.add('pulsing');
           setTimeout(function () { rgbBtn.classList.remove('pulsing'); }, 400);
@@ -1905,6 +1972,38 @@
         window.addEventListener('keydown', function (e) {
           if ((e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф') && !e.metaKey && !e.ctrlKey && !e.altKey) {
             triggerRgb();
+          }
+        });
+      }
+
+      // ── Pause button: freeze all animation, keep mouse hover chromatic active ──
+      var pauseBtn = document.getElementById('pause-trigger');
+      if (pauseBtn) {
+        var pauseIcon = pauseBtn.querySelector('.pause-icon');
+        var togglePause = function () {
+          var realNow = performance.now();
+          if (paused) {
+            // Unpause: add the paused interval to our offset so effective time resumes smoothly
+            pauseTimeOffset += realNow - pauseStart;
+            paused = false;
+            pauseBtn.classList.remove('is-paused');
+            if (pauseIcon) pauseIcon.innerHTML = '&#x23F8;'; // ⏸
+            pauseBtn.setAttribute('aria-label', 'Pause animation');
+          } else {
+            // Pause: mark the freeze moment — effective time stays at (pauseStart - pauseTimeOffset)
+            pauseStart = realNow;
+            paused = true;
+            pauseBtn.classList.add('is-paused');
+            if (pauseIcon) pauseIcon.innerHTML = '&#x25B6;'; // ▶
+            pauseBtn.setAttribute('aria-label', 'Resume animation');
+          }
+          lastInteractionTime = realNow;
+        };
+        pauseBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePause(); });
+        // Keyboard shortcut: P or З (same physical key)
+        window.addEventListener('keydown', function (e) {
+          if ((e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            togglePause();
           }
         });
       }
