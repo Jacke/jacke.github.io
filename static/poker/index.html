@@ -938,7 +938,7 @@ body::before {
   <div class="waiting-hint">Or send the room code directly</div>
   <div id="waiting-status">
     <div class="spinner" id="waiting-spinner"></div>
-    <span>Waiting for opponent<span class="dots"></span></span>
+    <span class="waiting-text-main">Waiting for opponent</span><span class="dots"></span>
   </div>
 </div>
 
@@ -1512,28 +1512,35 @@ function onConnClose() {
 }
 
 function initHost(roomIdIn) {
+  console.log('[poker] initHost', roomIdIn);
   roomId = roomIdIn;
   isHost = true;
   STATE.myIndex = 0;
+  if (!STATE.myName) STATE.myName = 'Host';
+  document.getElementById('ready-you-name').textContent = STATE.myName;
+  document.getElementById('your-name-label').textContent = STATE.myName;
   const peerId = 'iamjacke-poker-' + roomId;
   setConnStatus('connecting', 'Starting...');
 
-  peer = new Peer(peerId, { debug: 0 });
+  peer = new Peer(peerId, { debug: 1 });
 
-  peer.on('open', () => {
-    setConnStatus('connecting', 'Waiting...');
+  peer.on('open', (id) => {
+    console.log('[poker] host peer open as', id);
+    setConnStatus('connecting', 'Waiting for opponent...');
     showWaitingRoom();
   });
 
   peer.on('connection', (c) => {
+    console.log('[poker] host got incoming connection');
     conn = c;
     setupConn(c);
   });
 
   peer.on('error', (err) => {
+    console.warn('[poker] host peer error:', err.type, err.message);
     if (err.type === 'unavailable-id') {
       // Room already exists — become guest
-      peer.destroy();
+      try { peer.destroy(); } catch (e) {}
       peer = null;
       initGuest(roomIdIn);
     } else {
@@ -1544,20 +1551,28 @@ function initHost(roomIdIn) {
 }
 
 function initGuest(roomIdIn) {
+  console.log('[poker] initGuest', roomIdIn);
   roomId = roomIdIn;
   isHost = false;
   STATE.myIndex = 1;
-  setConnStatus('connecting', 'Connecting...');
+  if (!STATE.myName) STATE.myName = 'Guest';
+  document.getElementById('ready-you-name').textContent = STATE.myName;
+  document.getElementById('your-name-label').textContent = STATE.myName;
+  setConnStatus('connecting', 'Connecting to host...');
+  showWaitingRoom();
+  document.querySelector('#screen-waiting .waiting-text-main').textContent = 'Joining game…';
 
-  peer = new Peer(undefined, { debug: 0 });
+  peer = new Peer(undefined, { debug: 1 });
 
-  peer.on('open', () => {
+  peer.on('open', (id) => {
+    console.log('[poker] guest peer open as', id);
     const peerId = 'iamjacke-poker-' + roomId;
     conn = peer.connect(peerId, { reliable: true });
     setupConn(conn);
   });
 
   peer.on('error', (err) => {
+    console.warn('[poker] guest peer error:', err.type, err.message);
     setConnStatus('error', 'Error');
     if (err.type === 'peer-unavailable') {
       showError('Room not found. The host may have left or the code is wrong.');
@@ -1568,13 +1583,20 @@ function initGuest(roomIdIn) {
 }
 
 function setupConn(c) {
-  c.on('open', onConnOpen);
+  console.log('[poker] setupConn — already open?', c.open);
+  c.on('open', () => { console.log('[poker] conn open event'); onConnOpen(); });
   c.on('data', onMessage);
   c.on('close', onConnClose);
   c.on('error', (e) => {
     setConnStatus('error', 'Error');
-    console.error('conn error', e);
+    console.error('[poker] conn error', e);
   });
+  // Defensive: if the DataChannel was already open before we attached the
+  // listener (race in PeerJS where 'open' may fire synchronously), fire manually
+  if (c.open) {
+    console.log('[poker] conn was already open — firing onConnOpen manually');
+    setTimeout(onConnOpen, 0);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2184,17 +2206,15 @@ function showError(msg) {
    EVENT LISTENERS
    ═══════════════════════════════════════════════════════════════════════ */
 
-// Landing: Create Game
+// Landing: Create Game — auto-init as host, no name overlay
 document.getElementById('btn-create-game').addEventListener('click', () => {
   const newRoomId = genRoomId();
   window.history.pushState({}, '', '/poker/?r=' + newRoomId);
-  showOverlay('overlay-name');
-  // After name confirmed, init as host
-  document.getElementById('btn-confirm-name').dataset.mode = 'host';
-  document.getElementById('btn-confirm-name').dataset.room = newRoomId;
+  STATE.myName = 'Host';
+  initHost(newRoomId);
 });
 
-// Name confirm
+// Name confirm — kept for back-compat but no longer the primary flow
 document.getElementById('btn-confirm-name').addEventListener('click', () => {
   const input = document.getElementById('name-input');
   const name = input.value.trim() || 'Player';
@@ -2323,25 +2343,22 @@ document.getElementById('btn-error-ok').addEventListener('click', () => {
    ═══════════════════════════════════════════════════════════════════════ */
 
 (function init() {
+  console.log('[poker] init');
   const r = getParam('r');
   if (!r) {
-    // Show landing
+    // No room code in URL — show landing page
     showScreen('screen-landing');
     return;
   }
 
-  // We have a room code — ask for name then connect
+  // We have a room code — try to claim host id; if taken, fall back to guest.
+  // initHost handles `unavailable-id` automatically by calling initGuest.
   roomId = r;
-  showOverlay('overlay-name');
-  // Set up name button for guest mode
-  const btn = document.getElementById('btn-confirm-name');
-  btn.dataset.mode = 'guest';
-  btn.dataset.room = r;
-  // Hide the landing screen but don't show waiting yet
-  showScreen('screen-waiting'); // show briefly, will transition
   document.getElementById('room-code-display').textContent = r;
   const url = window.location.origin + '/poker/?r=' + r;
   document.getElementById('share-link-input').value = url;
+  STATE.myName = ''; // initHost/initGuest will assign default
+  initHost(r);
 })();
 </script>
 </body>
