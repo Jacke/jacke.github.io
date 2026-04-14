@@ -182,92 +182,95 @@
     }
     @keyframes pulse-hint { 0%,100%{opacity:.4} 50%{opacity:1} }
 
-    /* ─── RGB animation trigger button ───────────────────────── */
-    .rgb-btn {
+    /* ─── Player controls (pause/play + shuffle) ─────────────── */
+    .player-ctl {
       position: fixed;
       top: calc(32px + env(safe-area-inset-top, 0px));
       right: calc(32px + env(safe-area-inset-right, 0px));
       z-index: 20;
-      background: transparent;
+      display: inline-flex;
+      align-items: stretch;
+      background: rgba(13, 10, 7, 0.45);
       border: 1px solid rgba(255, 253, 248, 0.18);
-      color: rgba(255, 253, 248, 0.55);
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      overflow: hidden;
+      transition: opacity 0.4s ease, border-color 0.3s ease,
+                  box-shadow 0.3s ease;
+    }
+    .player-ctl:hover {
+      border-color: rgba(255, 253, 248, 0.4);
+    }
+    .player-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 253, 248, 0.6);
       padding: 11px 20px;
-      font-family: 'Dank Mono', monospace;
-      font-size: 12px; letter-spacing: 0.18em;
       cursor: pointer;
-      transition: color 0.3s ease, border-color 0.3s ease,
-                  text-shadow 0.3s ease, transform 0.2s ease,
-                  opacity 0.4s ease;
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
+      font-family: 'Dank Mono', monospace;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      transition: color 0.3s ease, background 0.2s ease,
+                  text-shadow 0.3s ease, transform 0.15s ease;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    .rgb-btn:hover {
+    .player-btn + .player-btn {
+      border-left: 1px solid rgba(255, 253, 248, 0.18);
+    }
+    .player-btn:hover {
       color: #fffdf8;
-      border-color: rgba(255, 253, 248, 0.55);
-      text-shadow: -2px 0 rgba(255, 0, 0, 0.75), 2px 0 rgba(0, 120, 255, 0.75);
-      transform: scale(1.04);
+      background: rgba(255, 253, 248, 0.05);
+      text-shadow: -2px 0 rgba(255, 0, 0, 0.65), 2px 0 rgba(0, 120, 255, 0.65);
     }
-    .rgb-btn:active { transform: scale(0.96); }
-    .rgb-btn.pulsing {
-      color: #fffdf8;
-      border-color: #fffdf8;
-      text-shadow: -3px 0 #ff0000, 3px 0 #00aaff, 0 0 12px rgba(255,255,255,0.5);
-      animation: rgb-btn-pulse 0.4s ease;
+    .player-btn:active {
+      transform: scale(0.95);
     }
-    @keyframes rgb-btn-pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.15); }
-      100% { transform: scale(1); }
-    }
-
-    /* Pause button — sits left of the A/Ф button, same look as the shuffle button */
-    .pause-btn {
-      right: calc(170px + env(safe-area-inset-right, 0px));
-    }
-    .pause-btn .pause-icon {
+    .player-icon {
       display: inline-block;
+      font-family: 'Apple Symbols', 'Segoe UI Symbol', system-ui, sans-serif;
       font-size: 14px;
       line-height: 1;
-      font-family: 'Apple Symbols', 'Segoe UI Symbol', system-ui, sans-serif;
       filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.25));
     }
-    .pause-btn.is-paused {
-      color: #c8a882;
-      border-color: #c8a882;
-      text-shadow: -2px 0 rgba(255, 0, 0, 0.6), 2px 0 rgba(0, 120, 255, 0.6);
-      box-shadow: 0 0 24px rgba(200, 168, 130, 0.25);
-    }
-    .pause-btn.is-paused .pause-icon {
-      animation: pause-pulse 2s ease-in-out infinite;
-    }
-    @keyframes pause-pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%      { opacity: 0.7; transform: scale(1.08); }
+    .player-key {
+      font-size: 10px;
+      opacity: 0.65;
+      letter-spacing: 0.2em;
     }
 
-    /* Animated emoji inside button — continuous spin, faster on hover/active */
-    .rgb-btn-emoji {
-      display: inline-block;
-      font-size: 14px;
-      animation: rgb-emoji-spin 4s linear infinite;
-      filter: drop-shadow(0 0 4px rgba(255,255,255,0.25));
-      transform-origin: center center;
+    /* Pause button — active state when paused (acts as play button) */
+    .player-btn.is-paused {
+      color: #c8a882;
+      text-shadow: -2px 0 rgba(255, 0, 0, 0.65), 2px 0 rgba(0, 120, 255, 0.65);
     }
-    .rgb-btn:hover .rgb-btn-emoji {
-      animation-duration: 1.2s;
-      filter: drop-shadow(-1px 0 2px #ff0055) drop-shadow(1px 0 2px #00aaff);
+    .player-ctl:has(.is-paused) {
+      box-shadow: 0 0 24px rgba(200, 168, 130, 0.22);
+      border-color: rgba(200, 168, 130, 0.45);
     }
-    .rgb-btn.pulsing .rgb-btn-emoji {
-      animation: rgb-emoji-burst 0.4s cubic-bezier(0.2,0.8,0.3,1);
+    .player-btn.is-paused .player-icon {
+      animation: player-pulse 2s ease-in-out infinite;
     }
-    @keyframes rgb-emoji-spin {
-      0%   { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    @keyframes player-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.7; transform: scale(1.1); }
     }
-    @keyframes rgb-emoji-burst {
-      0%   { transform: rotate(0deg) scale(1); }
-      50%  { transform: rotate(540deg) scale(1.6); }
-      100% { transform: rotate(1080deg) scale(1); }
+
+    /* Shuffle (next) button — flash on trigger */
+    .player-btn.pulsing {
+      color: #fffdf8;
+      text-shadow: -3px 0 #ff0000, 3px 0 #00aaff, 0 0 12px rgba(255, 255, 255, 0.5);
+    }
+    .player-btn.pulsing .player-icon {
+      animation: player-flash 0.45s cubic-bezier(0.2, 0.8, 0.3, 1);
+    }
+    @keyframes player-flash {
+      0%   { transform: translateX(0) scale(1); }
+      40%  { transform: translateX(6px) scale(1.25); }
+      100% { transform: translateX(0) scale(1); }
     }
 
     /* ─── Editorial ─────────────────────────────────────────── */
@@ -453,8 +456,16 @@
   <canvas id="hero-canvas"></canvas>
   <div id="scroll-spacer"></div>
   <div id="scroll-hint">&#x2193;&nbsp; scroll to explore</div>
-  <button id="rgb-trigger" class="rgb-btn" aria-label="Trigger animation (shortcut A or Ф)" title="Shuffle animation  ·  press A / Ф">A&nbsp;[&nbsp;<span class="rgb-btn-emoji">🌀</span>&nbsp;]</button>
-  <button id="pause-trigger" class="rgb-btn pause-btn" aria-label="Pause animation (shortcut P or З)" title="Pause / resume  ·  press P / З">P&nbsp;[&nbsp;<span class="pause-icon">&#x23F8;</span>&nbsp;]</button>
+  <div id="player-ctl" class="player-ctl" role="group" aria-label="Animation player controls">
+    <button id="pause-trigger" class="player-btn" aria-label="Pause / resume animation — press P or З" title="Pause / resume  ·  press P / З">
+      <span class="player-icon pause-icon">&#x23F8;</span>
+      <span class="player-key">P</span>
+    </button>
+    <button id="rgb-trigger" class="player-btn" aria-label="Shuffle to next animation — press A or Ф" title="Next animation  ·  press A / Ф">
+      <span class="player-icon">&#x23ED;</span>
+      <span class="player-key">A</span>
+    </button>
+  </div>
 
   <div id="mobile-hero">
     <div class="mobile-name">Stan Sobolev</div>
@@ -928,15 +939,10 @@
       cursorCanvas.style.opacity = fade;
       glow.style.opacity = Math.max(0, 1 - dissolveTarget * 1.5);
       if (dissolveTarget > 0.01 && hint.parentNode) hint.parentNode.removeChild(hint);
-      var _rgbBtn = document.getElementById('rgb-trigger');
-      if (_rgbBtn) {
-        _rgbBtn.style.opacity = dissolveTarget > 0.05 ? '0' : '';
-        _rgbBtn.style.pointerEvents = dissolveTarget > 0.05 ? 'none' : '';
-      }
-      var _pauseBtn = document.getElementById('pause-trigger');
-      if (_pauseBtn) {
-        _pauseBtn.style.opacity = dissolveTarget > 0.05 ? '0' : '';
-        _pauseBtn.style.pointerEvents = dissolveTarget > 0.05 ? 'none' : '';
+      var _playerCtl = document.getElementById('player-ctl');
+      if (_playerCtl) {
+        _playerCtl.style.opacity = dissolveTarget > 0.05 ? '0' : '';
+        _playerCtl.style.pointerEvents = dissolveTarget > 0.05 ? 'none' : '';
       }
 
       // Body bg stays dark throughout — editorial section is also dark (unified theme)
@@ -1200,15 +1206,16 @@
           if (entF < 0.01) continue;
         }
 
-        // ── PAUSED fast-path: no physics, just mouse heat + render ──
-        // Hover/tap still generates heat → chromatic split stays interactive on frozen strokes.
+        // ── PAUSED fast-path: no physics, no heat decay — true freeze ──
+        // Hover/tap still ADDS heat → user can paint chromatic split on frozen strokes.
+        // Heat does NOT decay, so existing chromatic state is preserved exactly.
         if (paused) {
           var pmdx = s.x - mouse.x, pmdy = s.y - mouse.y;
           var pmd2 = pmdx * pmdx + pmdy * pmdy;
           if (mouse.x > -999 && pmd2 < 16900) {
             s.heat = Math.min(1, s.heat + (1 - Math.sqrt(pmd2) / 130) * 0.18);
           }
-          s.heat *= 0.96; // heat still decays so chromatic trails fade naturally
+          // (no heat decay during pause — frozen state stays frozen)
           if (s.x < -120 || s.x > W + 120 || s.y < -120 || s.y > H + 120) continue;
           var prA = s.alpha * (entranceDone ? 1 : entF);
           if (prA < 0.02) continue;
