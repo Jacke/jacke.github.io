@@ -1,0 +1,34 @@
+{
+  "name": "iamjacke-poker-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node.js WebSocket backend for iamjacke poker/blackjack — matchmaking, relay, persistence",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/poker-server/src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^6.9.16",
+    "pino": "^9.5.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^20.11.0",
+    "@types/nodemailer": "^6.4.17",
+    "@types/ws": "^8.5.13",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.21.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

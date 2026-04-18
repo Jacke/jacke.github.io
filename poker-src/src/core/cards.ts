@@ -21,7 +21,7 @@ export const RANK_VAL: Readonly<Record<Rank, number>> = {
 };
 
 // Short deck rank values - A is still 14, but 6 is now lowest
-export const SHORT_DECK_RANK_VAL: Readonly<Record<Rank, number>> = {
+export const SHORT_DECK_RANK_VAL: Readonly<Partial<Record<Rank, number>>> = {
   '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14,
 };
 
@@ -32,6 +32,13 @@ export const SUIT_SYMBOL: Readonly<Record<Suit, string>> = {
 export const SUIT_CLASS: Readonly<Record<Suit, 'red-suit' | 'black-suit'>> = {
   s: 'black-suit', h: 'red-suit', d: 'red-suit', c: 'black-suit',
 };
+
+/** The joker card — a 2-char sentinel outside the normal rank+suit space. */
+export const JOKER: Card = 'JK';
+
+export function isJoker(card: Card): boolean {
+  return card === JOKER;
+}
 
 /** Rank character (first char of card string). */
 export function rankChar(card: Card): Rank {
@@ -57,11 +64,12 @@ export function getRankValue(card: Card, variant: GameVariant = 'holdem'): numbe
 
 /** Check if a card is valid for a given variant */
 export function isValidCard(card: Card, variant: GameVariant = 'holdem'): boolean {
+  if (variant === 'joker' && isJoker(card)) return true;
   const r = rankChar(card);
   const s = suitChar(card);
-  
+
   if (!SUITS.includes(s)) return false;
-  
+
   if (variant === 'shortdeck') {
     return SHORT_DECK_RANKS.includes(r);
   }
@@ -75,7 +83,7 @@ export function rankOf(card: Card): number {
 
 /** Numeric rank value for Short Deck - 6 is lowest (value 6), A is highest (14) */
 export function shortDeckRankOf(card: Card): number {
-  return SHORT_DECK_RANK_VAL[rankChar(card)];
+  return SHORT_DECK_RANK_VAL[rankChar(card)] ?? 0;
 }
 
 /** Suit char of a card. Alias kept for parity with inline JS. */
@@ -97,6 +105,7 @@ export function makeVariantDeck(variant: GameVariant): Card[] {
     case 'shortdeck':
       ranks = SHORT_DECK_RANKS;
       break;
+    case 'joker':
     case 'holdem':
     case 'omaha':
     case 'pineapple':
@@ -112,6 +121,7 @@ export function makeVariantDeck(variant: GameVariant): Card[] {
       deck.push(r + s);
     }
   }
+  if (variant === 'joker') deck.push(JOKER);
   return deck;
 }
 
@@ -119,7 +129,9 @@ export function makeVariantDeck(variant: GameVariant): Card[] {
 export function getDeckSize(variant: GameVariant): number {
   switch (variant) {
     case 'shortdeck':
-      return 36; // 9 ranks * 4 suits
+      return 36;
+    case 'joker':
+      return 53;
     default:
       return 52;
   }

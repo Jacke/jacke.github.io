@@ -7,7 +7,7 @@ import type { Card } from '../core/types.js';
 
 export interface RecordedAction {
   player: number;
-  kind: 'fold' | 'check' | 'call' | 'raise';
+  kind: 'fold' | 'check' | 'call' | 'raise' | 'discard';
   amount?: number;
 }
 
@@ -44,7 +44,7 @@ export function recordHandStart(deck: Card[], button: number, handNum: number): 
 
 export function recordAction(
   player: number,
-  kind: 'fold' | 'check' | 'call' | 'raise',
+  kind: 'fold' | 'check' | 'call' | 'raise' | 'discard',
   amount?: number,
 ): void {
   if (!currentHand) return;

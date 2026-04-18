@@ -10,6 +10,7 @@ export const IDS = {
   screenWaiting: 'screen-waiting',
   screenReady: 'screen-ready',
   screenGame: 'screen-game',
+  screenBlackjack: 'screen-blackjack',
   // Overlays
   overlayName: 'overlay-name',
   overlayShowdown: 'overlay-showdown',
@@ -57,6 +58,7 @@ export const IDS = {
   nameInput: 'name-input',
   btnConfirmName: 'btn-confirm-name',
   btnCreateGame: 'btn-create-game',
+  btnFindMatch: 'btn-find-match',
   btnBotEasy: 'btn-bot-easy',
   btnBotMedium: 'btn-bot-medium',
   btnBotHard: 'btn-bot-hard',

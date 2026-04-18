@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INTERFACE.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.52) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1) contrast(1.03);}95%{filter:brightness(.82);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .3s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -4px 0 0 rgba(255,30,30,.35),inset 4px 0 0 rgba(30,80,255,.35);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:88px;color:var(--amber);text-shadow:0 0 44px var(--amber),0 0 88px rgba(255,178,41,.22);letter-spacing:10px;margin-bottom:4px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:700px;max-width:92vw;font-size:13px;line-height:2.1;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:700px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.25);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.1);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:5px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.12);background:rgba(0,0,0,.35);min-height:36px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.alloc{color:var(--orange);border-color:var(--orange);background:rgba(249,115,22,.09);}
+.pbadge.assign{color:var(--blue);border-color:var(--blue);background:rgba(96,165,250,.08);}
+.pbadge.assert{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.07);}
+.pbadge.call{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+.pbadge.nil{color:var(--purple);border-color:var(--purple);background:rgba(168,85,247,.08);}
+.pbadge.panic{color:var(--red);border-color:var(--red);background:rgba(244,63,94,.12);}
+.pbadge.embed{color:var(--amber);border-color:var(--amber);}
+.pbadge.duck{color:var(--cyan);border-color:var(--cyan);}
+.pbadge.done{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+.pbadge.warn{color:var(--orange);border-color:var(--orange);}
+#step-txt{font-size:11px;color:rgba(255,178,41,.78);flex:1;line-height:1.45;}
+#stats{display:flex;gap:14px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:var(--red);border-color:var(--red);}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:430px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.22);border-left:1px solid rgba(255,178,41,.15);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.14);margin-bottom:1px;}
+.phdr{font-family:'VT323',monospace;font-size:15px;letter-spacing:4px;color:var(--amber);padding:6px 12px 6px 14px;background:rgba(0,0,0,.42);border-bottom:1px solid rgba(255,178,41,.18);border-left:3px solid rgba(255,178,41,.55);}
+#code-scroll{overflow-y:auto;max-height:250px;padding:4px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.7;padding:1px 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.1);border-left:2px solid var(--amber);}
+.ln{color:rgba(255,178,41,.28);width:22px;text-align:right;margin-right:9px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#6a7f8f;font-style:italic;}.op{color:#56b6c2;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:10px 14px;font-size:11.5px;line-height:1.85;color:rgba(255,178,41,.72);}
+.info-block strong{color:#ffcc55;font-weight:500;}
+.tag{display:inline-block;background:rgba(255,178,41,.09);border:1px solid rgba(255,178,41,.28);padding:2px 7px;font-size:10px;margin:2px 2px;}
+.warn-tag{display:inline-block;background:rgba(244,63,94,.09);border:1px solid rgba(244,63,94,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#f43f5e;}
+.ok-tag{display:inline-block;background:rgba(74,222,128,.09);border:1px solid rgba(74,222,128,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#4ade80;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">INTERFACE.VIZ</div>
+  <div id="boot-tagline">GO INTERFACE INTERNALS — MEMORY LAYOUT AND TYPE SYSTEM</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">INTERFACE.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a scenario (keys 1–6).</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">TYPE PTR</span><span class="sv" id="st-tp" style="color:var(--blue)">nil</span></div>
+        <div class="si"><span class="sl">DATA PTR</span><span class="sv" id="st-dp" style="color:var(--orange)">nil</span></div>
+        <div class="si"><span class="sl">IS NIL</span><span class="sv" id="st-n" style="color:var(--green)">true</span></div>
+        <div class="si"><span class="sl">ITAB</span><span class="sv" id="st-it">—</span></div>
+        <div class="si"><span class="sl">KIND</span><span class="sv" id="st-k">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="4" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">←→</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–6</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ KEY RULES</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ GOTCHAS + INTERVIEW</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ── NOISE ── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{const el=document.getElementById('crt-wrap');el.style.filter='brightness(.2)';setTimeout(()=>{el.style.filter='';sGlitch();},18+Math.random()*16);},3800+Math.random()*6200);}sGlitch();
+
+/* ── AUDIO ── */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);const f={alloc:380,assign:480,assert:540,call:600,nil:200,panic:140,embed:440,duck:520,done:520,warn:240,init:300};o.frequency.setValueAtTime(f[type]||380,AC.currentTime);o.type=type==='panic'?'sawtooth':'triangle';g.gain.setValueAtTime(.08,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.14);o.start(AC.currentTime);o.stop(AC.currentTime+.17);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('assign');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ── HIGHLIGHT ── */
+function hlGo(l){
+  const e=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ci=e.indexOf('//');const code=ci>=0?e.slice(0,ci):e;const cmt=ci>=0?e.slice(ci):'';
+  function hl(s){
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/\b(func|go|var|type|struct|interface|return|if|else|for|range|switch|case|default|make|nil|int|int64|string|bool|float64|error|any|defer|panic|recover)\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&lt;=|&gt;=|&lt;-|->|\.\.\.|\.)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return hl(code)+(cmt?'<span class="cm">'+cmt+'</span>':'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span>${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ═══════════════════════════════════════
+   SCENARIOS
+═══════════════════════════════════════ */
+const SC={
+  iface_eface:{label:'IFACE vs EFACE',
+    code:[
+      '// iface: interface with methods (2 words)',
+      '// eface: empty interface / any (2 words)',
+      '',
+      '// iface layout: {itab *itab, data unsafe.Pointer}',
+      '// itab: {inter *interfacetype, type *_type, hash, fun [...]}',
+      '',
+      'type Stringer interface { String() string }',
+      '',
+      'type Dog struct { Name string }',
+      'func (d *Dog) String() string { return d.Name }',
+      '',
+      'var s Stringer              // iface: {nil, nil}',
+      'dog := &Dog{Name: "Rex"}',
+      's = dog                    // iface: {itab(*Dog,Stringer), ptr(dog)}',
+      '',
+      'var a any                  // eface: {nil, nil}',
+      'a = 42                     // eface: {type(int), data(42)}',
+      'a = dog                    // eface: {type(*Dog), ptr(dog)}',
+      '',
+      '// Method call via iface:',
+      '// s.String() → itab.fun[0](data)',
+      '// Virtual dispatch: O(1), one pointer dereference',
+    ],
+    cx:`<strong>iface</strong>: interface with methods — two words: {itab pointer, data pointer}<br><strong>eface</strong>: empty interface (any) — two words: {type pointer, data pointer}<br><strong>itab</strong>: cached per (interface, concrete-type) pair — contains method table<br><strong>Small values</strong>: int, bool, pointer-sized types stored directly in data word (no heap alloc)<br><strong>Larger values</strong>: heap-allocated, data pointer points to copy`,
+    how:`Every interface value in Go is a two-word fat pointer. For non-empty interfaces (iface), the first word is an itab pointer — a struct cached per (interface type, concrete type) pair containing the interface type descriptor, concrete type descriptor, hash, and a function pointer table for method dispatch.<br><br>For empty interfaces (any/interface{}), the first word is just the concrete type pointer — no itab needed since there are no methods to dispatch.<br><br>Method calls go through the function table in itab at O(1) cost — one pointer dereference. The itab is computed once and cached, so repeated assignments of the same concrete type reuse the cached itab.`,
+    facts:`<span class="tag">Size</span> interface value = 2 machine words (16 bytes on 64-bit)<br><span class="ok-tag">PERFORMANCE</span> method dispatch = 1 pointer deref — not a vtable scan<br><span class="tag">itab cache</span> keyed by (interface type, concrete type) — computed once, reused<br><span class="warn-tag">TRAP</span> storing interface in interface{} wraps it again — double indirection<br><span class="tag">Inline</span> small scalar values (int, pointer) stored directly in data word — no heap<br><span class="ok-tag">INTERVIEW</span> "how big is an interface?" → 2 words / 16 bytes on 64-bit`,
+  },
+  nil_trap:{label:'NIL INTERFACE TRAP',
+    code:[
+      '// THE CLASSIC NIL INTERFACE TRAP',
+      '',
+      'type MyError struct{ msg string }',
+      'func (e *MyError) Error() string { return e.msg }',
+      '',
+      'func mayFail(fail bool) error {',
+      '    var e *MyError  // typed nil pointer',
+      '    if fail {',
+      '        e = &MyError{"something failed"}',
+      '    }',
+      '    return e  // WRONG: returns non-nil interface!',
+      '}',
+      '',
+      'err := mayFail(false)',
+      'if err != nil {           // TRUE — non-nil interface!',
+      '    fmt.Println("error:", err)  // prints: <nil>',
+      '}',
+      '',
+      '// FIX: return typed nil as untyped nil',
+      'func mayFailFixed(fail bool) error {',
+      '    if fail {',
+      '        return &MyError{"something failed"}',
+      '    }',
+      '    return nil  // untyped nil: both words = nil',
+      '}',
+    ],
+    cx:`<strong>nil interface:</strong> both type and data pointers are nil → <code>== nil</code> is true<br><strong>typed nil:</strong> type pointer is set, data pointer is nil → interface IS NOT nil<br><strong>Root cause:</strong> <code>return e</code> where e is <code>*MyError(nil)</code> sets the type word of the interface<br><strong>FIX:</strong> always return <code>nil</code> (untyped) not a typed nil pointer as interface<br><strong>Detection:</strong> <code>reflect.ValueOf(err).IsNil()</code> checks the inner pointer`,
+    how:`When you assign a typed nil pointer to an interface, Go creates an interface value with the type word set (pointing to the type descriptor) but the data word as nil. This interface value is NOT nil when compared with ==.<br><br>The comparison <code>err != nil</code> only checks if the interface itself is nil (both words zero). A typed nil wrapped in an interface has a non-zero type word, so it passes the nil check — even though the underlying pointer is nil.<br><br>This causes the infamous "non-nil error with nil pointer" bug. Always return the untyped <code>nil</code> literal from functions returning interface types.`,
+    facts:`<span class="warn-tag">TOP GOTCHA</span> typed nil pointer in interface != nil — one of Go's most common bugs<br><span class="ok-tag">FIX</span> return untyped nil, not a typed nil pointer<br><span class="tag">reflect</span> use reflect.ValueOf(v).IsNil() to check inner pointer<br><span class="ok-tag">IDIOM</span> return (nil, err) or (result, nil) — never return typed nil as error<br><span class="warn-tag">TRAP</span> errors.As/errors.Is handle nil safely — direct == nil does not<br><span class="tag">Interface comparison</span> both type AND data must match for == to be true`,
+  },
+  type_assert:{label:'TYPE ASSERT',
+    code:[
+      '// Type assertion: extract concrete value from interface',
+      '',
+      'var i interface{} = "hello"',
+      '',
+      '// Single-value assertion: panics if wrong type',
+      's := i.(string)     // s = "hello"',
+      'n := i.(int)        // PANIC: interface{} is string, not int',
+      '',
+      '// Comma-ok: safe, never panics',
+      's2, ok := i.(string) // ok=true,  s2="hello"',
+      'n2, ok := i.(int)    // ok=false, n2=0 (zero value)',
+      '',
+      '// Type switch: handle multiple types',
+      'func describe(i interface{}) string {',
+      '    switch v := i.(type) {',
+      '    case int:',
+      '        return fmt.Sprintf("int: %d", v)',
+      '    case string:',
+      '        return fmt.Sprintf("string: %q", v)',
+      '    case bool:',
+      '        return fmt.Sprintf("bool: %v", v)',
+      '    default:',
+      '        return fmt.Sprintf("unknown: %T", v)',
+      '    }',
+      '}',
+    ],
+    cx:`<strong>Type assertion x.(T):</strong> extracts T from interface, panics if type mismatch<br><strong>Comma-ok x.(T):</strong> safe form — returns (zero, false) on mismatch, never panics<br><strong>Type switch:</strong> <code>switch v := x.(type)</code> — v has the concrete type in each case<br><strong>Runtime check:</strong> compares the type pointer in the interface's type word vs T's type descriptor<br><strong>Cost:</strong> O(1) — single pointer comparison, not a full type scan`,
+    how:`A type assertion x.(T) reads the type word of the interface and compares it to the type descriptor for T. If they match, the data word is returned as the concrete type. If they don't match, in the single-value form it panics with "interface conversion: interface is X, not Y".<br><br>The comma-ok form returns a boolean instead of panicking — always prefer this in production code. The type switch is syntactic sugar over multiple comma-ok assertions, with the added benefit that v has the specific concrete type in each case branch.`,
+    facts:`<span class="warn-tag">PANIC</span> single-value x.(T) panics on mismatch — always use comma-ok in production<br><span class="ok-tag">PATTERN</span> comma-ok: if v, ok := x.(T); ok { use v } — idiomatic and safe<br><span class="tag">Type switch</span> v has concrete type in each case — compiler knows the type<br><span class="tag">Cost</span> O(1): one pointer comparison per assertion<br><span class="ok-tag">INTERVIEW</span> "what's the difference between type assertion and type conversion?" → assertion extracts from interface, conversion changes numeric/string types<br><span class="warn-tag">TRAP</span> asserting to interface type checks if the concrete type implements it`,
+  },
+  embedding:{label:'EMBEDDING',
+    code:[
+      '// Interface embedding: composition over inheritance',
+      '',
+      'type Reader interface {',
+      '    Read(p []byte) (n int, err error)',
+      '}',
+      '',
+      'type Writer interface {',
+      '    Write(p []byte) (n int, err error)',
+      '}',
+      '',
+      '// Composed interface (standard library pattern)',
+      'type ReadWriter interface {',
+      '    Reader  // embeds all Reader methods',
+      '    Writer  // embeds all Writer methods',
+      '}',
+      '',
+      '// Struct embedding promotes methods',
+      'type Logger struct {',
+      '    io.Writer         // promoted: Logger.Write() available',
+      '    prefix string',
+      '}',
+      '',
+      'func (l *Logger) Log(msg string) {',
+      '    fmt.Fprintf(l.Writer, "%s: %s\\n", l.prefix, msg)',
+      '}',
+      '',
+      '// Satisfies io.Writer automatically',
+      'var w io.Writer = &Logger{os.Stdout, "[INFO]"}',
+    ],
+    cx:`<strong>Interface embedding:</strong> composes method sets — ReadWriter = Reader + Writer<br><strong>Struct embedding:</strong> promotes fields and methods to outer type<br><strong>Implicit implementation:</strong> no <code>implements</code> keyword — structural typing<br><strong>Method promotion:</strong> embedded type's methods become methods of outer struct<br><strong>Diamond problem:</strong> Go resolves conflicts at the shallowest depth, error if ambiguous`,
+    how:`Go uses structural typing — a type implements an interface by having the required methods, with no explicit declaration. Interface embedding composes method sets: ReadWriter requires all methods of both Reader and Writer.<br><br>Struct embedding promotes the embedded type's methods to the outer struct. This enables delegation patterns where the outer type delegates to the embedded type while optionally overriding some methods.<br><br>Method sets follow depth-first promotion rules. If two embedded types have the same method name, the shallowest one wins. If two are at the same depth, Go reports an ambiguity compile error.`,
+    facts:`<span class="ok-tag">RULE</span> T implements I if T has all methods of I — no declaration needed<br><span class="tag">Method set rules</span> *T has all methods of T plus pointer-receiver methods<br><span class="warn-tag">TRAP</span> T value cannot call pointer-receiver methods if T is not addressable<br><span class="ok-tag">STD LIB</span> io.Reader, io.Writer, io.ReadWriter — canonical embedding examples<br><span class="tag">Depth</span> shallowest promoted method wins; equal depth = compile error<br><span class="ok-tag">INTERVIEW</span> "how does Go achieve polymorphism?" → structural typing + interface embedding`,
+  },
+  duck_typing:{label:'DUCK TYPING',
+    code:[
+      '// Structural typing: satisfies interface implicitly',
+      '',
+      'type Shape interface {',
+      '    Area() float64',
+      '    Perimeter() float64',
+      '}',
+      '',
+      'type Circle struct { Radius float64 }',
+      'func (c Circle) Area() float64      { return math.Pi * c.Radius * c.Radius }',
+      'func (c Circle) Perimeter() float64 { return 2 * math.Pi * c.Radius }',
+      '',
+      'type Rectangle struct { W, H float64 }',
+      'func (r Rectangle) Area() float64      { return r.W * r.H }',
+      'func (r Rectangle) Perimeter() float64 { return 2*(r.W+r.H) }',
+      '',
+      '// Both implement Shape — no declaration',
+      'shapes := []Shape{',
+      '    Circle{5},',
+      '    Rectangle{3, 4},',
+      '}',
+      '',
+      'for _, s := range shapes {',
+      '    fmt.Printf("area=%.2f perim=%.2f\\n", s.Area(), s.Perimeter())',
+      '}',
+      '',
+      '// Compile-time check (explicit):',
+      'var _ Shape = Circle{}    // compile error if Circle does not implement Shape',
+    ],
+    cx:`<strong>Structural typing:</strong> if it has the methods, it satisfies the interface<br><strong>No declaration:</strong> unlike Java/C#, no <code>implements</code> needed<br><strong>Retroactive:</strong> third-party types can satisfy your interfaces without modification<br><strong>Compile-time check:</strong> <code>var _ Shape = Type{}</code> — explicit interface satisfaction check<br><strong>Interface segregation:</strong> prefer small, focused interfaces (io.Reader has 1 method)`,
+    how:`Go's structural typing (duck typing) means that interface satisfaction is checked at compile time based on method signatures, not declarations. If Circle has Area() and Perimeter(), it implements Shape — no explicit declaration.<br><br>This enables retroactive abstraction: you can define an interface that third-party types happen to satisfy, without modifying those types. This is how standard library types like os.File satisfy io.Reader and io.Writer without those packages knowing about each other.<br><br>The explicit check <code>var _ Shape = Circle{}</code> makes the compiler verify satisfaction at the declaration site — useful for documentation and catching implementation drift.`,
+    facts:`<span class="ok-tag">POWER</span> retroactive interface satisfaction — third-party types can satisfy your interfaces<br><span class="tag">io.Reader</span> one method: Read([]byte)(int, error) — 100s of types implement it<br><span class="ok-tag">IDIOM</span> var _ Interface = (*Type)(nil) — compile-time satisfaction check<br><span class="warn-tag">TRAP</span> pointer vs value receiver affects method set and interface satisfaction<br><span class="tag">Implicit</span> no runtime overhead for interface satisfaction check<br><span class="ok-tag">INTERVIEW</span> "what's the difference between Go and Java interfaces?" → structural vs nominal typing`,
+  },
+  method_set:{label:'METHOD SETS',
+    code:[
+      '// Method sets: which receivers satisfy an interface',
+      '',
+      'type Animal interface { Sound() string }',
+      '',
+      'type Cat struct{ Name string }',
+      '',
+      '// Value receiver: both T and *T satisfy the interface',
+      'func (c Cat) Sound() string { return "meow" }',
+      '',
+      '// Pointer receiver: ONLY *T satisfies the interface',
+      'type Dog struct{ Name string }',
+      'func (d *Dog) Sound() string { return "woof" }',
+      '',
+      '// Value receiver: both work',
+      'var a1 Animal = Cat{"Whiskers"}   // OK',
+      'var a2 Animal = &Cat{"Mittens"}   // OK',
+      '',
+      '// Pointer receiver: only pointer works',
+      'var a3 Animal = &Dog{"Rex"}       // OK',
+      '// var a4 Animal = Dog{"Rex"}     // COMPILE ERROR',
+      '',
+      '// Method set rules:',
+      '// T:  methods with value receiver only',
+      '// *T: methods with value AND pointer receivers',
+      '',
+      '// T is not addressable in all contexts:',
+      '// map[K]T cannot call pointer-receiver methods',
+    ],
+    cx:`<strong>Value receiver (func (T) M()):</strong> both T and *T satisfy interfaces with M<br><strong>Pointer receiver (func (*T) M()):</strong> ONLY *T satisfies interfaces with M<br><strong>Reason:</strong> *T can always be dereferenced to T; T cannot always take an address<br><strong>Method set of T:</strong> value receiver methods only<br><strong>Method set of *T:</strong> value + pointer receiver methods`,
+    how:`Go's method sets control interface satisfaction. A value type T has a method set containing only value-receiver methods. A pointer type *T has a method set containing both value-receiver and pointer-receiver methods.<br><br>This asymmetry exists because you can always dereference a pointer to get a value, but you cannot always take the address of a value (e.g., map values, return values, interface contents are not addressable).<br><br>Practical consequence: if you need to mutate the receiver or avoid copying, use pointer receivers — but then you must use a pointer to satisfy interfaces. Prefer consistency: if any method uses pointer receiver, use pointer receivers for all methods on that type.`,
+    facts:`<span class="warn-tag">TRAP</span> Dog{} cannot satisfy interface if Sound() has pointer receiver<br><span class="ok-tag">RULE</span> pointer receiver method → use *T for interface satisfaction<br><span class="tag">Addressability</span> map values, interface values, return values are NOT addressable<br><span class="warn-tag">TRAP</span> &Dog{} works; Dog{} in map[K]Dog — calling pointer method on map value fails<br><span class="ok-tag">CONVENTION</span> if any method on type T has pointer receiver, all should (consistency)<br><span class="tag">Compiler</span> auto-dereferences: if you have *T and call value method, Go dereferences automatically`,
+  },
+};
+
+/* ═══════════════════════════════════════
+   STEPS
+═══════════════════════════════════════ */
+function buildSteps(key){
+  const S=[];
+  const snap=(phase,desc,cl,st)=>S.push({phase,desc,cl,...st});
+
+  if(key==='iface_eface'){
+    snap('init','Memory layout: interface = 2 words (16 bytes). Both pointers nil initially.',
+      10,{typePtr:'nil',dataPtr:'nil',isNil:true,itab:'—',kind:'iface',concreteType:null,assigned:false,mode:'iface'});
+    snap('alloc','Dog{Name:"Rex"} heap-allocated at 0xC001. dog = *Dog pointing there.',
+      11,{typePtr:'nil',dataPtr:'0xC001',isNil:true,itab:'—',kind:'iface',concreteType:'*Dog',assigned:false,mode:'iface'});
+    snap('assign','s = dog. iface type word → itab(*Dog, Stringer). data word → 0xC001.',
+      12,{typePtr:'itab',dataPtr:'0xC001',isNil:false,itab:'*Dog/Stringer',kind:'iface',concreteType:'*Dog',assigned:true,mode:'iface'});
+    snap('call','s.String() dispatch: itab.fun[0](data). Calls Dog.String with data ptr as receiver.',
+      18,{typePtr:'itab',dataPtr:'0xC001',isNil:false,itab:'*Dog/Stringer',kind:'iface',concreteType:'*Dog',assigned:true,mode:'iface'});
+    snap('init','Empty interface (any). eface = {*_type, data}. No itab — no methods to dispatch.',
+      14,{typePtr:'nil',dataPtr:'nil',isNil:true,itab:'—',kind:'eface',concreteType:null,assigned:false,mode:'eface'});
+    snap('assign','a = 42. Small int stored DIRECTLY in data word. eface: {*int_type, 42}.',
+      15,{typePtr:'*int',dataPtr:'42',isNil:false,itab:'N/A',kind:'eface',concreteType:'int',assigned:true,mode:'eface'});
+    snap('assign','a = dog. Pointer stored in data word. eface: {*ptrDog_type, 0xC001}.',
+      16,{typePtr:'*Dog',dataPtr:'0xC001',isNil:false,itab:'N/A',kind:'eface',concreteType:'*Dog',assigned:true,mode:'eface'});
+    snap('done','iface vs eface: same 2-word layout, different first word. itab vs type pointer.',
+      18,{typePtr:'*Dog',dataPtr:'0xC001',isNil:false,itab:'N/A',kind:'eface',concreteType:'*Dog',assigned:true,mode:'eface'});
+  }
+
+  else if(key==='nil_trap'){
+    snap('init','mayFail(false) called. Allocate e *MyError as typed nil. Value = nil but type = *MyError.',
+      6,{typePtr:'nil',dataPtr:'nil',isNil:true,itab:'—',kind:'iface',concreteType:null,showTrap:false,showFix:false,trapFired:false});
+    snap('nil','fail=false: e stays nil (*MyError). About to return e as error interface.',
+      10,{typePtr:'nil',dataPtr:'nil',isNil:true,itab:'—',kind:'iface',concreteType:'*MyError(nil)',showTrap:false,showFix:false,trapFired:false});
+    snap('warn','return e: wraps *MyError(nil) in error interface. Type word = *MyError. Data word = nil.',
+      10,{typePtr:'*MyError',dataPtr:'nil',isNil:false,itab:'*MyError/error',kind:'iface',concreteType:'*MyError',showTrap:true,showFix:false,trapFired:false});
+    snap('panic','err != nil is TRUE! Interface has non-nil type pointer. err.Error() returns "<nil>".',
+      14,{typePtr:'*MyError',dataPtr:'nil',isNil:false,itab:'*MyError/error',kind:'iface',concreteType:'*MyError',showTrap:true,showFix:false,trapFired:true});
+    snap('done','FIX: return nil (untyped). Both interface words = nil. err == nil is FALSE correctly.',
+      21,{typePtr:'nil',dataPtr:'nil',isNil:true,itab:'—',kind:'iface',concreteType:null,showTrap:false,showFix:true,trapFired:false});
+  }
+
+  else if(key==='type_assert'){
+    snap('init','var i interface{} = "hello". Type word: string. Data word: ptr to "hello".',
+      2,{typePtr:'string',dataPtr:'"hello"',isNil:false,itab:'N/A',kind:'eface',assertTarget:null,assertOK:null,assertVal:null,panicMode:false});
+    snap('assert','i.(string): type matches! Returns "hello". s = "hello".',
+      5,{typePtr:'string',dataPtr:'"hello"',isNil:false,itab:'N/A',kind:'eface',assertTarget:'string',assertOK:true,assertVal:'"hello"',panicMode:false});
+    snap('panic','i.(int): type MISMATCH. string != int. PANIC: interface conversion error.',
+      6,{typePtr:'string',dataPtr:'"hello"',isNil:false,itab:'N/A',kind:'eface',assertTarget:'int',assertOK:false,assertVal:null,panicMode:true});
+    snap('assert','Comma-ok: s2, ok := i.(string). ok=true, s2="hello". NO panic.',
+      9,{typePtr:'string',dataPtr:'"hello"',isNil:false,itab:'N/A',kind:'eface',assertTarget:'string',assertOK:true,assertVal:'"hello"',panicMode:false});
+    snap('assert','Comma-ok: n2, ok := i.(int). ok=false, n2=0 (zero value). NO panic.',
+      10,{typePtr:'string',dataPtr:'"hello"',isNil:false,itab:'N/A',kind:'eface',assertTarget:'int',assertOK:false,assertVal:'0',panicMode:false});
+    snap('call','Type switch: switch v := i.(type). Matches "string" case. v has type string.',
+      13,{typePtr:'string',dataPtr:'"hello"',isNil:false,itab:'N/A',kind:'eface',assertTarget:'string',assertOK:true,assertVal:'"hello" (type switch)',panicMode:false});
+    snap('done','Type assertion: O(1) — single pointer comparison. Compile-time type checking.',
+      13,{typePtr:'string',dataPtr:'"hello"',isNil:false,itab:'N/A',kind:'eface',assertTarget:'string',assertOK:true,assertVal:'"hello"',panicMode:false});
+  }
+
+  else if(key==='embedding'){
+    snap('init','Two interfaces: Reader (1 method) and Writer (1 method). About to compose.',
+      1,{typePtr:'—',dataPtr:'—',isNil:true,itab:'—',kind:'embed',interfaces:['Reader','Writer'],composed:false,structEmbed:false,concrete:null});
+    snap('embed','ReadWriter embeds Reader + Writer. Method set = union. Size still 2 words.',
+      11,{typePtr:'—',dataPtr:'—',isNil:true,itab:'—',kind:'embed',interfaces:['Reader','Writer','ReadWriter'],composed:true,structEmbed:false,concrete:null});
+    snap('alloc','Logger struct embeds io.Writer. Write() method promoted to Logger.',
+      16,{typePtr:'—',dataPtr:'—',isNil:true,itab:'—',kind:'embed',interfaces:['io.Writer'],composed:true,structEmbed:true,concrete:'Logger'});
+    snap('assign','var w io.Writer = &Logger{...}. Logger satisfies io.Writer via promoted Write().',
+      25,{typePtr:'itab',dataPtr:'0xC002',isNil:false,itab:'*Logger/io.Writer',kind:'iface',interfaces:['io.Writer'],composed:true,structEmbed:true,concrete:'*Logger'});
+    snap('call','fmt.Fprintf(l.Writer, ...) delegates to embedded io.Writer. Method promotion in action.',
+      22,{typePtr:'itab',dataPtr:'0xC002',isNil:false,itab:'*Logger/io.Writer',kind:'iface',interfaces:['io.Writer'],composed:true,structEmbed:true,concrete:'*Logger'});
+    snap('done','Embedding = composition. No inheritance hierarchy. Methods promoted, interfaces composed.',
+      25,{typePtr:'itab',dataPtr:'0xC002',isNil:false,itab:'*Logger/io.Writer',kind:'iface',interfaces:['io.Writer','ReadWriter','Reader','Writer'],composed:true,structEmbed:true,concrete:'*Logger'});
+  }
+
+  else if(key==='duck_typing'){
+    snap('init','Shape interface: 2 methods. Circle and Rectangle types defined. No explicit implements.',
+      1,{typePtr:'—',dataPtr:'—',isNil:true,itab:'—',kind:'duck',shapes:['Circle','Rectangle'],activeShape:null,compileCheck:false});
+    snap('duck','Circle has Area() and Perimeter() with value receivers. Implicitly satisfies Shape.',
+      9,{typePtr:'itab',dataPtr:'Circle',isNil:false,itab:'Circle/Shape',kind:'duck',shapes:['Circle','Rectangle'],activeShape:'Circle',compileCheck:false});
+    snap('duck','Rectangle has Area() and Perimeter(). Also satisfies Shape. No declaration needed.',
+      13,{typePtr:'itab',dataPtr:'Rectangle',isNil:false,itab:'Rect/Shape',kind:'duck',shapes:['Circle','Rectangle'],activeShape:'Rectangle',compileCheck:false});
+    snap('call','shapes slice: []Shape{Circle{5}, Rectangle{3,4}}. Polymorphic dispatch via itab.',
+      17,{typePtr:'itab',dataPtr:'mixed',isNil:false,itab:'mixed',kind:'duck',shapes:['Circle','Rectangle'],activeShape:'both',compileCheck:false});
+    snap('call','s.Area() → itab.fun[0](data). Different itabs → different code paths. No type switch needed.',
+      20,{typePtr:'itab',dataPtr:'mixed',isNil:false,itab:'mixed',kind:'duck',shapes:['Circle','Rectangle'],activeShape:'both',compileCheck:false});
+    snap('done','var _ Shape = Circle{}: explicit compile-time check. Fails if Circle drops a method.',
+      25,{typePtr:'itab',dataPtr:'Circle',isNil:false,itab:'Circle/Shape',kind:'duck',shapes:['Circle','Rectangle'],activeShape:'both',compileCheck:true});
+  }
+
+  else if(key==='method_set'){
+    snap('init','Cat: value receiver Sound(). Dog: pointer receiver Sound(). Both claim to implement Animal.',
+      5,{typePtr:'—',dataPtr:'—',isNil:true,itab:'—',kind:'method_set',catAssign:'value',dogAssign:'none',methodType:'value',compileError:false});
+    snap('assign','Cat{}: value receiver → T implements Animal. var a1 Animal = Cat{} → OK.',
+      13,{typePtr:'itab',dataPtr:'Cat{}',isNil:false,itab:'Cat/Animal',kind:'method_set',catAssign:'value',dogAssign:'none',methodType:'value',compileError:false});
+    snap('assign','&Cat{}: *T also implements if T does. var a2 = &Cat{} → OK.',
+      14,{typePtr:'itab',dataPtr:'&Cat{}',isNil:false,itab:'*Cat/Animal',kind:'method_set',catAssign:'ptr',dogAssign:'none',methodType:'value',compileError:false});
+    snap('assign','&Dog{}: pointer receiver → *T implements Animal. var a3 = &Dog{} → OK.',
+      16,{typePtr:'itab',dataPtr:'&Dog{}',isNil:false,itab:'*Dog/Animal',kind:'method_set',catAssign:'ptr',dogAssign:'ptr',methodType:'ptr',compileError:false});
+    snap('panic','Dog{}: pointer receiver → T does NOT implement Animal. COMPILE ERROR!',
+      17,{typePtr:'nil',dataPtr:'nil',isNil:true,itab:'MISSING',kind:'method_set',catAssign:'value',dogAssign:'value_err',methodType:'ptr',compileError:true});
+    snap('done','Rule: pointer receiver → must use *T for interface. Value receiver → T and *T both work.',
+      20,{typePtr:'itab',dataPtr:'&Dog{}',isNil:false,itab:'*Dog/Animal',kind:'method_set',catAssign:'ptr',dogAssign:'ptr',methodType:'ptr',compileError:false});
+  }
+
+  return S;
+}
+
+/* ═══════════════════════════════════════
+   CANVAS
+═══════════════════════════════════════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const w=document.getElementById('viz-wrap');CW=canvas.width=w.clientWidth;CH=canvas.height=w.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+const C={AMBER:'#ffb229',DIM:'rgba(255,178,41,.3)',GREEN:'#4ade80',RED:'#f43f5e',BLUE:'#60a5fa',ORANGE:'#f97316',PURPLE:'#a855f7',CYAN:'#22d3ee',BG:'#04050a'};
+
+function memBox(x,y,w,h,label,val,col,glow){
+  ctx.save();
+  if(glow){ctx.shadowColor=col;ctx.shadowBlur=14;}
+  ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.fillStyle=col+'18';
+  ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.4)';
+  ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(label,x+4,y+3);
+  ctx.font=`14px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(val,x+w/2,y+h/2+4);ctx.restore();
+}
+function arrow(x1,y1,x2,y2,col,lbl){
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.shadowColor=col;ctx.shadowBlur=6;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  const a=Math.atan2(y2-y1,x2-x1);const al=8,aw=4;
+  ctx.fillStyle=col;ctx.beginPath();
+  ctx.moveTo(x2,y2);ctx.lineTo(x2-al*Math.cos(a-aw*.3),y2-al*Math.sin(a-aw*.3));
+  ctx.lineTo(x2-al*Math.cos(a+aw*.3),y2-al*Math.sin(a+aw*.3));ctx.closePath();ctx.fill();
+  if(lbl){ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(lbl,(x1+x2)/2,(y1+y2)/2-3);}
+  ctx.restore();
+}
+function sceneTitle(t){ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.22)';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(t,CW/2,5);ctx.restore();}
+function annot(t,y){ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.5)';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(t,CW/2,y||CH-8);ctx.restore();}
+
+/* ── RENDER: IFACE vs EFACE ── */
+function renderIfaceEface(s){
+  sceneTitle('INTERFACE MEMORY LAYOUT — 2 WORDS (16 BYTES)');
+  const bx=CW*.06,by=CH*.12,bw=CW*.38,bh=56;
+  const mode=s.mode||'iface';
+  const w1Col=mode==='eface'?C.ORANGE:C.BLUE;
+  const w1Label=mode==='eface'?'TYPE PTR':'ITAB PTR';
+  const w1Val=s.typePtr==='nil'?'nil':(mode==='eface'?s.typePtr:'itab');
+  memBox(bx,by,bw,bh,w1Label,w1Val,w1Col,s.typePtr!=='nil');
+  memBox(bx,by+bh+4,bw,bh,'DATA PTR',s.dataPtr,C.ORANGE,s.dataPtr!=='nil');
+
+  // Brackets
+  ctx.save();ctx.strokeStyle='rgba(255,178,41,.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(bx-12,by);ctx.lineTo(bx-20,by);ctx.lineTo(bx-20,by+bh*2+4);ctx.lineTo(bx-12,by+bh*2+4);ctx.stroke();
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='right';ctx.textBaseline='middle';
+  ctx.fillText(mode==='eface'?'eface':'iface',bx-24,by+bh+2);ctx.restore();
+
+  // itab box (for iface)
+  if(mode==='iface'&&s.itab!=='—'){
+    const ix=CW*.54,iy=by,iw=CW*.38,ih=110;
+    ctx.save();ctx.strokeStyle=C.BLUE;ctx.fillStyle='rgba(96,165,250,.05)';ctx.lineWidth=1.5;
+    ctx.shadowColor=C.BLUE;ctx.shadowBlur=8;
+    ctx.fillRect(ix,iy,iw,ih);ctx.strokeRect(ix,iy,iw,ih);
+    ctx.font=`12px 'VT323'`;ctx.fillStyle=C.BLUE;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('ITAB',ix+iw/2,iy+4);ctx.shadowBlur=0;
+    const rows=[['inter type',s.concreteType||'nil'],['concrete type','*Dog'],['hash','0x4A2F'],['fun[0]','Dog.String()']];
+    rows.forEach(([k,v],i)=>{
+      ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(96,165,250,.5)';ctx.textAlign='left';ctx.fillText(k,ix+6,iy+24+i*18);
+      ctx.fillStyle=C.BLUE;ctx.textAlign='right';ctx.fillText(v,ix+iw-6,iy+24+i*18);
+    });ctx.restore();
+    arrow(bx+bw,by+bh/2,ix,iy+ih/2,C.BLUE,'');
+  }
+
+  // Concrete type box
+  if(s.dataPtr!=='nil'&&s.dataPtr!=='42'){
+    const dx=CW*.54,dy=by+130,dw=120,dh=56;
+    memBox(dx,dy,dw,dh,'*Dog heap',s.concreteType==='int'?'42':'Name:"Rex"',C.GREEN,true);
+    arrow(bx+bw,by+bh+4+bh/2,dx,dy+dh/2,C.ORANGE,'');
+  }
+  if(s.dataPtr==='42'){
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle=C.CYAN;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('← stored inline (no heap alloc)',bx+bw+10,by+bh+4+bh/2-6);ctx.restore();
+  }
+
+  // nil annotation
+  if(s.isNil){
+    ctx.save();ctx.font=`20px 'VT323'`;ctx.fillStyle=C.PURPLE;ctx.shadowColor=C.PURPLE;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('== nil  (both words zero)',CW/2,by+bh*2+20);ctx.restore();
+  }
+
+  annot(s.annotation||'',CH-8);
+}
+
+/* ── RENDER: NIL TRAP ── */
+function renderNilTrap(s){
+  sceneTitle('NIL INTERFACE TRAP — TYPED NIL IS NOT NIL');
+  const bx=CW*.1,by=CH*.15,bw=CW*.36,bh=52;
+
+  // Interface layout
+  ctx.save();ctx.font=`12px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.5)';ctx.textAlign='left';
+  ctx.fillText('error interface value:',bx,by-16);ctx.restore();
+  memBox(bx,by,bw,bh,'TYPE WORD',s.typePtr,s.typePtr==='nil'?C.DIM:s.trapFired?C.RED:C.ORANGE,s.typePtr!=='nil');
+  memBox(bx,by+bh+4,bw,bh,'DATA WORD',s.dataPtr,C.DIM,false);
+
+  // nil check visual
+  const cx2=CW*.6,cy=by+20;
+  ctx.save();
+  const boxCol=s.isNil?C.GREEN:s.trapFired?C.RED:C.ORANGE;
+  ctx.strokeStyle=boxCol;ctx.fillStyle=boxCol+'11';ctx.lineWidth=2;
+  if(!s.isNil)ctx.shadowColor=boxCol,ctx.shadowBlur=14;
+  ctx.fillRect(cx2,cy,160,60);ctx.strokeRect(cx2,cy,160,60);
+  ctx.font=`22px 'VT323'`;ctx.fillStyle=boxCol;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(s.isNil?'err == nil':'err != nil',cx2+80,cy+22);
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle=boxCol;
+  ctx.fillText(s.isNil?'CORRECT':'UNEXPECTED TRUE!',cx2+80,cy+44);ctx.restore();
+
+  if(s.showTrap){
+    ctx.save();ctx.font=`12px 'Share Tech Mono'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('TYPE WORD = *MyError ≠ nil → interface is NOT nil',CW/2,CH*.56);
+    ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(244,63,94,.6)';
+    ctx.fillText('even though *MyError pointer itself is nil',CW/2,CH*.56+18);ctx.restore();
+    triggerCA();
+  }
+  if(s.showFix){
+    ctx.save();ctx.font=`14px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.shadowColor=C.GREEN;ctx.shadowBlur=8;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('FIX: return nil — untyped nil zeroes BOTH words',CW/2,CH*.62);ctx.restore();
+  }
+  annot('',CH-8);
+}
+
+/* ── RENDER: TYPE ASSERT ── */
+function renderTypeAssert(s){
+  sceneTitle('TYPE ASSERTION — EXTRACT CONCRETE TYPE FROM INTERFACE');
+  const bx=CW*.06,by=CH*.15,bw=CW*.36,bh=52;
+  memBox(bx,by,bw,bh,'TYPE WORD',s.typePtr,C.BLUE,true);
+  memBox(bx,by+bh+4,bw,bh,'DATA WORD',s.dataPtr,C.ORANGE,true);
+
+  if(s.assertTarget){
+    const ax=CW*.55,ay=CH*.18,aw=CW*.36,ah=80;
+    const col=s.assertOK?C.GREEN:s.panicMode?C.RED:C.ORANGE;
+    ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col+'0F';ctx.lineWidth=2;
+    if(!s.assertOK&&s.panicMode){ctx.shadowColor=C.RED;ctx.shadowBlur=14;}
+    ctx.fillRect(ax,ay,aw,ah);ctx.strokeRect(ax,ay,aw,ah);
+    ctx.font=`13px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('i.('+s.assertTarget+')',ax+aw/2,ay+6);
+    ctx.font=`12px 'VT323'`;
+    ctx.fillText(s.panicMode?'PANIC!':s.assertOK?'OK: match':'ok=false',ax+aw/2,ay+28);
+    if(s.assertVal&&!s.panicMode){
+      ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle=col;
+      ctx.fillText('→ '+s.assertVal,ax+aw/2,ay+52);
+    }
+    if(s.panicMode){
+      ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(244,63,94,.7)';
+      ctx.fillText('interface is string, not '+s.assertTarget,ax+aw/2,ay+52);
+    }
+    ctx.restore();
+    arrow(bx+bw,by+bh/2,ax,ay+ah/2,col,'');
+  }
+
+  // Comparison diagram
+  const dy=CH*.55;
+  ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.4)';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  if(s.assertTarget){
+    const match=s.typePtr===s.assertTarget;
+    ctx.fillStyle='rgba(255,178,41,.3)';
+    ctx.fillText('type word: '+s.typePtr+'   vs   asserted: '+s.assertTarget,CW/2,dy);
+    ctx.fillStyle=match?C.GREEN:C.RED;ctx.font=`14px 'VT323'`;
+    ctx.fillText(match?'MATCH → return value':'MISMATCH → '+(s.panicMode?'PANIC':'ok=false'),CW/2,dy+18);
+  }
+  ctx.restore();
+}
+
+/* ── RENDER: EMBEDDING ── */
+function renderEmbedding(s){
+  sceneTitle('INTERFACE EMBEDDING — COMPOSITION AND METHOD PROMOTION');
+  const ifaces=s.interfaces||[];
+  const iy=CH*.15,iw=130,ih=52,gap=16;
+  const totalW=ifaces.length*(iw+gap)-gap;
+  const startX=(CW-totalW)/2;
+
+  ifaces.forEach((name,i)=>{
+    const ix=startX+i*(iw+gap);
+    const col=name==='ReadWriter'?C.AMBER:name.includes('Logger')||name==='io.Writer'?C.ORANGE:C.BLUE;
+    const isComposed=name==='ReadWriter';
+    ctx.save();ctx.strokeStyle=col;ctx.lineWidth=isComposed?2:1.5;ctx.fillStyle=col+'11';
+    if(isComposed){ctx.shadowColor=col;ctx.shadowBlur=10;}
+    ctx.fillRect(ix,iy,iw,ih);ctx.strokeRect(ix,iy,iw,ih);
+    ctx.font=`15px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(name,ix+iw/2,iy+5);
+    const methods={'Reader':['Read()'],'Writer':['Write()'],'ReadWriter':['Read()','Write()'],'io.Writer':['Write()'],'Logger':['Write()','Log()']};
+    (methods[name]||[]).forEach((m,j)=>{
+      ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle=col+'99';ctx.fillText(m,ix+iw/2,iy+22+j*13);
+    });ctx.restore();
+
+    if(isComposed&&i>0){
+      arrow(startX+(i-1)*(iw+gap)+iw/2,iy+ih,ix+iw/2,iy+ih+1,col,'embeds');
+    }
+  });
+
+  if(s.structEmbed&&s.concrete){
+    const sy=CH*.52,sw=180,sh=80,sx=(CW-sw)/2;
+    ctx.save();ctx.strokeStyle=C.ORANGE;ctx.fillStyle='rgba(249,115,22,.05)';ctx.lineWidth=1.5;
+    ctx.shadowColor=C.ORANGE;ctx.shadowBlur=8;
+    ctx.fillRect(sx,sy,sw,sh);ctx.strokeRect(sx,sy,sw,sh);
+    ctx.font=`14px 'VT323'`;ctx.fillStyle=C.ORANGE;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('struct '+s.concrete,sx+sw/2,sy+4);
+    ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle='rgba(249,115,22,.6)';
+    ctx.fillText('io.Writer (embedded)',sx+sw/2,sy+24);
+    ctx.fillStyle='rgba(255,178,41,.4)';
+    ctx.fillText('prefix string',sx+sw/2,sy+38);
+    ctx.fillStyle=C.GREEN;ctx.font=`9px 'Share Tech Mono'`;
+    ctx.fillText('→ satisfies io.Writer',sx+sw/2,sy+56);
+    ctx.restore();
+  }
+
+  if(s.typePtr==='itab'&&s.itab!=='—'){
+    annot('Method promoted: Logger.Write() delegates to embedded io.Writer',CH-8);
+  }
+}
+
+/* ── RENDER: DUCK TYPING ── */
+function renderDuckTyping(s){
+  sceneTitle('STRUCTURAL TYPING — IMPLICIT INTERFACE SATISFACTION');
+  const shapes=[
+    {name:'Circle',methods:['Area()','Perimeter()'],col:C.BLUE,area:'78.54',perim:'31.42'},
+    {name:'Rectangle',methods:['Area()','Perimeter()'],col:C.ORANGE,area:'12.00',perim:'14.00'},
+  ];
+  const iw=140,ih=80,gap=CW*.06;
+  shapes.forEach((sh,i)=>{
+    const sx=gap+i*(iw+gap*3),sy=CH*.18;
+    ctx.save();ctx.strokeStyle=sh.col;ctx.lineWidth=1.5;ctx.fillStyle=sh.col+'11';
+    if(s.activeShape===sh.name.toLowerCase()||s.activeShape==='both'){ctx.shadowColor=sh.col;ctx.shadowBlur=10;}
+    ctx.fillRect(sx,sy,iw,ih);ctx.strokeRect(sx,sy,iw,ih);
+    ctx.font=`14px 'VT323'`;ctx.fillStyle=sh.col;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(sh.name,sx+iw/2,sy+4);
+    sh.methods.forEach((m,j)=>{
+      ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle=sh.col+'99';ctx.fillText(m,sx+iw/2,sy+24+j*14);
+    });
+    ctx.restore();
+
+    if(s.activeShape===sh.name.toLowerCase()||s.activeShape==='both'){
+      arrow(sx+iw/2,sy+ih,sx+iw/2,CH*.52,sh.col,'');
+    }
+  });
+
+  // Shape interface box (center, below)
+  const ifW=160,ifH=70,ifX=(CW-ifW)/2,ifY=CH*.55;
+  ctx.save();ctx.strokeStyle=C.AMBER;ctx.fillStyle='rgba(255,178,41,.07)';ctx.lineWidth=2;
+  ctx.shadowColor=C.AMBER;ctx.shadowBlur=8;
+  ctx.fillRect(ifX,ifY,ifW,ifH);ctx.strokeRect(ifX,ifY,ifW,ifH);
+  ctx.font=`15px 'VT323'`;ctx.fillStyle=C.AMBER;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('interface Shape',ifX+ifW/2,ifY+4);
+  ['Area() float64','Perimeter() float64'].forEach((m,j)=>{
+    ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle='rgba(255,178,41,.5)';
+    ctx.fillText(m,ifX+ifW/2,ifY+24+j*14);
+  });ctx.restore();
+
+  if(s.compileCheck){
+    ctx.save();ctx.font=`12px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.shadowColor=C.GREEN;ctx.shadowBlur=8;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('var _ Shape = Circle{} → compile-time check',CW/2,CH*.78);ctx.restore();
+  }
+}
+
+/* ── RENDER: METHOD SETS ── */
+function renderMethodSet(s){
+  sceneTitle('METHOD SETS — WHICH RECEIVERS SATISFY AN INTERFACE');
+  const items=[
+    {label:'Cat{}',receiver:'value',col:C.GREEN,ok:s.catAssign==='value'||s.catAssign==='ptr',y:CH*.2},
+    {label:'&Cat{}',receiver:'value',col:C.GREEN,ok:s.catAssign==='ptr',y:CH*.38},
+    {label:'&Dog{}',receiver:'pointer',col:s.dogAssign==='ptr'?C.GREEN:C.ORANGE,ok:s.dogAssign==='ptr',y:CH*.56},
+    {label:'Dog{}',receiver:'pointer',col:s.compileError?C.RED:C.ORANGE,ok:!s.compileError&&s.dogAssign!=='value_err',y:CH*.74,isErr:s.compileError},
+  ];
+  items.forEach(item=>{
+    const x=CW*.08,w=120,h=44;
+    ctx.save();ctx.strokeStyle=item.col;ctx.fillStyle=item.col+'11';ctx.lineWidth=1.5;
+    if(item.isErr)ctx.setLineDash([4,3]);
+    ctx.fillRect(x,item.y,w,h);ctx.strokeRect(x,item.y,w,h);ctx.setLineDash([]);
+    ctx.font=`14px 'VT323'`;ctx.fillStyle=item.col;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(item.label,x+w/2,item.y+h/2);ctx.restore();
+
+    // Arrow to interface
+    if(item.ok){
+      arrow(x+w,item.y+h/2,CW*.52,CH*.45,item.col,'');
+    }
+    // Error X
+    if(item.isErr){
+      ctx.save();ctx.font=`18px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=10;
+      ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText('✗ COMPILE ERROR',x+w+10,item.y+h/2);ctx.restore();
+    }
+
+    // Receiver label
+    ctx.save();ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(item.receiver+' receiver',x,item.y-12);ctx.restore();
+  });
+
+  // Animal interface box
+  const ifX=CW*.52,ifY=CH*.35,ifW=140,ifH=60;
+  ctx.save();ctx.strokeStyle=C.AMBER;ctx.fillStyle='rgba(255,178,41,.07)';ctx.lineWidth=2;
+  ctx.shadowColor=C.AMBER;ctx.shadowBlur=8;
+  ctx.fillRect(ifX,ifY,ifW,ifH);ctx.strokeRect(ifX,ifY,ifW,ifH);
+  ctx.font=`14px 'VT323'`;ctx.fillStyle=C.AMBER;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('Animal',ifX+ifW/2,ifY+4);
+  ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle='rgba(255,178,41,.5)';
+  ctx.fillText('Sound() string',ifX+ifW/2,ifY+26);ctx.restore();
+
+  // Legend
+  ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.35)';
+  ctx.textAlign='right';ctx.textBaseline='top';
+  ctx.fillText('T has value receiver: T and *T both satisfy',CW*.94,CH*.15);
+  ctx.fillText('T has pointer receiver: ONLY *T satisfies',CW*.94,CH*.15+16);ctx.restore();
+}
+
+/* ── DISPATCHER ── */
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  switch(curScene){
+    case'iface_eface':renderIfaceEface(step);break;
+    case'nil_trap':renderNilTrap(step);break;
+    case'type_assert':renderTypeAssert(step);break;
+    case'embedding':renderEmbedding(step);break;
+    case'duck_typing':renderDuckTyping(step);break;
+    case'method_set':renderMethodSet(step);break;
+  }
+}
+
+/* ═══════════════════════════════════════
+   PLAYBACK
+═══════════════════════════════════════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:700};
+let curScene='iface_eface';
+const PSND={alloc:'alloc',assign:'assign',assert:'assert',call:'call',nil:'nil',panic:'panic',embed:'embed',duck:'duck',done:'done',warn:'warn',init:'init'};
+function applyStep(step){
+  renderFrame(step);
+  document.getElementById('st-tp').textContent=step.typePtr||'nil';
+  document.getElementById('st-dp').textContent=step.dataPtr||'nil';
+  const niEl=document.getElementById('st-n');niEl.textContent=step.isNil?'true':'false';niEl.style.color=step.isNil?'var(--green)':'var(--red)';
+  document.getElementById('st-it').textContent=step.itab||'—';
+  document.getElementById('st-k').textContent=step.kind||'—';
+  const badge=document.getElementById('pbadge');badge.textContent=step.phase.toUpperCase();badge.className='pbadge '+step.phase;
+  document.getElementById('step-txt').textContent=step.desc;
+  document.getElementById('prog-bar').style.width=(ST.steps.length>1?(ST.idx/(ST.steps.length-1)*100):0)+'%';
+  document.getElementById('step-ctr').textContent=(ST.idx+1)+' / '+ST.steps.length;
+  renderCode(SC[curScene].code,step.cl>=0?step.cl:-1);
+  snd(PSND[step.phase]||'assign');
+  if(step.phase==='panic'||step.phase==='warn')triggerCA();
+}
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing){clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}else{ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}}
+function doReset(){if(ST.playing)togglePlay();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);}
+function changeSpeed(v){ST.speed=Math.round(2200-v*200);if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}}
+function selectScene(key){if(ST.playing)togglePlay();curScene=key;document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));ST.steps=buildSteps(key);ST.idx=0;const sc=SC[key];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);applyStep(ST.steps[0]);snd('assign');}
+function buildTabs(){const order=[['iface_eface','1. IFACE vs EFACE'],['nil_trap','2. NIL TRAP'],['type_assert','3. TYPE ASSERT'],['embedding','4. EMBEDDING'],['duck_typing','5. DUCK TYPING'],['method_set','6. METHOD SETS']];document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');}
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;switch(e.key){case'ArrowRight':next();break;case'ArrowLeft':prev();break;case' ':e.preventDefault();togglePlay();break;case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;case'1':selectScene('iface_eface');break;case'2':selectScene('nil_trap');break;case'3':selectScene('type_assert');break;case'4':selectScene('embedding');break;case'5':selectScene('duck_typing');break;case'6':selectScene('method_set');break;}});
+
+/* ── BOOT ── */
+function boot(){
+  const term=document.getElementById('boot-terminal'),fill=document.getElementById('boot-fill');
+  const lines=[['Loading runtime type descriptors','OK'],['Building itab cache (interface, concrete-type) pairs','OK'],['Initializing reflect type system','OK'],['Scanning method sets for all types','OK'],['Verifying interface satisfaction at compile boundary','OK'],['Loading duck typing structural checker','OK'],['INTERFACE.VIZ READY','']];
+  let i=0;function nxt(){if(i>=lines.length){setTimeout(sa,400);return;}const[msg,ok]=lines[i];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${msg}</span><span class="bl-ok">${ok||(i===lines.length-1?'<span id="boot-cursor"> </span>':'')}</span>`;term.appendChild(div);setTimeout(()=>div.classList.add('show'),30);fill.style.width=((i+1)/lines.length*100)+'%';i++;setTimeout(nxt,i===lines.length?300:100);}
+  setTimeout(nxt,200);
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();const sc=SC['iface_eface'];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);window.addEventListener('resize',resizeCanvas);resizeCanvas();if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}setTimeout(()=>selectScene('iface_eface'),350);}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+services:
+  iamjacke-server:
+    container_name: iamjacke-poker-server
+    # Build context is the repo root so the Dockerfile can COPY from BOTH
+    # poker-server/ AND poker-src/src/protocol (shared crypto/messages).
+    build:
+      context: ..
+      dockerfile: poker-server/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # Host:container. Change the host side if 3001 is taken.
+      - "${PORT:-3001}:3001"
+    volumes:
+      # Bind-mount the SQLite file so data survives container rebuilds.
+      # On the host this becomes ./data/poker.db (relative to this file).
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

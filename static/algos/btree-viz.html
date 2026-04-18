@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTREE.VIZ v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;--font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.48) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,.05);}
+.tab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#op-bar{display:flex;align-items:center;gap:7px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.38);flex-shrink:0;flex-wrap:wrap;}
+.obtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all .1s;}.obtn:hover{background:rgba(255,178,41,.08);}
+.op-label{font-size:8.5px;color:var(--amber-dim);letter-spacing:1px;}
+#key-inp{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 7px;width:58px;outline:none;}
+#key-inp:focus{border-color:var(--amber);}
+select.op-sel{font-family:var(--font-code);font-size:11px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 5px;outline:none;cursor:pointer;}
+select.op-sel option{background:#111;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.search{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.07);}
+.pbadge.insert{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.split{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.08);}
+.pbadge.promote{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.08);}
+.pbadge.found{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.09);}
+.pbadge.miss{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.07);}
+.pbadge.merge{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.08);}
+.pbadge.delete{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.07);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}.cline.active{background:rgba(255,178,41,.09);}
+.cline.active .cc{position:relative;}.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,.4),1px 0 1px rgba(50,80,255,.4);pointer-events:none;}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}#r-scroll::-webkit-scrollbar{width:3px;}#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas><div id="scan-line"></div><div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">BTREE.VIZ</div>
+  <div id="boot-tagline">B-TREE / B+ TREE VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">BTREE.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="op-bar">
+        <span class="op-label">ORDER</span>
+        <select class="op-sel" id="order-sel"><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select>
+        <span class="op-label">KEY</span>
+        <input type="text" id="key-inp" placeholder="42" maxlength="4">
+        <button class="obtn" style="border-color:rgba(74,222,128,.5);color:#86efac" onclick="doInsert()">⊕ INSERT</button>
+        <button class="obtn" style="border-color:rgba(34,211,238,.5);color:#67e8f9" onclick="doSearch()">⊙ SEARCH</button>
+        <button class="obtn" style="border-color:rgba(244,63,94,.5);color:#fda4af" onclick="doDelete()">⊖ DELETE</button>
+        <div style="width:1px;height:18px;background:rgba(255,178,41,.12)"></div>
+        <button class="obtn" style="border-color:rgba(168,85,247,.5);color:#d8b4fe" onclick="loadDemo()">🎬 DEMO</button>
+        <button class="obtn" style="border-color:rgba(244,63,94,.3);color:#fda4af;font-size:12px;padding:2px 7px" onclick="clearTree()">⊘ CLR</button>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc"><span class="pbadge init" id="pbadge">INIT</span><span id="step-txt">Insert keys or load DEMO. ORDER = max children per node.</span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">KEYS</span><span class="sv" id="s-keys">0</span></div>
+        <div class="si"><span class="sl">HEIGHT</span><span class="sv" id="s-height">0</span></div>
+        <div class="si"><span class="sl">NODES</span><span class="sv" id="s-nodes">0</span></div>
+        <div class="si"><span class="sl">SPLITS</span><span class="sv" id="s-splits">0</span></div>
+        <div class="si"><span class="sl">ORDER</span><span class="sv" id="s-order">3</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–2</span> Mode</span>
+        <span class="kbh"><span class="kbk">ENTER</span> Insert</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE CODE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ COMPLEXITY</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ INTERVIEW FACTS</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+/* NOISE */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const g=AC.createGain(),ws=AC.createWaveShaper();const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}ws.curve=cv;ws.connect(AC.destination);g.connect(ws);const o=AC.createOscillator();o.connect(g);const p={search:[400,.06],insert:[480,.07],split:[600,.1],promote:[520,.09],found:[560,.09],miss:[200,.1],merge:[300,.1],delete:[250,.08],click:[360,.04]};const[f,d]=p[type]||[360,.05];o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+function hlGo(l){let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');s=s.replace(/\b(func|for|if|else|return|var|const|type|struct|int|bool|make|append|len|nil|true|false|sort)\b/g,'<span class="kw">$1</span>');s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');return s;}
+function renderCode(lines,active){const el=document.getElementById('code-scroll');el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}}
+
+/* ══════ B-TREE IMPLEMENTATION ══════ */
+// Node: {keys:[], children:[], isLeaf, id}
+let nodeIdCounter=0;
+function makeNode(isLeaf){return{keys:[],children:[],isLeaf,id:nodeIdCounter++,highlight:false,splitHL:false,newNode:false};}
+
+function cloneTree(node){
+  if(!node)return null;
+  return{...node,keys:[...node.keys],children:node.children.map(cloneTree),highlight:node.highlight||false,splitHL:node.splitHL||false,newNode:node.newNode||false};
+}
+
+/* ══════ MODES ══════ */
+const MODES={
+  btree:{label:'B-TREE',
+    code:['// B-Tree order t: each node has [t-1, 2t-1] keys','// except root: [1, 2t-1] keys','type Node struct {','    keys     []int','    children []*Node','    isLeaf   bool','}','','func (t *BTree) Insert(key int) {','    if root is full {','        s := makeNode(false)','        s.children = [root]','        t.splitChild(s, 0)','        t.root = s','    }','    t.insertNonFull(t.root, key)','}','','func (t *BTree) splitChild(parent *Node, i int) {','    y := parent.children[i]  // full child','    z := makeNode(y.isLeaf)  // new right node','    mid := len(y.keys)/2','    z.keys = y.keys[mid+1:]','    y.keys = y.keys[:mid]','    // promote median key to parent','    parent.keys = insert(parent.keys, i, y.keys[mid])','    parent.children = insert(parent.children, i+1, z)','    if !y.isLeaf { z.children = y.children[mid+1:] }','}'],
+    cx:`<strong>Search</strong>: O(log n) — tree height = O(log_t n)<br><strong>Insert</strong>: O(log n) — split cascades up if needed<br><strong>Delete</strong>: O(log n) — merge/borrow from siblings<br><strong>Space</strong>: O(n) — nodes 50–100% full on average`,
+    how:`B-Tree of order <em>t</em>: each node holds [t-1, 2t-1] keys and [t, 2t] children.<br><br><strong>Insert</strong>: traverse to leaf. If leaf full (2t-1 keys) → split: promote median to parent, split node in half. Cascade up if needed → may create new root.<br><strong>Delete</strong>: if leaf has minimum keys after delete → borrow from sibling or merge.`,
+    facts:`<span class="rw-tag">Disk I/O</span> B-Tree minimizes: large t → wide nodes → few disk reads<br><span class="rw-tag">Postgres</span> index pages are 8KB B-Tree nodes<br><span class="rw-tag">Order t=512</span> tree of height 3 holds 512^3 ≈ 134M keys<br><span class="rw-tag">B-Tree vs BST</span> BST height O(n) worst; B-Tree O(log_t n) always<br><span class="rw-tag">Fill factor</span> nodes average ~69% full after random inserts`,
+  },
+  bplus:{label:'B+ TREE',
+    code:['// B+ Tree: data only in leaves; leaves linked','type BPlusNode struct {','    keys     []int','    children []*BPlusNode','    next     *BPlusNode  // leaf → next leaf','    isLeaf   bool','    data     []string    // only in leaves','}','','// Internal nodes: guide keys only (copies, not pointers to data)','// Leaf nodes: hold actual data + sorted linked list','// Range scan: find first leaf, follow next pointers','','func (t *BPlusTree) RangeScan(lo, hi int) []string {','    leaf := t.findLeaf(lo)','    var res []string','    for leaf != nil {','        for _, k := range leaf.keys {','            if k >= lo && k <= hi { res = append(res, leaf.data[k]) }','            if k > hi { return res }','        }','        leaf = leaf.next  // follow leaf linked list','    }','    return res','}'],
+    cx:`<strong>Point query</strong>: O(log n) same as B-Tree<br><strong>Range scan</strong>: O(log n + k) where k = result size<br><strong>Internal nodes</strong>: keys only, no data pointers<br><strong>Leaves</strong>: 100% of data; sorted + linked`,
+    how:`B+ Tree separates internal (routing) nodes from leaf (data) nodes.<br><br>Internal nodes copy-up keys for routing — they don't own data. All actual data lives in leaves. Leaves are connected by <code>next</code> pointers → range scan is O(k) after initial O(log n) lookup.<br><br>This is why databases (MySQL InnoDB, PostgreSQL) use B+ Trees for indexes.`,
+    facts:`<span class="rw-tag">MySQL InnoDB</span> clustered primary key = B+ Tree with row data in leaves<br><span class="rw-tag">PostgreSQL</span> heap + B+ Tree index (index leaf points to heap tuple)<br><span class="rw-tag">Range query</span> B+ Tree superior: scan leaves without traversing internal nodes<br><span class="rw-tag">Copy-up vs push-up</span> B+ Tree copies median up; B-Tree pushes (removes from child)<br><span class="rw-tag">Leaf fill</span> InnoDB: 15/16 page on sequential insert, 1/2 on random`,
+  },
+};
+
+/* ══════ B-TREE ENGINE ══════ */
+let tree={root:null,t:2,size:0,splits:0,mode:'btree'};// t=order/2 (min degree)
+
+function treeOrder(){return parseInt(document.getElementById('order-sel').value)||3;}
+function treeT(){return Math.ceil(treeOrder()/2);} // min degree
+
+function nodeIsFull(node){return node.keys.length>=2*treeT()-1;}
+
+function btInsert(key){
+  if(!tree.root){tree.root=makeNode(true);tree.root.keys=[key];tree.size++;return null;}
+  // gather steps
+  const steps=[];
+  const snap=(phase,desc,cl,hl=null,splitInfo=null)=>{
+    steps.push({phase,desc,cl,root:cloneTree(tree.root),hl,splitInfo,keys:tree.size,height:treeHeight(tree.root),nodes:treeNodeCount(tree.root),splits:tree.splits});
+  };
+  snap('search',`INSERT ${key}: traversing tree to find correct leaf position.`,8);
+  // do real insert
+  if(nodeIsFull(tree.root)){
+    const s=makeNode(false);
+    s.children=[tree.root];
+    splitChild(s,0);
+    tree.root=s;
+    tree.splits++;
+    snap('split',`Root was full (${2*treeT()-1} keys). Created new root. Promoted median to new root. Tree height increased.`,16);
+  }
+  const insertSnaps=insertNonFull(tree.root,key,snap,treeT());
+  tree.size++;
+  snap('insert',`Key ${key} placed in leaf node. B-Tree property maintained: all leaves at same depth.`,13);
+  return steps;
+}
+
+function splitChild(parent,i){
+  const t=treeT();
+  const y=parent.children[i];
+  const z=makeNode(y.isLeaf);
+  z.newNode=true;
+  const mid=t-1;
+  const median=y.keys[mid];
+  z.keys=y.keys.splice(mid+1);
+  y.keys.splice(mid);
+  if(!y.isLeaf){z.children=y.children.splice(mid+1);}
+  parent.keys.splice(i,0,median);
+  parent.children.splice(i+1,0,z);
+}
+
+function insertNonFull(node,key,snap,t){
+  let i=node.keys.length-1;
+  if(node.isLeaf){
+    while(i>=0&&key<node.keys[i])i--;
+    node.keys.splice(i+1,0,key);
+    if(snap)snap('insert',`Found leaf position. Inserting ${key} at index ${i+1}.`,9,node.id);
+  } else {
+    while(i>=0&&key<node.keys[i])i--;
+    i++;
+    if(snap)snap('search',`Traversing to child[${i}] (key ${key} goes ${i<node.keys.length?'before key '+node.keys[i]:'after all keys'}).`,10,node.children[i]?node.children[i].id:null);
+    if(nodeIsFull(node.children[i])){
+      splitChild(node,i);
+      tree.splits++;
+      if(snap)snap('split',`Child[${i}] was full. Split into two nodes. Promoted median "${node.keys[i]}" to parent.`,16,node.id,{promoted:node.keys[i]});
+      if(key>node.keys[i])i++;
+    }
+    insertNonFull(node.children[i],key,snap,t);
+  }
+}
+
+function btSearch(key){
+  const steps=[];
+  const snap=(phase,desc,cl,hlId=null)=>steps.push({phase,desc,cl,root:cloneTree(tree.root),hl:hlId,keys:tree.size,height:treeHeight(tree.root),nodes:treeNodeCount(tree.root),splits:tree.splits});
+  function searchNode(node,k){
+    if(!node){snap('miss',`Key ${k} not found in tree.`,-1);return;}
+    let i=0;
+    while(i<node.keys.length&&k>node.keys[i])i++;
+    snap('search',`At node [${node.keys.join(',')}]. Comparing ${k} with keys. ${i<node.keys.length&&node.keys[i]===k?'MATCH at index '+i:'Going to child['+i+']'}.`,10,node.id);
+    if(i<node.keys.length&&node.keys[i]===k){snap('found',`Key ${k} FOUND in node [${node.keys.join(',')}].`,11,node.id);}
+    else if(node.isLeaf){snap('miss',`Reached leaf without finding ${k}. Key not in tree.`,11,node.id);}
+    else searchNode(node.children[i],k);
+  }
+  snap('search',`SEARCH for key ${key}. Starting at root.`,9);
+  searchNode(tree.root,key);
+  return steps;
+}
+
+function btDelete(key){
+  const steps=[];
+  const snap=(phase,desc,cl,hlId=null)=>steps.push({phase,desc,cl,root:cloneTree(tree.root),hl:hlId,keys:tree.size,height:treeHeight(tree.root),nodes:treeNodeCount(tree.root),splits:tree.splits});
+  snap('search',`DELETE ${key}: searching for key in tree.`,8);
+  const found=findKey(tree.root,key);
+  if(!found){snap('miss',`Key ${key} not found. Nothing to delete.`,-1);return steps;}
+  snap('found',`Key ${key} found. Deleting from ${found.isLeaf?'leaf':'internal'} node.`,11,found.id);
+  deleteFromTree(tree.root,key,null,-1,snap);
+  tree.size=Math.max(0,tree.size-1);
+  snap('delete',`Key ${key} deleted. Tree re-balanced. B-Tree properties maintained.`,19);
+  return steps;
+}
+
+function findKey(node,key){
+  if(!node)return null;
+  for(let i=0;i<node.keys.length;i++){if(node.keys[i]===key)return node;}
+  if(node.isLeaf)return null;
+  for(const c of node.children){const r=findKey(c,key);if(r)return r;}
+  return null;
+}
+
+function deleteFromTree(node,key,parent,parentIdx,snap){
+  const t=treeT();
+  let i=0;while(i<node.keys.length&&key>node.keys[i])i++;
+  if(i<node.keys.length&&node.keys[i]===key){
+    if(node.isLeaf){node.keys.splice(i,1);}
+    else{
+      // replace with inorder successor
+      let succ=node.children[i+1];while(!succ.isLeaf)succ=succ.children[0];
+      const succKey=succ.keys[0];
+      node.keys[i]=succKey;
+      if(snap)snap('delete',`Replaced ${key} with inorder successor ${succKey}. Now deleting ${succKey} from leaf.`,20,node.id);
+      deleteFromTree(node.children[i+1],succKey,node,i+1,null);
+    }
+  } else {
+    if(node.isLeaf)return;
+    const childIdx=i;
+    const child=node.children[childIdx];
+    if(child.keys.length<t){
+      // try to borrow from left sibling
+      const lSib=childIdx>0?node.children[childIdx-1]:null;
+      const rSib=childIdx<node.children.length-1?node.children[childIdx+1]:null;
+      if(lSib&&lSib.keys.length>=t){
+        child.keys.unshift(node.keys[childIdx-1]);
+        node.keys[childIdx-1]=lSib.keys.pop();
+        if(!lSib.isLeaf)child.children.unshift(lSib.children.pop());
+        if(snap)snap('merge',`Child underflow: borrowed key from left sibling.`,17,child.id);
+      } else if(rSib&&rSib.keys.length>=t){
+        child.keys.push(node.keys[childIdx]);
+        node.keys[childIdx]=rSib.keys.shift();
+        if(!rSib.isLeaf)child.children.push(rSib.children.shift());
+        if(snap)snap('merge',`Child underflow: borrowed key from right sibling.`,17,child.id);
+      } else {
+        // merge
+        const mergeLeft=lSib?childIdx-1:childIdx;
+        const left=node.children[mergeLeft];
+        const right=node.children[mergeLeft+1];
+        left.keys.push(node.keys[mergeLeft]);
+        left.keys=left.keys.concat(right.keys);
+        left.children=left.children.concat(right.children);
+        node.keys.splice(mergeLeft,1);
+        node.children.splice(mergeLeft+1,1);
+        if(snap)snap('merge',`Merged two nodes + parent separator key. Node count reduced.`,18,left.id);
+        if(node===tree.root&&node.keys.length===0){tree.root=left;}
+      }
+    }
+    deleteFromTree(node.children.find((c,ci)=>ci===childIdx||(lSib&&ci===childIdx-1))||node.children[Math.min(childIdx,node.children.length-1)],key,node,childIdx,snap);
+  }
+}
+
+function treeHeight(node){if(!node||node.isLeaf)return 1;return 1+treeHeight(node.children[0]);}
+function treeNodeCount(node){if(!node)return 0;return 1+node.children.reduce((s,c)=>s+treeNodeCount(c),0);}
+
+/* ══════ B+ TREE ENGINE ══════ */
+// Simplified B+ tree: leaves have next pointers
+let bpTree={root:null,t:2,size:0,splits:0};
+
+function bpMakeNode(isLeaf){return{keys:[],children:[],next:null,isLeaf,id:nodeIdCounter++,highlight:false,data:{}};}
+
+function bpInsert(key){
+  const steps=[];
+  const t=treeT();
+  if(!bpTree.root){bpTree.root=bpMakeNode(true);bpTree.root.keys=[key];bpTree.root.data[key]='val:'+key;bpTree.size++;steps.push({phase:'insert',desc:`First key ${key} inserted as root leaf.`,cl:9,root:cloneBP(bpTree.root),keys:bpTree.size,height:treeHeight(bpTree.root),nodes:treeNodeCount(bpTree.root),splits:bpTree.splits});return steps;}
+
+  const snap=(phase,desc,cl,hlId=null)=>{steps.push({phase,desc,cl,root:cloneBP(bpTree.root),hl:hlId,keys:bpTree.size,height:treeHeight(bpTree.root),nodes:treeNodeCount(bpTree.root),splits:bpTree.splits});};
+  snap('search',`INSERT ${key}: finding correct leaf.`,3);
+  bpInsertKey(bpTree.root,key,snap,t);
+  bpTree.size++;
+  snap('insert',`Key ${key} in leaf. Internal nodes have routing copies. All data in leaves.`,11);
+  return steps;
+}
+
+function cloneBP(node){
+  if(!node)return null;
+  const c={...node,keys:[...node.keys],data:{...node.data},children:node.children.map(cloneBP),next:null};
+  return c;
+}
+
+function bpFindLeaf(node,key){
+  if(node.isLeaf)return node;
+  let i=0;while(i<node.keys.length&&key>=node.keys[i])i++;
+  return bpFindLeaf(node.children[i],key);
+}
+
+function bpInsertKey(root,key,snap,t){
+  // find path to leaf
+  const path=[];
+  let cur=root;
+  while(!cur.isLeaf){
+    let i=0;while(i<cur.keys.length&&key>=cur.keys[i])i++;
+    path.push({node:cur,childIdx:i});
+    if(snap)snap('search',`Internal: routing ${key} → child[${i}]`,4,cur.id);
+    cur=cur.children[i];
+  }
+  // insert in leaf
+  let insIdx=cur.keys.findIndex(k=>k>key);
+  if(insIdx===-1)insIdx=cur.keys.length;
+  cur.keys.splice(insIdx,0,key);
+  cur.data[key]='val:'+key;
+  if(snap)snap('insert',`Leaf [${cur.keys.join(',')}]: inserted ${key} at pos ${insIdx}.`,8,cur.id);
+
+  // split if needed
+  if(cur.keys.length>2*t-1){
+    bpSplitLeaf(cur,path,snap,t);
+  }
+}
+
+function bpSplitLeaf(leaf,path,snap,t){
+  const mid=Math.ceil(leaf.keys.length/2);
+  const newLeaf=bpMakeNode(true);
+  newLeaf.keys=leaf.keys.splice(mid);
+  newLeaf.data={};
+  newLeaf.keys.forEach(k=>{newLeaf.data[k]=leaf.data[k];delete leaf.data[k];});
+  const copyUpKey=newLeaf.keys[0];
+  // fix next pointers
+  newLeaf.next=leaf.next;leaf.next=newLeaf;
+  bpTree.splits++;
+  if(snap)snap('split',`Leaf full. Split: left[${leaf.keys}] right[${newLeaf.keys}]. Key ${copyUpKey} COPIED UP (still in leaf!).`,14,leaf.id);
+
+  // propagate copy-up key to parent
+  if(path.length===0){
+    // new root
+    const newRoot=bpMakeNode(false);
+    newRoot.keys=[copyUpKey];
+    newRoot.children=[leaf,newLeaf];
+    bpTree.root=newRoot;
+    if(snap)snap('promote',`New root created with copied key ${copyUpKey}. B+ Tree: copy-up (not push-up).`,16,newRoot.id);
+    return;
+  }
+  const{node:parent,childIdx}=path[path.length-1];
+  parent.keys.splice(childIdx,0,copyUpKey);
+  parent.children.splice(childIdx+1,0,newLeaf);
+  if(snap)snap('promote',`Key ${copyUpKey} copied to parent. Data remains in leaf — B+ Tree property.`,16,parent.id);
+  if(parent.keys.length>2*t-1){
+    bpSplitInternal(parent,path.slice(0,-1),snap,t);
+  }
+}
+
+function bpSplitInternal(node,path,snap,t){
+  const mid=Math.floor(node.keys.length/2);
+  const pushKey=node.keys[mid];
+  const newNode=bpMakeNode(false);
+  newNode.keys=node.keys.splice(mid+1);
+  node.keys.splice(mid);
+  newNode.children=node.children.splice(mid+1);
+  bpTree.splits++;
+  if(snap)snap('split',`Internal node full. Split: pushed up key ${pushKey} (removed from child — like B-Tree).`,18,node.id);
+  if(path.length===0){
+    const newRoot=bpMakeNode(false);
+    newRoot.keys=[pushKey];
+    newRoot.children=[node,newNode];
+    bpTree.root=newRoot;
+    if(snap)snap('promote',`New root created. Height increased.`,16,newRoot.id);
+    return;
+  }
+  const{node:parent,childIdx}=path[path.length-1];
+  parent.keys.splice(childIdx,0,pushKey);
+  parent.children.splice(childIdx+1,0,newNode);
+  if(parent.keys.length>2*t-1){bpSplitInternal(parent,path.slice(0,-1),snap,t);}
+}
+
+function bpSearch(key){
+  const steps=[];
+  const snap=(phase,desc,cl,hlId=null)=>steps.push({phase,desc,cl,root:cloneBP(bpTree.root),hl:hlId,keys:bpTree.size,height:treeHeight(bpTree.root),nodes:treeNodeCount(bpTree.root),splits:bpTree.splits});
+  if(!bpTree.root){snap('miss','Tree empty.',0);return steps;}
+  snap('search',`SEARCH ${key}: traversing internal nodes as routing table.`,3);
+  let node=bpTree.root;
+  while(!node.isLeaf){
+    let i=0;while(i<node.keys.length&&key>=node.keys[i])i++;
+    snap('search',`Internal [${node.keys.join(',')}]: key ${key} → child[${i}]`,4,node.id);
+    node=node.children[i];
+  }
+  snap('search',`Reached leaf [${node.keys.join(',')}]. Scanning for ${key}.`,8,node.id);
+  if(node.keys.includes(key)){snap('found',`Key ${key} FOUND in leaf. val="${node.data[key]}". B+ Tree: data always in leaf.`,11,node.id);}
+  else snap('miss',`Key ${key} not in leaf. Not in tree.`,11,node.id);
+  return steps;
+}
+
+/* ══════ CANVAS RENDER ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const wrap=document.getElementById('viz-wrap');CW=canvas.width=wrap.clientWidth;CH=canvas.height=wrap.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);else drawEmpty();}
+
+const NODE_W_PER_KEY=24,NODE_H=32,NODE_PAD_X=12,LEVEL_H=72;
+
+function computeLayout(root,cx,y,width){
+  if(!root)return;
+  const nw=Math.max(NODE_W_PER_KEY*root.keys.length+NODE_PAD_X*2,40);
+  root._x=cx-nw/2;root._y=y;root._w=nw;root._h=NODE_H;
+  if(root.children&&root.children.length){
+    const childW=width/root.children.length;
+    root.children.forEach((c,i)=>{
+      if(c)computeLayout(c,cx-width/2+childW*(i+0.5),y+LEVEL_H,childW);
+    });
+  }
+}
+
+function drawNode(node,hlId,isBP){
+  if(!node)return;
+  const{_x,_y,_w,_h}=node;
+  if(_x===undefined)return;
+  const isHL=node.id===hlId||node.highlight||node.splitHL;
+  const isNew=node.newNode;
+  const isLeaf=node.isLeaf;
+  const col=isNew?'#4ade80':isBP&&!isLeaf?'#a855f7':isHL?'#fbbf24':isLeaf?'#60a5fa':'rgba(255,178,41,0.6)';
+  ctx.save();
+  if(isHL||isNew){ctx.shadowColor=col;ctx.shadowBlur=12;}
+  ctx.fillStyle=col+'18';ctx.strokeStyle=col;ctx.lineWidth=isHL||isNew?1.8:1;
+  ctx.fillRect(_x,_y,_w,_h);ctx.strokeRect(_x,_y,_w,_h);
+  // keys
+  const kw=(_w-NODE_PAD_X*2)/Math.max(1,node.keys.length);
+  node.keys.forEach((k,i)=>{
+    const kx=_x+NODE_PAD_X+i*kw;
+    if(i>0){ctx.strokeStyle=col+'44';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(kx,_y+4);ctx.lineTo(kx,_y+_h-4);ctx.stroke();}
+    ctx.font=`14px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(k,kx+kw/2,_y+_h/2);
+  });
+  // leaf link indicator for B+ tree
+  if(isBP&&isLeaf){
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(96,165,250,0.4)';
+    ctx.textAlign='right';ctx.textBaseline='top';ctx.fillText('↦',_x+_w-2,_y+2);
+  }
+  ctx.restore();
+  // draw children
+  if(node.children){
+    const nChildren=node.children.filter(Boolean).length;
+    node.children.forEach((c,i)=>{
+      if(!c||c._x===undefined)return;
+      const px=_x+NODE_PAD_X+(i>0?(_w-NODE_PAD_X*2)/Math.max(1,node.keys.length)*Math.min(i,node.keys.length):0);
+      const py=_y+_h;
+      const cx2=c._x+c._w/2;const cy2=c._y;
+      ctx.save();ctx.strokeStyle='rgba(255,178,41,0.2)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(_x+_w/2+(i-(nChildren-1)/2)*(_w/(nChildren+1)),py);ctx.lineTo(cx2,cy2);ctx.stroke();ctx.restore();
+      drawNode(c,hlId,isBP);
+    });
+  }
+}
+
+function drawBPLeafLinks(root){
+  // find all leaves, draw horizontal next arrows
+  const leaves=[];
+  function collect(n){if(!n)return;if(n.isLeaf)leaves.push(n);else n.children.forEach(collect);}
+  collect(root);
+  leaves.sort((a,b)=>(a._x||0)-(b._x||0));
+  for(let i=0;i<leaves.length-1;i++){
+    const a=leaves[i],b=leaves[i+1];
+    if(a._x===undefined||b._x===undefined)continue;
+    const ax=a._x+a._w,ay=a._y+a._h/2;
+    const bx=b._x,by=b._y+b._h/2;
+    ctx.save();ctx.strokeStyle='rgba(96,165,250,0.4)';ctx.lineWidth=1.2;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(96,165,250,0.5)';
+    const ang=Math.atan2(by-ay,bx-ax);
+    ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx-7*Math.cos(ang-.4),by-7*Math.sin(ang-.4));ctx.lineTo(bx-7*Math.cos(ang+.4),by-7*Math.sin(ang+.4));ctx.closePath();ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawEmpty(){ctx.clearRect(0,0,CW,CH);ctx.font=`16px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.14)';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('TREE EMPTY — INSERT KEYS OR LOAD DEMO',CW/2,CH/2);}
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step||!step.root){drawEmpty();return;}
+  const isBP=curMode==='bplus';
+  const root=step.root;
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`${isBP?'B+ TREE':'B-TREE'}  order=${treeOrder()}  t=${treeT()}  keys=${step.keys}  height=${step.height}  nodes=${step.nodes}`,12,4);
+  const rootH=root?treeHeight(root):1;
+  const treeTopY=Math.max(28,(CH-(rootH*LEVEL_H))/2);
+  computeLayout(root,CW/2,treeTopY,CW-40);
+  drawNode(root,step.hl,isBP);
+  if(isBP)drawBPLeafLinks(root);
+  // split info label
+  if(step.splitInfo){
+    ctx.font=`14px 'VT323'`;ctx.fillStyle='#f97316';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(`↑ PROMOTED: ${step.splitInfo.promoted}`,CW/2,8);
+  }
+}
+
+/* ══════ PLAYBACK ══════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:420};
+let curMode='btree';
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  const phase=step.phase||'init';
+  badge.className='pbadge '+phase;badge.textContent=phase.toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-keys').textContent=step.keys||0;
+  document.getElementById('s-height').textContent=step.height||0;
+  document.getElementById('s-nodes').textContent=step.nodes||0;
+  document.getElementById('s-splits').textContent=step.splits||0;
+  document.getElementById('s-order').textContent=treeOrder();
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(MODES[curMode].code,step.cl>=0?step.cl:-1);
+  if(phase&&phase!=='init')snd(phase);
+  if(phase==='split')triggerCA();
+}
+
+function runSteps(steps){if(!steps||!steps.length)return;if(ST.playing)pause();ST.steps=steps;ST.idx=0;applyStep(steps[0]);setTimeout(()=>play(),280);}
+
+function doInsert(){
+  initAudio();
+  const k=parseInt(document.getElementById('key-inp').value)||Math.floor(Math.random()*99)+1;
+  let steps;
+  if(curMode==='btree'){tree.t=treeT();steps=btInsert(k);}
+  else{bpTree.t=treeT();steps=bpInsert(k);}
+  if(steps)runSteps(steps);
+  snd('click');
+}
+
+function doSearch(){
+  initAudio();
+  const k=parseInt(document.getElementById('key-inp').value)||1;
+  const steps=curMode==='btree'?btSearch(k):bpSearch(k);
+  runSteps(steps);snd('click');
+}
+
+function doDelete(){
+  initAudio();
+  const k=parseInt(document.getElementById('key-inp').value)||1;
+  let steps;
+  if(curMode==='btree')steps=btDelete(k);
+  else{steps=[{phase:'init',desc:'B+ Tree delete not shown in this demo. Search for key first.',cl:0,root:cloneBP(bpTree.root),keys:bpTree.size,height:treeHeight(bpTree.root),nodes:treeNodeCount(bpTree.root),splits:bpTree.splits}];}
+  runSteps(steps);snd('click');
+}
+
+function loadDemo(){
+  initAudio();
+  clearTree();
+  const keys=curMode==='btree'?[10,20,5,6,12,30,7,17,3,1,40,50,25]:[5,10,15,20,25,30,35,40,45,50,55];
+  let allSteps=[];
+  keys.forEach(k=>{
+    let s;
+    if(curMode==='btree'){tree.t=treeT();s=btInsert(k);}
+    else{bpTree.t=treeT();s=bpInsert(k);}
+    if(s)allSteps=allSteps.concat(s);
+  });
+  runSteps(allSteps);snd('click');
+}
+
+function clearTree(){
+  if(ST.playing)pause();
+  nodeIdCounter=0;
+  tree={root:null,t:treeT(),size:0,splits:0,mode:'btree'};
+  bpTree={root:null,t:treeT(),size:0,splits:0};
+  ST.steps=[];ST.idx=0;
+  drawEmpty();
+  document.getElementById('pbadge').className='pbadge init';document.getElementById('pbadge').textContent='INIT';
+  document.getElementById('step-txt').textContent='Tree cleared.';
+  document.getElementById('step-ctr').textContent='0 / 0';
+  document.getElementById('prog-bar').style.width='0%';
+  ['s-keys','s-height','s-nodes','s-splits'].forEach(id=>document.getElementById(id).textContent='0');
+  snd('click');
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){if(!ST.steps.length)return;if(ST.idx>=ST.steps.length-1)ST.idx=0;ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+function selectMode(key){
+  curMode=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const m=MODES[key];
+  document.getElementById('cx-info').innerHTML=m.cx;
+  document.getElementById('how-info').innerHTML=m.how;
+  document.getElementById('facts').innerHTML=m.facts;
+  renderCode(m.code,-1);
+  clearTree();
+  setTimeout(()=>loadDemo(),200);
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'Enter':doInsert();break;
+    case'1':selectMode('btree');break;case'2':selectMode('bplus');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['btree','1. B-TREE'],['bplus','2. B+ TREE']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curMode?' active':''}" data-key="${k}" onclick="selectMode('${k}')">${l}</button>`).join('');
+}
+
+function boot(){
+  const term=document.getElementById('boot-terminal');const fill=document.getElementById('boot-fill');
+  const lines=[{t:'BTREE.VIZ v1.0 — INITIALIZING...',s:'',d:180},{t:'LOADING: BTREE_ENGINE.MOD (order t, split/merge)',s:'OK',d:130},{t:'LOADING: BPLUS_ENGINE.MOD (leaf linking, copy-up)',s:'OK',d:130},{t:'LOADING: LAYOUT_ENGINE.MOD (recursive width)',s:'OK',d:130},{t:'MOUNTING CANVAS RENDERER...',s:'DONE',d:150},{t:'B-TREE STRUCTURES ONLINE.',s:'',d:200}];
+  let li=0;
+  function al(){if(li>=lines.length){setTimeout(sa,300);return;}const bl=lines[li];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));fill.style.width=Math.round((li/lines.length)*100)+'%';li++;setTimeout(al,bl.d);}al();
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();const m=MODES['btree'];document.getElementById('cx-info').innerHTML=m.cx;document.getElementById('how-info').innerHTML=m.how;document.getElementById('facts').innerHTML=m.facts;renderCode(m.code,-1);window.addEventListener('resize',resizeCanvas);resizeCanvas();setTimeout(()=>selectMode('btree'),300);}
+boot();
+</script>
+</body>
+</html>

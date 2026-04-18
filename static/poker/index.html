@@ -50,26 +50,1719 @@
 /* ─── Reset & Base ───────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
-  height: 100%;
+  min-height: 100%;
   background: var(--bg-deep);
   color: var(--cream);
   font-family: var(--font-body);
-  overflow: hidden;
 }
-body { display: flex; align-items: center; justify-content: center; }
+html { height: 100%; }
+/* Body: flex column so .screen can stretch and (if needed) scroll inside. */
+body {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  min-height: 100%;
+  position: relative;
+}
 
 /* ─── Screen System ─────────────────────────────────────────────────── */
 .screen {
   display: none;
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   position: absolute;
   inset: 0;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 80px;
+  padding-bottom: 60px;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
 .screen.active { display: flex; }
+/* Game screen is full-bleed, no padding — let its own grid handle layout. */
+#screen-game.active {
+  padding: 20px;
+  overflow: hidden;
+  min-height: 100%;
+}
+
+/* ─── BLACKJACK ──────────────────────────────────────────────────────── */
+.btn-blackjack {
+  display: inline-block;
+  margin-top: 12px;
+  background: linear-gradient(180deg, #1f4230 0%, #0f2c1f 100%);
+  border: 1px solid #3d8d5f;
+  color: #c9ffd8;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.btn-blackjack:hover {
+  border-color: #6fd890;
+  color: #ffffff;
+  box-shadow: 0 0 18px rgba(111,216,144,0.35);
+}
+.btn-blackjack-pvp {
+  background: linear-gradient(180deg, #1f3a5a 0%, #0a1830 100%);
+  border-color: #3d8ddd;
+  color: #c9deff;
+  margin-top: 6px;
+}
+.btn-blackjack-pvp:hover {
+  border-color: #6fb8ff;
+  color: #ffffff;
+  box-shadow: 0 0 18px rgba(111,184,255,0.35);
+}
+
+/* ───────────────────────────────────────────────────────────────── */
+/*                  B L A C K J A C K   T A B L E                    */
+/* ───────────────────────────────────────────────────────────────── */
+
+#screen-blackjack {
+  --bj-felt: #0e6236;
+  --bj-felt-edge: #04271a;
+  --bj-gold: #e2c68a;
+  --bj-gold-bright: #f5dca3;
+  --bj-gold-dim: rgba(226,198,138,0.45);
+  --bj-ink: rgba(7,14,10,0.92);
+  --bj-cream: #f0efe7;
+  --bj-accent: #6fd890;
+}
+#screen-blackjack.active {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #030806;
+}
+
+/* ─── Topbar ──────────────────────────────────────────────────────── */
+.bj-topbar {
+  display: grid;
+  grid-template-columns: 96px 1fr 44px;
+  align-items: center;
+  padding: 10px 22px;
+  background: linear-gradient(180deg, rgba(10,20,14,0.98) 0%, rgba(5,12,8,0.92) 100%);
+  border-bottom: 1px solid var(--bj-gold-dim);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+  font-family: var(--font-mono);
+  z-index: 5;
+}
+.bj-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.bj-title {
+  color: var(--bj-gold-bright);
+  font-family: var(--font-head, var(--font-mono));
+  font-weight: 900;
+  font-size: 1.3rem;
+  letter-spacing: 0.28em;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+}
+.bj-subtitle {
+  color: rgba(226,198,138,0.55);
+  font-size: 0.55rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+.bj-exit, .bj-help-btn {
+  background: rgba(15,28,20,0.8);
+  border: 1px solid var(--bj-gold-dim);
+  color: var(--bj-gold);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  padding: 6px 12px;
+  cursor: pointer;
+  letter-spacing: 0.14em;
+  border-radius: 3px;
+  transition: all 140ms ease;
+}
+.bj-exit:hover, .bj-help-btn:hover {
+  border-color: var(--bj-gold-bright);
+  color: var(--bj-gold-bright);
+  box-shadow: 0 0 14px rgba(226,198,138,0.25);
+}
+.bj-help-btn {
+  justify-self: end;
+  font-size: 1rem;
+  padding: 4px 14px;
+  font-weight: 700;
+}
+
+/* ─── Felt table — the star of the show ──────────────────────────── */
+.bj-table {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 28px 18px;
+  /* Rich felt gradient — brighter at the dealer, fading toward edges */
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 42%, rgba(36,122,72,0.85) 0%, transparent 55%),
+    radial-gradient(ellipse 110% 70% at 50% 50%, #136539 0%, #0a3b22 45%, var(--bj-felt-edge) 100%);
+  /* Curved rim shadow via inset, like a real oval table */
+  box-shadow:
+    inset 0 0 140px rgba(0,0,0,0.85),
+    inset 0 0 24px rgba(226,198,138,0.15);
+  min-height: 0;
+}
+/* Subtle suit watermark pattern layered over the felt */
+.bj-felt-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image:
+    radial-gradient(circle at 12% 22%, rgba(255,255,255,0.4) 0%, transparent 25%),
+    radial-gradient(circle at 88% 78%, rgba(255,255,255,0.35) 0%, transparent 28%),
+    radial-gradient(circle at 20% 85%, rgba(255,255,255,0.3) 0%, transparent 22%);
+}
+
+/* ─── Shoe (top-right card dispenser) ────────────────────────────── */
+.bj-shoe {
+  position: absolute;
+  top: 28px;
+  right: 34px;
+  width: 72px;
+  height: 102px;
+  z-index: 3;
+  pointer-events: none;
+}
+.bj-shoe-card {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #2b6f4a 0%, #163a27 50%, #0a2114 100%);
+  border: 1px solid rgba(226,198,138,0.3);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.7);
+}
+.bj-shoe-card:nth-child(1) { transform: translate(-4px, -5px) rotate(-2.5deg); }
+.bj-shoe-card:nth-child(2) { transform: translate(0, 0) rotate(0.5deg); }
+.bj-shoe-card:nth-child(3) {
+  transform: translate(4px, 5px) rotate(2.5deg);
+  background: linear-gradient(135deg, #3a8f64 0%, #1f4e33 100%);
+}
+.bj-shoe.dealing .bj-shoe-card:nth-child(3) {
+  animation: bj-shoe-tap 280ms cubic-bezier(0.4, 0.05, 0.35, 0.95);
+}
+.bj-shoe-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  color: var(--bj-gold-dim);
+  text-align: center;
+  width: 100%;
+}
+@keyframes bj-shoe-tap {
+  0%   { transform: translate(4px, 5px) rotate(2.5deg); }
+  40%  { transform: translate(11px, 1px) rotate(7deg); }
+  100% { transform: translate(4px, 5px) rotate(2.5deg); }
+}
+
+/* ─── Outcome banner — floating text flash on settlement ─────────── */
+.bj-outcome-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.7);
+  padding: 18px 54px;
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 2.6rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #ffffff;
+  background: rgba(4,12,8,0.95);
+  border: 2px solid var(--bj-gold);
+  border-radius: 10px;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.9);
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  display: none;
+  white-space: nowrap;
+}
+.bj-outcome-banner.banner-flash-in {
+  display: block;
+  animation: bj-banner-flash 1800ms cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+}
+.bj-outcome-banner.banner-win {
+  border-color: var(--bj-accent);
+  color: #c9ffd8;
+  box-shadow: 0 0 60px rgba(111,216,144,0.55);
+}
+.bj-outcome-banner.banner-bj {
+  border-color: var(--bj-gold-bright);
+  color: var(--bj-gold-bright);
+  box-shadow: 0 0 70px rgba(245,220,163,0.7);
+}
+.bj-outcome-banner.banner-loss {
+  border-color: rgba(214,61,61,0.85);
+  color: #ffb3b3;
+  box-shadow: 0 0 54px rgba(214,61,61,0.55);
+}
+.bj-outcome-banner.banner-push {
+  border-color: rgba(200,200,200,0.6);
+  color: #d8d8d8;
+}
+@keyframes bj-banner-flash {
+  0%   { opacity: 0; transform: translate(-50%, -80%) scale(0.6); }
+  10%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  78%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -35%) scale(0.95); }
+}
+
+/* ─── Card zones — the gold-rimmed dealer/player panels ──────────── */
+.bj-zone {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 22px 32px 14px;
+  margin: 0 auto;
+  max-width: 680px;
+  width: 100%;
+  z-index: 2;
+}
+/* Gold hairline rim — mimics a real casino table layout stenciled in gold */
+.bj-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--bj-gold-dim);
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 30px rgba(0,0,0,0.35),
+    0 4px 24px rgba(0,0,0,0.35);
+}
+.bj-zone-dealer { padding-top: 14px; }
+.bj-zone-player { padding-bottom: 22px; }
+
+/* Name plate — "DEALER" / "PLAYER" with optional total + bankroll */
+.bj-zone-plate {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 18px;
+  background: linear-gradient(180deg, var(--bj-felt-edge) 0%, #020806 100%);
+  border: 1px solid var(--bj-gold);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.bj-player-plate {
+  top: auto;
+  bottom: -11px;
+}
+.bj-zone-title {
+  color: var(--bj-gold);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+.bj-zone-total {
+  color: var(--bj-cream);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding-left: 10px;
+  border-left: 1px solid rgba(226,198,138,0.4);
+}
+.bj-zone-total:empty { display: none; }
+.bj-zone-bankroll {
+  color: rgba(226,198,138,0.85);
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+  padding-left: 10px;
+  border-left: 1px solid rgba(226,198,138,0.4);
+}
+.bj-zone-bankroll span { color: var(--bj-cream); font-weight: 700; }
+
+/* ─── Card rows ───────────────────────────────────────────────────── */
+.bj-cards-row, .bj-hand-cards {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  min-height: 112px;
+}
+
+/* ─── Felt center — tagline arc + phase banner ────────────────────── */
+.bj-felt-center {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 60px;
+  position: relative;
+}
+.bj-felt-arc {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.28em;
+  color: rgba(226,198,138,0.4);
+  text-align: center;
+  text-transform: uppercase;
+  padding: 0 20px;
+  border-top: 1px solid rgba(226,198,138,0.15);
+  border-bottom: 1px solid rgba(226,198,138,0.15);
+  padding: 8px 28px;
+  background: radial-gradient(ellipse, rgba(226,198,138,0.06) 0%, transparent 70%);
+}
+.bj-phase-banner {
+  text-align: center;
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.36em;
+  color: var(--bj-cream);
+  padding: 4px 0;
+  text-shadow: 0 3px 10px rgba(0,0,0,0.85);
+  transition: opacity 200ms ease;
+}
+
+/* ─── Player hands — flex row for splits ─────────────────────────── */
+#bj-player-hands {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: nowrap;
+  min-height: 146px;
+}
+#bj-player-hands[data-hand-count="3"] .bj-hand-cards .card,
+#bj-player-hands[data-hand-count="4"] .bj-hand-cards .card {
+  transform: scale(0.78);
+  transform-origin: top center;
+}
+
+.bj-hand {
+  padding: 10px 16px 12px;
+  border: 1px solid rgba(226,198,138,0.12);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(6,14,10,0.35) 0%, rgba(4,11,7,0.55) 100%);
+  min-width: 140px;
+  flex: 0 1 auto;
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+.bj-hand.active {
+  border-color: var(--bj-accent);
+  animation: bj-active-pulse 1.6s ease-in-out infinite;
+}
+@keyframes bj-active-pulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(111,216,144,0.3); }
+  50%      { box-shadow: 0 0 34px rgba(111,216,144,0.65); }
+}
+.bj-hand.bj-hand-new {
+  animation: bj-hand-slide-in 420ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+@keyframes bj-hand-slide-in {
+  0%   { opacity: 0; transform: translateX(-22px) scale(0.92); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+.bj-hand.outcome-win       { border-color: var(--bj-accent); }
+.bj-hand.outcome-blackjack { border-color: var(--bj-gold-bright); box-shadow: 0 0 26px rgba(245,220,163,0.5); }
+.bj-hand.outcome-loss      { border-color: rgba(214,61,61,0.65); }
+.bj-hand.outcome-push      { border-color: rgba(200,200,200,0.35); }
+.bj-hand.outcome-surrender { border-color: rgba(200,168,130,0.35); }
+.bj-hand-info {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--bj-cream);
+  margin-top: 8px;
+}
+.bj-hand-info .bj-total { color: var(--bj-cream); font-weight: 700; letter-spacing: 0.08em; }
+.bj-hand-info .bj-bet   { color: rgba(226,198,138,0.75); font-weight: 600; }
+.bj-hand-info .bj-outcome {
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--bj-gold-bright);
+}
+
+/* ─── Betting circle ─────────────────────────────────────────────── */
+.bj-betting-circle {
+  position: relative;
+  width: 160px;
+  height: 64px;
+  margin: 14px auto 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.bj-betting-circle-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed var(--bj-gold-dim);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.bj-betting-circle-ring::after {
+  content: 'BET';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bj-felt-edge);
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.28em;
+  color: rgba(226,198,138,0.65);
+}
+.bj-betting-circle-chips {
+  position: relative;
+  transition: opacity 600ms ease-out;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bj-betting-circle-chips .chip-stack {
+  filter: drop-shadow(0 5px 12px rgba(0,0,0,0.7));
+}
+.bj-betting-circle-chips.fading-loss {
+  animation: bj-bet-fade-loss 800ms ease-out forwards;
+}
+@keyframes bj-bet-fade-loss {
+  0%   { opacity: 1; transform: scale(1); }
+  40%  { opacity: 1; transform: scale(0.95) rotate(-4deg); }
+  100% { opacity: 0; transform: scale(0.82) rotate(-10deg) translateY(14px); }
+}
+
+/* ─── Controls strip ─────────────────────────────────────────────── */
+.bj-controls {
+  background: linear-gradient(180deg, rgba(5,12,8,0.96) 0%, rgba(2,8,5,0.98) 100%);
+  border-top: 1px solid var(--bj-gold-dim);
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.55);
+}
+.bj-bet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+}
+.bj-bet-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  color: var(--bj-gold);
+  font-weight: 700;
+}
+.bj-bet-input {
+  background: rgba(13,20,16,0.9);
+  border: 1px solid var(--bj-gold-dim);
+  color: var(--bj-cream);
+  padding: 7px 12px;
+  width: 100px;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: right;
+  border-radius: 3px;
+}
+.bj-bet-input:focus {
+  outline: none;
+  border-color: var(--bj-gold-bright);
+  box-shadow: 0 0 10px rgba(245,220,163,0.3);
+}
+.bj-bet-chips { display: flex; gap: 5px; }
+.bj-chip-btn {
+  background: linear-gradient(180deg, #2a5a3e 0%, #143824 100%);
+  border: 1px solid var(--bj-gold-dim);
+  color: var(--bj-cream);
+  padding: 6px 11px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 140ms ease;
+}
+.bj-chip-btn:hover {
+  border-color: var(--bj-gold-bright);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4), 0 0 12px rgba(226,198,138,0.2);
+}
+.bj-chip-btn.c5    { background: linear-gradient(180deg, #3e4e5e 0%, #1e2836 100%); }
+.bj-chip-btn.c25   { background: linear-gradient(180deg, #2a5a3e 0%, #143824 100%); }
+.bj-chip-btn.c100  { background: linear-gradient(180deg, #2a2d4a 0%, #141830 100%); }
+.bj-chip-btn.c500  { background: linear-gradient(180deg, #5a2a2a 0%, #341414 100%); }
+.bj-chip-clear {
+  background: rgba(60,20,20,0.8);
+  border-color: rgba(214,61,61,0.45);
+  color: rgba(255,180,180,0.8);
+}
+
+/* ─── Action buttons ─────────────────────────────────────────────── */
+.bj-action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.bj-btn {
+  background: linear-gradient(180deg, #1f4230 0%, #0a2214 100%);
+  border: 1px solid rgba(226,198,138,0.45);
+  color: var(--bj-cream);
+  padding: 10px 20px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease,
+              opacity 280ms ease, transform 140ms ease, background 140ms ease;
+  min-width: 108px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 4px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+}
+.bj-btn:hover:not(.disabled):not(:disabled) {
+  border-color: var(--bj-gold-bright);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 18px rgba(226,198,138,0.35);
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #2a5a3e 0%, #133020 100%);
+}
+.bj-btn:active:not(.disabled):not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+.bj-btn.disabled, .bj-btn:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.bj-btn kbd {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  background: rgba(2,8,5,0.85);
+  border: 1px solid var(--bj-gold-dim);
+  border-radius: 3px;
+  color: var(--bj-gold);
+  letter-spacing: 0;
+}
+.bj-btn.disabled kbd, .bj-btn:disabled kbd { opacity: 0.5; }
+.bj-btn-deal {
+  background: linear-gradient(180deg, #3a7f5a 0%, #0f3a24 100%);
+  border-color: var(--bj-gold-bright);
+  color: #ffffff;
+  font-weight: 900;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.5), 0 0 24px rgba(111,216,144,0.25);
+}
+.bj-btn-deal:hover:not(.disabled):not(:disabled) {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.55), 0 0 28px rgba(111,216,144,0.5);
+}
+.bj-btn-surrender {
+  border-color: rgba(214,61,61,0.55);
+  color: rgba(255,180,180,0.85);
+}
+.bj-btn-surrender:hover:not(.disabled):not(:disabled) {
+  background: linear-gradient(180deg, #4a1818 0%, #230808 100%);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 18px rgba(214,61,61,0.4);
+}
+.bj-insurance-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: linear-gradient(180deg, rgba(60,40,10,0.75) 0%, rgba(28,18,5,0.9) 100%);
+  border: 1px solid rgba(245,220,163,0.55);
+  border-radius: 4px;
+  color: var(--bj-gold-bright);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow: 0 0 20px rgba(245,220,163,0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
+/*              B L A C K J A C K   H E L P   O V E R L A Y            */
+/* ═══════════════════════════════════════════════════════════════════ */
+.bj-help-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(6,18,12,0.88) 0%, rgba(0,0,0,0.95) 100%);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.bj-help-overlay[style*="display: flex"] { display: flex !important; }
+.bj-help-modal {
+  background: linear-gradient(180deg, #0a1c12 0%, #030a06 100%);
+  border: 1px solid rgba(226,198,138,0.4);
+  border-radius: 10px;
+  max-width: 880px;
+  max-height: 92vh;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,0.9),
+    0 0 60px rgba(226,198,138,0.1);
+}
+.bj-help-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(226,198,138,0.3);
+  background: linear-gradient(180deg, rgba(12,26,18,0.98) 0%, rgba(5,14,9,0.95) 100%);
+}
+.bj-help-title {
+  flex: 1;
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.28em;
+  color: #f5dca3;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+}
+.bj-help-lang { display: flex; gap: 4px; }
+.bj-help-lang-btn {
+  background: rgba(13,20,16,0.85);
+  border: 1px solid rgba(226,198,138,0.35);
+  color: rgba(245,220,163,0.75);
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 160ms ease;
+}
+.bj-help-lang-btn:hover { border-color: #f5dca3; color: #f5dca3; }
+.bj-help-lang-btn.active {
+  background: linear-gradient(180deg, #3a7f5a 0%, #0f3a24 100%);
+  border-color: #f5dca3;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(245,220,163,0.35);
+}
+.bj-help-close {
+  background: transparent;
+  border: 1px solid rgba(214,61,61,0.4);
+  color: rgba(255,180,180,0.75);
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 3px;
+  transition: all 140ms ease;
+}
+.bj-help-close:hover { border-color: #d63d3d; color: #ff9999; transform: scale(1.05); }
+.bj-help-body {
+  padding: 0;
+  overflow-y: auto;
+  color: rgba(230,250,230,0.85);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.68;
+}
+.bj-help-body::-webkit-scrollbar { width: 8px; }
+.bj-help-body::-webkit-scrollbar-track { background: rgba(0,0,0,0.4); }
+.bj-help-body::-webkit-scrollbar-thumb {
+  background: rgba(226,198,138,0.3);
+  border-radius: 4px;
+}
+.bj-help-body::-webkit-scrollbar-thumb:hover { background: rgba(226,198,138,0.5); }
+
+/* ─── Hero banner ──────────────────────────────────────────────────── */
+.bjh-hero {
+  position: relative;
+  padding: 32px 30px 26px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 50%, rgba(36,122,72,0.55) 0%, transparent 70%),
+    linear-gradient(180deg, #114128 0%, #082115 100%);
+  border-bottom: 1px solid rgba(226,198,138,0.25);
+  text-align: center;
+  overflow: hidden;
+}
+.bjh-hero::before {
+  content: '♠ ♥ ♦ ♣';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  letter-spacing: 0.6em;
+  color: rgba(226,198,138,0.25);
+}
+.bjh-hero-title {
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 2.8rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #f5dca3;
+  margin: 12px 0 6px;
+  text-shadow:
+    0 2px 10px rgba(0,0,0,0.8),
+    0 0 40px rgba(245,220,163,0.2);
+}
+.bjh-hero-sub {
+  color: rgba(226,198,138,0.75);
+  font-size: 0.68rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* ─── Quick facts grid ─────────────────────────────────────────────── */
+.bjh-facts {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1px;
+  background: rgba(226,198,138,0.25);
+  border-bottom: 1px solid rgba(226,198,138,0.25);
+}
+.bjh-fact {
+  background: linear-gradient(180deg, rgba(10,24,15,0.95) 0%, rgba(4,12,8,0.98) 100%);
+  padding: 14px 10px;
+  text-align: center;
+}
+.bjh-fact-val {
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: #f5dca3;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.bjh-fact-lbl {
+  font-size: 0.5rem;
+  letter-spacing: 0.18em;
+  color: rgba(226,198,138,0.55);
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+/* ─── Section containers ──────────────────────────────────────────── */
+.bjh-section {
+  padding: 22px 30px;
+  border-bottom: 1px solid rgba(226,198,138,0.12);
+}
+.bjh-section:last-child { border-bottom: 0; }
+.bjh-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f5dca3;
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 0.88rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
+.bjh-section h3::before {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, #e2c68a 0%, transparent 100%);
+}
+.bjh-section p {
+  margin: 6px 0 10px;
+  color: rgba(230,250,230,0.85);
+}
+.bjh-section strong { color: #f5dca3; }
+.bjh-section em { color: #ffcfa6; font-style: normal; font-weight: 700; }
+.bjh-lead {
+  font-size: 0.84rem;
+  line-height: 1.7;
+  color: rgba(240,255,240,0.92);
+}
+
+/* ─── Mini playing cards (inline visual examples) ────────────────── */
+.bjh-mini-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 64px;
+  background: linear-gradient(180deg, #ffffff 0%, #e8e4d8 100%);
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 5px;
+  font-family: Georgia, serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #111;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1) inset;
+  user-select: none;
+  position: relative;
+}
+.bjh-mini-card.red { color: #c40018; }
+.bjh-mini-card.black { color: #0a0a0a; }
+.bjh-mini-card .bjh-mc-suit { font-size: 0.95rem; margin-top: -2px; }
+.bjh-mini-card.back {
+  background:
+    repeating-linear-gradient(45deg, #8b1a2e 0px, #8b1a2e 4px, #a02339 4px, #a02339 8px);
+  color: rgba(255,255,255,0.6);
+  font-size: 0.6rem;
+}
+.bjh-mini-card.big {
+  width: 58px;
+  height: 80px;
+  font-size: 1.35rem;
+}
+.bjh-mini-card.big .bjh-mc-suit { font-size: 1.15rem; }
+
+/* ─── Card values grid ─────────────────────────────────────────────── */
+.bjh-values {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 6px;
+}
+.bjh-value-group {
+  background: rgba(10,24,15,0.6);
+  border: 1px solid rgba(226,198,138,0.2);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+}
+.bjh-value-cards {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  min-height: 66px;
+  align-items: center;
+}
+.bjh-value-name {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: #f5dca3;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.bjh-value-desc {
+  font-size: 0.58rem;
+  color: rgba(230,250,230,0.65);
+  line-height: 1.5;
+}
+
+/* ─── Flow steps ──────────────────────────────────────────────────── */
+.bjh-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bjh-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(90deg, rgba(20,40,28,0.6) 0%, rgba(4,12,8,0.4) 100%);
+  border-left: 3px solid #e2c68a;
+  border-radius: 4px;
+}
+.bjh-step-num {
+  flex: 0 0 32px;
+  height: 32px;
+  background: linear-gradient(180deg, #3a7f5a 0%, #0f3a24 100%);
+  border: 1px solid #f5dca3;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 0.84rem;
+  font-weight: 900;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+}
+.bjh-step-content { flex: 1; }
+.bjh-step-title {
+  color: #f5dca3;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+}
+.bjh-step-body {
+  color: rgba(230,250,230,0.82);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+/* ─── Action cards grid ────────────────────────────────────────────── */
+.bjh-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.bjh-action {
+  position: relative;
+  background: linear-gradient(180deg, rgba(20,44,28,0.85) 0%, rgba(6,14,10,0.95) 100%);
+  border: 1px solid rgba(226,198,138,0.3);
+  border-radius: 6px;
+  padding: 14px 14px 12px;
+  transition: all 140ms ease;
+}
+.bjh-action:hover {
+  border-color: #f5dca3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5), 0 0 18px rgba(245,220,163,0.2);
+}
+.bjh-action-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.bjh-action-name {
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 0.88rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #f5dca3;
+}
+.bjh-action-key {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: rgba(2,8,5,0.85);
+  border: 1px solid rgba(226,198,138,0.4);
+  border-radius: 3px;
+  color: #e2c68a;
+}
+.bjh-action p {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.55;
+  color: rgba(230,250,230,0.78);
+}
+
+/* ─── Example hands (visual mini-scenarios) ──────────────────────── */
+.bjh-examples {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.bjh-example {
+  background: linear-gradient(180deg, rgba(16,44,26,0.7) 0%, rgba(4,12,8,0.9) 100%);
+  border: 1px solid rgba(226,198,138,0.25);
+  border-radius: 6px;
+  padding: 16px 14px;
+  text-align: center;
+}
+.bjh-example.good { border-color: #6fd890; box-shadow: 0 0 18px rgba(111,216,144,0.2); }
+.bjh-example.gold { border-color: #f5dca3; box-shadow: 0 0 22px rgba(245,220,163,0.3); }
+.bjh-example.bad  { border-color: rgba(214,61,61,0.65); box-shadow: 0 0 18px rgba(214,61,61,0.2); }
+.bjh-example-cards {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 10px;
+  min-height: 66px;
+  align-items: center;
+}
+.bjh-example-total {
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: #f0efe7;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+.bjh-example-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.bjh-example.good .bjh-example-label { color: #6fd890; }
+.bjh-example.gold .bjh-example-label { color: #f5dca3; }
+.bjh-example.bad  .bjh-example-label { color: #ff9999; }
+
+/* ─── Basic strategy cheat sheet table ────────────────────────────── */
+.bjh-strategy-wrap { overflow-x: auto; }
+.bjh-strategy-legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 0.62rem;
+}
+.bjh-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.bjh-key.h   { background: rgba(111,216,144,0.2); border: 1px solid rgba(111,216,144,0.5); color: #c9ffd8; }
+.bjh-key.s   { background: rgba(214,61,61,0.2);   border: 1px solid rgba(214,61,61,0.5);   color: #ffb3b3; }
+.bjh-key.d   { background: rgba(245,220,163,0.2); border: 1px solid rgba(245,220,163,0.5); color: #f5dca3; }
+.bjh-key.p   { background: rgba(181,126,220,0.2); border: 1px solid rgba(181,126,220,0.5); color: #e0c2ff; }
+.bjh-strategy {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  text-align: center;
+}
+.bjh-strategy thead th {
+  padding: 6px 4px;
+  background: rgba(226,198,138,0.15);
+  color: #f5dca3;
+  font-weight: 700;
+  border: 1px solid rgba(226,198,138,0.3);
+  letter-spacing: 0.06em;
+}
+.bjh-strategy tbody th {
+  padding: 4px 8px;
+  background: rgba(226,198,138,0.08);
+  color: #f5dca3;
+  font-weight: 700;
+  border: 1px solid rgba(226,198,138,0.2);
+  text-align: right;
+}
+.bjh-strategy td {
+  padding: 4px;
+  border: 1px solid rgba(226,198,138,0.15);
+  font-weight: 700;
+  font-size: 0.62rem;
+}
+.bjh-strategy td.h   { background: rgba(111,216,144,0.22); color: #c9ffd8; }
+.bjh-strategy td.s   { background: rgba(214,61,61,0.25);   color: #ffb3b3; }
+.bjh-strategy td.d   { background: rgba(245,220,163,0.28); color: #fff5cc; }
+.bjh-strategy td.p   { background: rgba(181,126,220,0.25); color: #e0c2ff; }
+.bjh-strategy td.ds  { background: rgba(245,220,163,0.18); color: #ffefc0; }
+
+/* ─── Tips (dos and don'ts) ────────────────────────────────────────── */
+.bjh-tips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.bjh-tips li {
+  padding: 10px 12px 10px 34px;
+  background: rgba(10,24,15,0.55);
+  border: 1px solid rgba(226,198,138,0.15);
+  border-radius: 5px;
+  position: relative;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.bjh-tips li::before {
+  position: absolute;
+  left: 10px;
+  top: 9px;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+.bjh-tips li.do {
+  border-left: 3px solid #6fd890;
+}
+.bjh-tips li.do::before { content: '✓'; color: #6fd890; }
+.bjh-tips li.dont {
+  border-left: 3px solid #d63d3d;
+}
+.bjh-tips li.dont::before { content: '✗'; color: #ff9999; }
+
+/* ─── Warning callout (insurance) ─────────────────────────────────── */
+.bjh-warn {
+  background: linear-gradient(180deg, rgba(60,38,10,0.7) 0%, rgba(26,16,4,0.85) 100%);
+  border: 1px solid rgba(245,220,163,0.55);
+  border-left: 4px solid #f5dca3;
+  border-radius: 5px;
+  padding: 14px 16px;
+  margin-top: 4px;
+  box-shadow: 0 0 24px rgba(245,220,163,0.15);
+}
+.bjh-warn-title {
+  color: #f5dca3;
+  font-weight: 900;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bjh-warn-title::before { content: '⚠'; font-size: 1.1rem; }
+.bjh-warn p { margin: 4px 0; font-size: 0.72rem; color: rgba(245,240,210,0.88); }
+
+/* ─── Payout calculator ───────────────────────────────────────────── */
+.bjh-payouts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.bjh-payout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(10,24,15,0.6);
+  border: 1px solid rgba(226,198,138,0.2);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+}
+.bjh-payout-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  color: rgba(226,198,138,0.7);
+  text-transform: uppercase;
+}
+.bjh-payout-bet {
+  font-size: 0.86rem;
+  font-weight: 900;
+  color: #e8e4d8;
+}
+.bjh-payout-arrow { color: rgba(226,198,138,0.5); font-size: 0.9rem; }
+.bjh-payout-result {
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+.bjh-payout-result.win  { color: #6fd890; }
+.bjh-payout-result.gold { color: #f5dca3; }
+.bjh-payout-result.bad  { color: #ff9999; }
+.bjh-payout-result.push { color: #d8d8d8; }
+
+/* Mobile: collapse multi-col grids */
+@media (max-width: 680px) {
+  .bjh-facts { grid-template-columns: repeat(3, 1fr); }
+  .bjh-values { grid-template-columns: 1fr; }
+  .bjh-actions { grid-template-columns: 1fr; }
+  .bjh-examples { grid-template-columns: 1fr; }
+  .bjh-tips { grid-template-columns: 1fr; }
+  .bjh-payouts { grid-template-columns: 1fr; }
+  .bjh-hero-title { font-size: 2rem; }
+  .bjh-section { padding: 18px 18px; }
+}
+
+/* ─── Chat panel (P2P floating) ─────────────────────────────────── */
+.chat-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 280px;
+  max-height: 380px;
+  display: none;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(12,26,18,0.96) 0%, rgba(4,12,8,0.98) 100%);
+  border: 1px solid rgba(226,198,138,0.4);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.75), 0 0 24px rgba(226,198,138,0.1);
+  font-family: var(--font-mono);
+  z-index: 60;
+  overflow: hidden;
+}
+body.chat-open .chat-panel { display: flex; }
+body.chat-open.chat-collapsed .chat-panel { max-height: 36px; }
+body.chat-open.chat-collapsed .chat-history,
+body.chat-open.chat-collapsed .chat-input-row { display: none; }
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(18,36,24,0.98) 0%, rgba(8,18,12,0.95) 100%);
+  border-bottom: 1px solid rgba(226,198,138,0.25);
+}
+.chat-title {
+  flex: 1;
+  color: #f5dca3;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+.chat-unread {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff5a5a;
+  box-shadow: 0 0 6px rgba(255,90,90,0.7);
+  display: none;
+}
+.chat-unread.visible { display: inline-block; }
+.chat-toggle {
+  background: transparent;
+  border: 1px solid rgba(226,198,138,0.4);
+  color: rgba(245,220,163,0.8);
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.chat-toggle:hover { border-color: #f5dca3; color: #f5dca3; }
+body.chat-open.chat-collapsed .chat-toggle::before { content: '+'; font-size: 1rem; }
+body.chat-open.chat-collapsed .chat-toggle { font-size: 0; }
+
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  min-height: 140px;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-history::-webkit-scrollbar { width: 6px; }
+.chat-history::-webkit-scrollbar-thumb { background: rgba(226,198,138,0.3); border-radius: 3px; }
+
+.chat-row {
+  padding: 6px 9px 7px;
+  background: rgba(10,22,14,0.6);
+  border-left: 2px solid rgba(226,198,138,0.3);
+  border-radius: 4px;
+  max-width: 90%;
+  align-self: flex-start;
+}
+.chat-row-mine {
+  align-self: flex-end;
+  background: rgba(30,60,40,0.7);
+  border-left: none;
+  border-right: 2px solid var(--bj-accent, #6fd890);
+}
+.chat-row-system {
+  align-self: center;
+  max-width: 100%;
+  background: transparent;
+  border: 1px dashed rgba(226,198,138,0.2);
+  padding: 4px 8px;
+  font-style: italic;
+  color: rgba(226,198,138,0.55);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+}
+.chat-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.chat-from {
+  color: #f5dca3;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.chat-ts {
+  color: rgba(226,198,138,0.45);
+  font-size: 0.5rem;
+}
+.chat-row-mine .chat-from { color: #c9ffd8; }
+.chat-text {
+  color: rgba(240,255,240,0.88);
+  font-size: 0.66rem;
+  line-height: 1.45;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(226,198,138,0.2);
+  background: rgba(5,12,8,0.95);
+}
+.chat-input {
+  flex: 1;
+  background: rgba(13,20,16,0.85);
+  border: 1px solid rgba(226,198,138,0.3);
+  color: #f0efe7;
+  padding: 5px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  border-radius: 3px;
+}
+.chat-input:focus {
+  outline: none;
+  border-color: #f5dca3;
+  box-shadow: 0 0 8px rgba(245,220,163,0.2);
+}
+.chat-send {
+  background: linear-gradient(180deg, #2a5a3e 0%, #143824 100%);
+  border: 1px solid rgba(226,198,138,0.4);
+  color: #c9ffd8;
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.chat-send:hover:not(:disabled) {
+  border-color: #f5dca3;
+  box-shadow: 0 0 10px rgba(245,220,163,0.3);
+}
+.chat-send:disabled, .chat-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.chat-panel.chat-readonly .chat-title::after {
+  content: ' · JOURNAL';
+  color: rgba(226,198,138,0.55);
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+}
+
+/* ─── Match log overlay ──────────────────────────────────────────── */
+.match-log-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(6,14,10,0.92) 0%, rgba(0,0,0,0.98) 100%);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.match-log-overlay[style*="display: flex"] { display: flex !important; }
+.match-log-modal {
+  background: linear-gradient(180deg, #0a1c12 0%, #030a06 100%);
+  border: 1px solid rgba(226,198,138,0.4);
+  border-radius: 10px;
+  max-width: 780px;
+  max-height: 88vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.9);
+}
+.match-log-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(226,198,138,0.3);
+  background: linear-gradient(180deg, rgba(12,26,18,0.98) 0%, rgba(5,14,9,0.95) 100%);
+}
+.match-log-title {
+  flex: 1;
+  font-family: var(--font-head, var(--font-mono));
+  font-weight: 900;
+  font-size: 0.9rem;
+  letter-spacing: 0.28em;
+  color: #f5dca3;
+}
+.match-log-tabs { display: flex; gap: 4px; }
+.match-log-tab {
+  background: rgba(13,20,16,0.85);
+  border: 1px solid rgba(226,198,138,0.35);
+  color: rgba(245,220,163,0.75);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.match-log-tab.active {
+  background: linear-gradient(180deg, #3a7f5a 0%, #0f3a24 100%);
+  border-color: #f5dca3;
+  color: #ffffff;
+}
+.match-log-close {
+  background: transparent;
+  border: 1px solid rgba(214,61,61,0.4);
+  color: rgba(255,180,180,0.75);
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.match-log-close:hover { border-color: #d63d3d; color: #ff9999; }
+.match-log-body {
+  overflow-y: auto;
+  padding: 16px 20px;
+  color: rgba(230,250,230,0.82);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.6;
+}
+.match-log-body::-webkit-scrollbar { width: 8px; }
+.match-log-body::-webkit-scrollbar-thumb { background: rgba(226,198,138,0.3); border-radius: 4px; }
+.mlog-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: rgba(226,198,138,0.45);
+  font-style: italic;
+}
+.mlog-session {
+  margin-bottom: 18px;
+  background: rgba(10,22,14,0.55);
+  border: 1px solid rgba(226,198,138,0.15);
+  border-left: 3px solid #e2c68a;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.mlog-session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 14px;
+  background: rgba(18,36,24,0.6);
+  cursor: pointer;
+}
+.mlog-session-header:hover { background: rgba(24,48,32,0.7); }
+.mlog-session-label {
+  color: #f5dca3;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+.mlog-session-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.58rem;
+}
+.mlog-session-mode {
+  background: rgba(226,198,138,0.2);
+  color: #f5dca3;
+  padding: 2px 7px;
+  border-radius: 3px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+.mlog-session-delta.pos { color: #6fd890; font-weight: 700; }
+.mlog-session-delta.neg { color: #ff9999; font-weight: 700; }
+.mlog-session-time { color: rgba(226,198,138,0.5); }
+.mlog-session-entries {
+  padding: 0;
+  display: none;
+}
+.mlog-session.expanded .mlog-session-entries { display: block; }
+.mlog-entry {
+  padding: 6px 14px;
+  border-top: 1px solid rgba(226,198,138,0.08);
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.mlog-entry-ts {
+  flex: 0 0 52px;
+  color: rgba(226,198,138,0.4);
+  font-size: 0.55rem;
+}
+.mlog-entry-body {
+  flex: 1;
+  font-size: 0.66rem;
+}
+.mlog-entry.hand .mlog-entry-body { color: rgba(240,255,240,0.85); }
+.mlog-entry.chat .mlog-entry-body { color: rgba(200,255,220,0.78); }
+.mlog-entry.chat .mlog-chat-from { color: #f5dca3; font-weight: 700; margin-right: 6px; }
+.mlog-entry.system .mlog-entry-body {
+  color: rgba(226,198,138,0.55);
+  font-style: italic;
+}
+
+/* ─── Replay controls ───────────────────────────────────────────────── */
+.replay-controls {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(13,10,7,0.92);
+  border: 1px solid rgba(200,168,130,0.28);
+  border-radius: 6px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: rgba(200,168,130,0.75);
+  z-index: 40;
+  max-width: calc(100% - 40px);
+}
+.rc-btn {
+  background: rgba(20,16,12,0.7);
+  border: 1px solid rgba(200,168,130,0.28);
+  color: rgba(200,168,130,0.75);
+  cursor: pointer;
+  padding: 4px 9px;
+  font-size: 0.85rem;
+  border-radius: 3px;
+  transition: all 120ms ease;
+}
+.rc-btn:hover { border-color: #c8a882; color: #e6c896; }
+.rc-play {
+  border-color: rgba(200,168,130,0.45);
+  color: #e6c896;
+}
+.rc-exit {
+  margin-left: 6px;
+  color: rgba(214,61,61,0.7);
+  border-color: rgba(214,61,61,0.35);
+}
+.rc-exit:hover { color: #ff9999; border-color: #d63d3d; }
+.rc-seek {
+  width: 220px;
+  accent-color: #c8a882;
+}
+.rc-pos {
+  min-width: 60px;
+  text-align: right;
+  font-weight: 600;
+  color: #e6c896;
+}
+.rc-label {
+  min-width: 160px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(200,168,130,0.55);
+  font-size: 0.58rem;
+}
+
+/* ─── Tournament HUD banner ──────────────────────────────────────────── */
+.tourney-hud {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+  padding: 6px 18px;
+  background: rgba(13,10,7,0.88);
+  border: 1px solid rgba(181,126,220,0.35);
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.55);
+  z-index: 18;
+}
+.tourney-hud .th-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 48px;
+}
+.tourney-hud .th-label {
+  font-size: 0.48rem;
+  letter-spacing: 0.16em;
+  color: rgba(200,168,130,0.5);
+  text-transform: uppercase;
+}
+.tourney-hud .th-value {
+  font-size: 0.72rem;
+  color: #e0c2ff;
+  font-weight: 600;
+}
+.tourney-hud .th-col-equity .th-value { color: #b8e0c4; }
+
+/* ─── Multi-table tab strip ────────────────────────────────────────────── */
+.table-tabs {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 20;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  max-width: calc(100% - 40px);
+  overflow-x: auto;
+}
+.table-tab {
+  padding: 5px 12px;
+  background: rgba(13,10,7,0.85);
+  border: 1px solid rgba(200,168,130,0.25);
+  color: rgba(200,168,130,0.6);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 120ms ease;
+  border-radius: 4px;
+}
+.table-tab .tt-label { text-transform: uppercase; }
+.table-tab .tt-hand {
+  color: rgba(200,168,130,0.4);
+  font-size: 0.52rem;
+}
+.table-tab:hover { border-color: rgba(200,168,130,0.5); color: #e6c896; }
+.table-tab.active {
+  border-color: #c8a882;
+  color: #e6c896;
+  box-shadow: 0 0 0 1px rgba(200,168,130,0.4) inset, 0 4px 14px rgba(0,0,0,0.4);
+}
+.table-tab .tt-close {
+  margin-left: 4px;
+  font-size: 0.85rem;
+  color: rgba(200,168,130,0.45);
+  padding: 0 2px;
+}
+.table-tab .tt-close:hover { color: #ff9999; }
+.table-tab-add {
+  font-size: 0.9rem;
+  padding: 3px 10px 5px;
+  color: rgba(200,168,130,0.55);
+}
 
 /* ─── Vignette ───────────────────────────────────────────────────────── */
 body::before {
@@ -712,6 +2405,9 @@ body::before {
 .card-center-suit { display: none; }
 .card.red-suit .card-face  { color: var(--red); }
 .card.black-suit .card-face { color: #1a1a1a; }
+.card.joker-card .card-face { color: #8b5cf6; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #f5d0fe 100%); }
+.card-face-joker .card-suit-tl,
+.card-face-joker .card-suit-br { font-size: 0.5em; font-weight: 700; }
 
 /* Card back */
 .card-back {
@@ -975,6 +2671,15 @@ body::before {
   color: var(--gold-glow);
   background: rgba(200,168,130,0.08);
 }
+.chrome-btn-lang {
+  font-family: var(--font-mono);
+}
+.chrome-btn-lang .lang-code {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--gold-glow);
+}
 .chrome-btn svg {
   width: 18px;
   height: 18px;
@@ -1052,6 +2757,73 @@ body::before {
 .diff-tab[data-diff="easy"].selected .diff-sub { color: rgba(184,224,196,0.7); }
 .diff-tab[data-diff="hard"].selected   { box-shadow: 0 0 0 1px #d63d3d inset, 0 6px 20px rgba(214,61,61,0.25); color: #ff9999; }
 .diff-tab[data-diff="hard"].selected .diff-sub { color: rgba(255,153,153,0.7); }
+.diff-tab[data-diff="grandmaster"].selected { box-shadow: 0 0 0 1px #b57edc inset, 0 6px 22px rgba(181,126,220,0.3); color: #e0c2ff; }
+.diff-tab[data-diff="grandmaster"].selected .diff-sub { color: rgba(224,194,255,0.72); }
+
+/* Mode toggle (cash vs tournament) */
+.mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+}
+.mode-tab {
+  padding: 10px 12px 8px;
+  background: rgba(13,10,7,0.55);
+  border: 1px solid rgba(200,168,130,0.2);
+  color: rgba(200,168,130,0.55);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all 140ms ease;
+}
+.mode-tab .mode-sub {
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: none;
+  color: rgba(200,168,130,0.35);
+}
+.mode-tab:hover { border-color: rgba(200,168,130,0.5); color: var(--gold-glow); }
+.mode-tab.selected { box-shadow: 0 0 0 1px rgba(200,168,130,0.55) inset, 0 6px 18px rgba(0,0,0,0.4); color: var(--gold-glow); }
+.mode-tab.selected .mode-sub { color: rgba(230,200,150,0.75); }
+
+.tourney-structure-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+.tourney-tab {
+  padding: 10px 8px 8px;
+  background: rgba(13,10,7,0.5);
+  border: 1px solid rgba(200,168,130,0.18);
+  color: rgba(200,168,130,0.6);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all 140ms ease;
+}
+.tourney-tab .tourney-sub {
+  font-size: 0.53rem;
+  letter-spacing: 0.1em;
+  color: rgba(200,168,130,0.35);
+}
+.tourney-tab:hover { border-color: #b57edc; color: #e0c2ff; }
+.tourney-tab.selected { box-shadow: 0 0 0 1px #b57edc inset, 0 6px 18px rgba(181,126,220,0.25); color: #e0c2ff; }
+.tourney-tab.selected .tourney-sub { color: rgba(224,194,255,0.7); }
 
 /* Opponent count tiles with silhouettes */
 .count-label {
@@ -1241,16 +3013,19 @@ input[type="range"]#buyin-slider::-moz-range-thumb {
   display: flex;
   justify-content: center;
   width: 100%;
+  position: relative;
+  margin-top: 4px;
 }
 .btn-variant {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 10px 20px;
-  background: rgba(13,10,7,0.55);
-  border: 1px solid rgba(200,168,130,0.25);
-  border-radius: 10px;
+  gap: 4px;
+  padding: 14px 32px;
+  min-width: 260px;
+  background: rgba(13,10,7,0.65);
+  border: 1px solid rgba(200,168,130,0.35);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1277,16 +3052,19 @@ input[type="range"]#buyin-slider::-moz-range-thumb {
 /* Variant dropdown */
 .variant-dropdown {
   position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
   background: #111a14;
-  border: 1px solid rgba(200,168,130,0.3);
+  border: 1px solid rgba(200,168,130,0.35);
   border-radius: 12px;
   padding: 8px;
   z-index: 100;
   display: none;
   flex-direction: column;
   gap: 4px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.6);
-  min-width: 220px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.7);
+  min-width: 280px;
 }
 .variant-dropdown.open { display: flex; }
 .variant-option {
@@ -1726,6 +3504,21 @@ body[data-mode="light"] .phase-wheel[data-phase="showdown"] .phase-item[data-p="
 .seat.is-me .seat-chips { display: none; } /* human uses chip stack, not text */
 .seat-bet { color: rgba(255,253,248,0.55); font-style: italic; min-height: 1em; }
 .seat-bet:not(:empty)::before { content: 'bet '; color: rgba(200,168,130,0.35); }
+
+/* HUD overlay — VPIP/PFR/AF read from the opponent model */
+.seat-hud {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(200,168,130,0.45);
+  margin-top: 1px;
+  text-align: center;
+  min-height: 0.8em;
+  white-space: nowrap;
+}
+.seat-hud.has-stats { color: rgba(181,126,220,0.75); }
+.seat.is-me .seat-hud { display: none; }
 
 /* ─── POKER CHIPS (SVG, horizontal fan) ─────────────────────────────── */
 .chip-stack {
@@ -2856,6 +4649,351 @@ body[data-mode="light"] .toggle-label { color: rgba(42,32,24,0.75); }
 .toggle-label input { width: 16px; height: 16px; accent-color: var(--gold-glow); }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   READY SCREEN EXTENSIONS — variant card, name input, lang toggle
+   ═══════════════════════════════════════════════════════════════════════ */
+.ready-lang-toggle {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(13,10,7,0.7);
+  border: 1px solid rgba(200,168,130,0.22);
+  border-radius: 8px;
+}
+.lang-btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  color: rgba(200,168,130,0.55);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.15em;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all 0.15s;
+}
+.lang-btn:hover { color: var(--gold-glow); }
+.lang-btn.active {
+  background: rgba(200,168,130,0.2);
+  color: var(--gold-glow);
+  box-shadow: 0 0 0 1px var(--gold-glow) inset;
+}
+body[data-mode="light"] .ready-lang-toggle { background: rgba(255,253,240,0.85); border-color: rgba(138,90,26,0.25); }
+body[data-mode="light"] .lang-btn { color: rgba(138,90,26,0.6); }
+body[data-mode="light"] .lang-btn.active { background: rgba(138,90,26,0.15); color: #8a5a1a; box-shadow: 0 0 0 1px #8a5a1a inset; }
+
+/* Name input row */
+.ready-name-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 320px;
+}
+.ready-name-label {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(200,168,130,0.55);
+}
+.ready-name-input {
+  width: 100%;
+  background: rgba(255,253,248,0.04);
+  border: 1px solid rgba(200,168,130,0.3);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-family: var(--font-head);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--gold-glow);
+  text-align: center;
+  outline: none;
+  transition: all 0.2s;
+}
+.ready-name-input:focus {
+  border-color: var(--gold-glow);
+  box-shadow: 0 0 24px rgba(230,200,150,0.2);
+}
+.ready-name-input::placeholder {
+  color: rgba(200,168,130,0.3);
+  font-weight: 400;
+}
+body[data-mode="light"] .ready-name-input {
+  background: rgba(255,253,240,0.9);
+  border-color: rgba(138,90,26,0.3);
+  color: #8a5a1a;
+}
+body[data-mode="light"] .ready-name-label { color: rgba(138,90,26,0.55); }
+
+/* Variant info card */
+.ready-variant-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 24px 16px;
+  background: rgba(13,10,7,0.65);
+  border: 1px solid rgba(200,168,130,0.2);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.ready-variant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(200,168,130,0.12);
+}
+.ready-variant-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: rgba(200,168,130,0.55);
+}
+.ready-variant-name {
+  font-family: var(--font-head);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--gold-glow);
+  text-shadow: -1px 0 rgba(255,0,60,0.3), 1px 0 rgba(0,102,255,0.3);
+}
+.ready-variant-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.rv-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  padding: 8px 6px;
+  background: rgba(200,168,130,0.04);
+  border-radius: 8px;
+}
+.rv-stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(200,168,130,0.5);
+}
+.rv-stat-value {
+  font-family: var(--font-head);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--cream);
+}
+.ready-variant-desc {
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  color: rgba(255,253,248,0.65);
+  text-align: center;
+  font-style: italic;
+  min-height: 1.2em;
+}
+body[data-mode="light"] .ready-variant-card {
+  background: rgba(255,253,240,0.92);
+  border-color: rgba(138,90,26,0.2);
+}
+body[data-mode="light"] .ready-variant-label,
+body[data-mode="light"] .rv-stat-label { color: rgba(138,90,26,0.55); }
+body[data-mode="light"] .ready-variant-name { color: #8a5a1a; text-shadow: none; }
+body[data-mode="light"] .rv-stat { background: rgba(138,90,26,0.05); }
+body[data-mode="light"] .rv-stat-value { color: #1a1410; }
+body[data-mode="light"] .ready-variant-desc { color: rgba(42,32,24,0.65); }
+
+@media (max-width: 640px) {
+  .ready-variant-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SHOWDOWN — beautiful hand-display modal
+   ═══════════════════════════════════════════════════════════════════════ */
+.showdown-modal {
+  max-width: 720px;
+  padding: 32px 36px;
+  gap: 14px;
+}
+.showdown-subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(200,168,130,0.55);
+  margin-top: -6px;
+}
+.showdown-community {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  padding: 10px 0;
+  border-top: 1px solid rgba(200,168,130,0.12);
+  border-bottom: 1px solid rgba(200,168,130,0.12);
+  width: 100%;
+}
+.showdown-community .card {
+  width: 44px !important;
+  height: 62px !important;
+}
+/* Small cards in the showdown overlay: simplify the face so the corner
+   indices don't overlap. Only show a single rank+suit stack in the top-left
+   and hide the mirrored bottom-right version. */
+.showdown-community .card .card-rank-br,
+.showdown-community .card .card-suit-br,
+.showdown-community .card .card-center-suit,
+.sd-player-cards .card .card-rank-br,
+.sd-player-cards .card .card-suit-br,
+.sd-player-cards .card .card-center-suit { display: none; }
+.showdown-community .card .card-rank-tl,
+.sd-player-cards .card .card-rank-tl {
+  font-size: 14px;
+  top: 3px;
+  left: 4px;
+  line-height: 1;
+}
+.showdown-community .card .card-suit-tl,
+.sd-player-cards .card .card-suit-tl {
+  font-size: 12px;
+  top: 17px;
+  left: 4px;
+  line-height: 1;
+}
+.showdown-players {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+.sd-player {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: rgba(200,168,130,0.04);
+  border: 1px solid rgba(200,168,130,0.12);
+  border-radius: 10px;
+  position: relative;
+  transition: all 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.sd-player.folded { opacity: 0.4; filter: grayscale(0.8); }
+.sd-player.winner {
+  background: linear-gradient(90deg, rgba(230,200,150,0.15) 0%, rgba(200,168,130,0.08) 100%);
+  border-color: var(--gold-glow);
+  box-shadow: 0 0 24px rgba(230,200,150,0.35),
+              inset 0 0 16px rgba(230,200,150,0.15);
+}
+.sd-player.winner::before {
+  content: 'WIN';
+  position: absolute;
+  top: -8px;
+  left: 14px;
+  background: var(--gold-glow);
+  color: #0a0806;
+  padding: 2px 10px;
+  border-radius: 3px;
+  font-family: var(--font-head);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.sd-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.sd-player-name {
+  font-family: var(--font-head);
+  font-size: 0.88rem;
+  letter-spacing: 0.12em;
+  color: var(--cream);
+  text-transform: uppercase;
+}
+.sd-player.winner .sd-player-name {
+  color: var(--gold-glow);
+  text-shadow:
+    0 0 12px rgba(230,200,150,0.55),
+    -1px 0 rgba(255,0,60,0.3),
+    1px 0 rgba(0,102,255,0.3);
+}
+.sd-player-hand {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: rgba(255,253,248,0.7);
+  font-style: italic;
+}
+.sd-player.folded .sd-player-hand::after {
+  content: ' (folded)';
+  color: #d63d3d;
+  font-style: normal;
+}
+.sd-player-cards {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+.sd-player-cards .card {
+  width: 40px !important;
+  height: 56px !important;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.sd-player.winner .sd-player-cards .card {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(230,200,150,0.4);
+}
+.sd-player-cards .card.best {
+  box-shadow: 0 0 12px rgba(230,200,150,0.6),
+              0 0 24px rgba(230,200,150,0.3);
+  border: 1px solid var(--gold-glow);
+  border-radius: 5px;
+}
+.sd-player-delta {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  min-width: 60px;
+  text-align: right;
+}
+.sd-player-delta.up { color: #7ed09c; }
+.sd-player-delta.down { color: #f79191; }
+.sd-player-delta.zero { color: rgba(200,168,130,0.4); }
+.showdown-body-text {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: rgba(200,168,130,0.55);
+  text-align: center;
+  white-space: pre-line;
+}
+body[data-mode="light"] .sd-player {
+  background: rgba(138,90,26,0.05);
+  border-color: rgba(138,90,26,0.15);
+}
+body[data-mode="light"] .sd-player-name { color: #1a1410; }
+body[data-mode="light"] .sd-player-hand { color: rgba(42,32,24,0.7); }
+body[data-mode="light"] .sd-player.winner {
+  background: linear-gradient(90deg, rgba(138,90,26,0.18) 0%, rgba(138,90,26,0.05) 100%);
+}
+body[data-mode="light"] .sd-player.winner .sd-player-name { color: #8a5a1a; text-shadow: 0 0 10px rgba(138,90,26,0.3); }
+body[data-mode="light"] .showdown-community { border-color: rgba(138,90,26,0.15); }
+body[data-mode="light"] .showdown-subtitle { color: rgba(138,90,26,0.55); }
+body[data-mode="light"] .showdown-body-text { color: rgba(138,90,26,0.55); }
+
+/* ═══════════════════════════════════════════════════════════════════════
    REDUCED MOTION — kill all non-essential animation
    ═══════════════════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
@@ -2879,34 +5017,29 @@ body[data-reducedmotion="on"] .card.dealt { animation: none; }
    BANK WIDGET (top-center, visible during gameplay)
    ═══════════════════════════════════════════════════════════════════════ */
 #bank-widget {
-  position: fixed;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
   display: none;
   align-items: center;
-  gap: 14px;
-  padding: 10px 18px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
   background: rgba(13,10,7,0.82);
   border: 1px solid rgba(200,168,130,0.3);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 24px rgba(200,168,130,0.08);
-  z-index: 55;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
   font-family: var(--font-mono);
-  transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  margin-bottom: 10px;
 }
-#screen-game.active ~ #bank-widget { display: flex; }
-body:has(#screen-game.active) #bank-widget { display: flex; }
+body:has(#screen-game.active) #side-stack #bank-widget { display: flex; }
 #bank-widget.pulse-up  { animation: bank-pulse-up  0.6s ease-out; }
 #bank-widget.pulse-down { animation: bank-pulse-down 0.6s ease-out; }
 @keyframes bank-pulse-up {
-  0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 24px rgba(200,168,130,0.08); border-color: rgba(200,168,130,0.3); }
-  50%      { box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 40px rgba(90,200,110,0.4); border-color: #5a9e6f; transform: translateX(-50%) scale(1.04); }
+  0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.4); border-color: rgba(200,168,130,0.3); }
+  50%      { box-shadow: 0 0 24px rgba(90,200,110,0.4); border-color: #5a9e6f; }
 }
 @keyframes bank-pulse-down {
-  0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 24px rgba(200,168,130,0.08); border-color: rgba(200,168,130,0.3); }
-  50%      { box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 40px rgba(214,61,61,0.4); border-color: #d63d3d; transform: translateX(-50%) scale(1.04); }
+  0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.4); border-color: rgba(200,168,130,0.3); }
+  50%      { box-shadow: 0 0 24px rgba(214,61,61,0.4); border-color: #d63d3d; }
 }
 .bw-label {
   font-size: 0.62rem;
@@ -2936,7 +5069,7 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
   letter-spacing: 0.08em;
 }
 @media (max-width: 720px) {
-  #bank-widget { top: 62px; padding: 8px 12px; gap: 10px; }
+  #bank-widget { padding: 8px 12px; gap: 10px; }
   .bw-chips { font-size: 1.1rem; }
   .bw-lifetime { display: none; }
 }
@@ -3056,11 +5189,17 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
   <button class="chrome-btn" id="btn-rules" title="Rules">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9.5a3 3 0 1 1 4.2 2.7c-.9.4-1.2 1-1.2 1.8V15"/><circle cx="12" cy="18" r="0.6" fill="currentColor" stroke="none"/></svg>
   </button>
+  <button class="chrome-btn" id="btn-match-log" title="Match journal">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+  </button>
   <button class="chrome-btn" id="btn-equity" title="Win probability">
     <svg viewBox="0 0 24 24"><path d="M5 19L19 5"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>
   </button>
   <button class="chrome-btn" id="btn-fullscreen" title="Fullscreen">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  </button>
+  <button class="chrome-btn chrome-btn-lang" id="btn-lang" title="Language / Язык">
+    <span class="lang-code" id="lang-code">EN</span>
   </button>
   <button class="chrome-btn" id="btn-settings" title="Settings">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -3074,15 +5213,10 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
 </div>
 
 <!-- Bank widget (visible during bot matches) -->
-<div id="bank-widget">
-  <div>
-    <div class="bw-label">Bank</div>
-    <div class="bw-chips">$0</div>
-  </div>
-  <div class="bw-delta up">+$0</div>
-  <div class="bw-divider"></div>
-  <div class="bw-lifetime">Lifetime +$0 · 0 matches</div>
-</div>
+<!-- Bank widget now lives inside the side-stack (below) — the element
+     stays here empty so any legacy JS that queries '#bank-widget' by id
+     still works; CSS below moves it into the side panel. -->
+
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- SCREEN: LANDING                                                      -->
@@ -3090,32 +5224,39 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
 <div id="screen-landing" class="screen active">
   <div class="landing-inner">
     <div class="title-chromatic">THE HAND</div>
-    <div class="landing-tagline">Two-player &middot; Heads-up &middot; Texas Hold'em &middot; No-limit</div>
+    <div class="landing-tagline" data-i18n="landing.tagline">Two-player &middot; Heads-up &middot; Texas Hold'em &middot; No-limit</div>
     <div style="height:12px;"></div>
-    <button class="btn btn-primary" id="btn-create-game">DEAL ME IN</button>
-    <div class="landing-subtitle">Invite a friend. No signup. No server.</div>
+    <button class="btn btn-primary" id="btn-create-game" data-i18n="landing.dealIn">DEAL ME IN</button>
+    <button class="btn btn-primary" id="btn-find-match" data-i18n="landing.findMatch">FIND MATCH</button>
+    <button class="btn btn-blackjack" id="btn-blackjack">🂡 BLACKJACK (SOLO)</button>
+    <button class="btn btn-blackjack btn-blackjack-pvp" id="btn-blackjack-pvp">🂡 BLACKJACK · INVITE FRIEND</button>
+    <div class="landing-subtitle" data-i18n="landing.inviteHint">Invite a friend. No signup. No server.</div>
 
     <div class="bot-picker">
-      <div class="bot-picker-title">— or play solo —</div>
+      <div class="bot-picker-title" data-i18n="landing.solo">— or play solo —</div>
 
       <div class="diff-tabs" role="tablist">
         <button class="diff-tab selected" data-diff="easy" type="button">
-          EASY
-          <span class="diff-sub">loose · rarely bluffs</span>
+          <span data-i18n="landing.easy">EASY</span>
+          <span class="diff-sub" data-i18n="landing.easyDesc">loose · rarely bluffs</span>
         </button>
         <button class="diff-tab" data-diff="medium" type="button">
-          MEDIUM
-          <span class="diff-sub">value · pot odds</span>
+          <span data-i18n="landing.medium">MEDIUM</span>
+          <span class="diff-sub" data-i18n="landing.mediumDesc">value · pot odds</span>
         </button>
         <button class="diff-tab" data-diff="hard" type="button">
-          HARD
-          <span class="diff-sub">equity · aggression</span>
+          <span data-i18n="landing.hard">HARD</span>
+          <span class="diff-sub" data-i18n="landing.hardDesc">equity · aggression</span>
+        </button>
+        <button class="diff-tab" data-diff="grandmaster" type="button">
+          <span data-i18n="landing.grandmaster">GM</span>
+          <span class="diff-sub" data-i18n="landing.grandmasterDesc">GTO ranges · exploit</span>
         </button>
       </div>
 
       <div class="buyin-row">
         <div class="buyin-label">
-          <span>BUY-IN</span>
+          <span data-i18n="landing.buyIn">BUY-IN</span>
           <span class="buyin-amount" id="buyin-amount">$1000</span>
         </div>
         <input type="range" id="buyin-slider" min="100" max="10000" step="50" value="1000">
@@ -3131,48 +5272,78 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
 
       <div class="variant-row">
         <button type="button" class="btn-variant" id="btn-variant">
-          <span class="variant-label">VARIANT</span>
+          <span class="variant-label" data-i18n="landing.variant">VARIANT</span>
           <span class="variant-value" id="variant-value">Texas Hold'em</span>
         </button>
         <div class="variant-dropdown" id="variant-dropdown">
           <div class="variant-option standard selected" data-variant="holdem" data-holecards="2">
-            <span class="vo-name">Texas Hold'em</span>
+            <span class="vo-name" data-i18n="ready.variantHoldem">Texas Hold'em</span>
             <span class="vo-desc">Standard — 2 hole cards</span>
           </div>
           <div class="variant-option special" data-variant="omaha" data-holecards="4">
-            <span class="vo-name">Omaha</span>
+            <span class="vo-name" data-i18n="ready.variantOmaha">Omaha</span>
             <span class="vo-desc">4 hole cards, use exactly 2</span>
           </div>
           <div class="variant-option special" data-variant="shortdeck" data-holecards="2">
-            <span class="vo-name">Short Deck (6+)</span>
+            <span class="vo-name" data-i18n="ready.variantShortDeck">Short Deck (6+)</span>
             <span class="vo-desc">36 cards, no 2-5</span>
           </div>
           <div class="variant-option special" data-variant="pineapple" data-holecards="3">
-            <span class="vo-name">Pineapple</span>
+            <span class="vo-name" data-i18n="ready.variantPineapple">Pineapple</span>
             <span class="vo-desc">3 hole cards, discard 1 preflop</span>
           </div>
           <div class="variant-option special" data-variant="crazypineapple" data-holecards="3">
-            <span class="vo-name">Crazy Pineapple</span>
+            <span class="vo-name" data-i18n="ready.variantCrazyPineapple">Crazy Pineapple</span>
             <span class="vo-desc">3 hole cards, discard 1 postflop</span>
           </div>
           <div class="variant-option special" data-variant="irish" data-holecards="4">
-            <span class="vo-name">Irish</span>
+            <span class="vo-name" data-i18n="ready.variantIrish">Irish</span>
             <span class="vo-desc">4 hole cards, discard 2 before turn</span>
+          </div>
+          <div class="variant-option special" data-variant="joker" data-holecards="2">
+            <span class="vo-name" data-i18n="ready.variantJoker">Joker Hold'em</span>
+            <span class="vo-desc">53 cards — joker is wild</span>
           </div>
         </div>
       </div>
 
-      <div class="count-label">How many opponents?</div>
+      <div class="mode-toggle" role="tablist">
+        <button class="mode-tab selected" data-mode="cash" type="button">
+          <span data-i18n="landing.modeCash">CASH</span>
+          <span class="mode-sub" data-i18n="landing.modeCashDesc">flat blinds · bank</span>
+        </button>
+        <button class="mode-tab" data-mode="tournament" type="button">
+          <span data-i18n="landing.modeTournament">TOURNAMENT</span>
+          <span class="mode-sub" data-i18n="landing.modeTournamentDesc">blinds rise · payouts</span>
+        </button>
+      </div>
+
+      <div class="tourney-structure-row" id="tourney-structure-row" style="display:none;">
+        <button class="tourney-tab selected" data-structure="turbo" type="button">
+          <span>TURBO</span>
+          <span class="tourney-sub">fast · shallow</span>
+        </button>
+        <button class="tourney-tab" data-structure="standard" type="button">
+          <span>STANDARD</span>
+          <span class="tourney-sub">balanced</span>
+        </button>
+        <button class="tourney-tab" data-structure="deepstack" type="button">
+          <span>DEEPSTACK</span>
+          <span class="tourney-sub">deep · patient</span>
+        </button>
+      </div>
+
+      <div class="count-label" data-i18n="landing.opponents">How many opponents?</div>
       <div class="count-row" id="count-row" data-diff="easy">
         <!-- Tiles are populated by JS so the silhouettes count matches. -->
       </div>
 
       <div class="landing-session-row">
         <button class="btn btn-resume" id="btn-resume-session" style="display:none;">
-          <span class="btn-resume-label">▶ RESUME SESSION</span>
+          <span class="btn-resume-label" data-i18n="landing.resume">▶ RESUME SESSION</span>
           <span class="btn-resume-desc" id="btn-resume-desc">—</span>
         </button>
-        <button class="btn" id="btn-replay-last" style="display:none;">▶ REPLAY LAST MATCH</button>
+        <button class="btn" id="btn-replay-last" data-i18n="landing.replay" style="display:none;">▶ REPLAY LAST MATCH</button>
       </div>
     </div>
   </div>
@@ -3183,16 +5354,787 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
 <!-- SCREEN: WAITING ROOM                                                 -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <div id="screen-waiting" class="screen">
-  <div class="waiting-label">Room Code</div>
+  <div class="waiting-label" data-i18n="waiting.roomCode">Room Code</div>
   <div class="room-code-display" id="room-code-display">------</div>
   <div class="share-link-row">
     <input class="share-link-input" id="share-link-input" readonly type="text" value="">
-    <button class="copy-btn" id="copy-link-btn">Copy</button>
+    <button class="copy-btn" id="copy-link-btn" data-i18n="waiting.copy">Copy</button>
   </div>
-  <div class="waiting-hint">Or send the room code directly</div>
+  <div class="waiting-hint" data-i18n="waiting.sendCode">Or send the room code directly</div>
   <div id="waiting-status">
     <div class="spinner" id="waiting-spinner"></div>
-    <span class="waiting-text-main">Waiting for opponent</span><span class="dots"></span>
+    <span class="waiting-text-main" data-i18n="waiting.forOpponent">Waiting for opponent</span><span class="dots"></span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN: BLACKJACK                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div id="screen-blackjack" class="screen">
+  <!-- Topbar with exit, title, and help button -->
+  <div class="bj-topbar">
+    <button type="button" class="bj-exit" id="bj-btn-exit" title="Back to lobby">← LOBBY</button>
+    <div class="bj-title-block">
+      <span class="bj-title">BLACKJACK</span>
+      <span class="bj-subtitle">6 DECKS · STANDS ON 17 · PAYS 3:2</span>
+    </div>
+    <button type="button" class="bj-help-btn" id="bj-btn-help" title="How to play">?</button>
+  </div>
+
+  <!-- The felt table itself — green with radial glow, gold-rimmed card zones -->
+  <div class="bj-table">
+    <!-- Felt background pattern (subtle suit watermark, set via CSS) -->
+    <div class="bj-felt-pattern" aria-hidden="true"></div>
+
+    <!-- Card dispenser — new cards fly FROM here -->
+    <div class="bj-shoe" id="bj-shoe">
+      <div class="bj-shoe-card"></div>
+      <div class="bj-shoe-card"></div>
+      <div class="bj-shoe-card"></div>
+      <span class="bj-shoe-label">SHOE</span>
+    </div>
+
+    <!-- Outcome banner flashes on settlement -->
+    <div class="bj-outcome-banner" id="bj-outcome-banner"></div>
+
+    <!-- Dealer zone — gold-rimmed card area with name plate above -->
+    <div class="bj-zone bj-zone-dealer">
+      <div class="bj-zone-plate">
+        <span class="bj-zone-title">DEALER</span>
+        <span class="bj-zone-total" id="bj-dealer-total"></span>
+      </div>
+      <div class="bj-cards-row" id="bj-dealer-cards"></div>
+    </div>
+
+    <!-- Felt center — phase banner lives here -->
+    <div class="bj-felt-center">
+      <div class="bj-felt-arc">BLACKJACK PAYS 3 TO 2 · INSURANCE PAYS 2 TO 1 · DEALER STANDS ON 17</div>
+      <div class="bj-phase-banner" id="bj-phase-label">PLACE YOUR BET</div>
+    </div>
+
+    <!-- Player zone -->
+    <div class="bj-zone bj-zone-player">
+      <div id="bj-player-hands" data-hand-count="0"></div>
+
+      <!-- Betting circle with chip stack inside -->
+      <div class="bj-betting-circle" id="bj-betting-circle">
+        <div class="bj-betting-circle-ring"></div>
+        <div class="bj-betting-circle-chips" id="bj-betting-circle-chips"></div>
+      </div>
+
+      <div class="bj-zone-plate bj-player-plate">
+        <span class="bj-zone-title">PLAYER</span>
+        <span class="bj-zone-bankroll">BANKROLL <span id="bj-chips">$1000</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Control strip at the bottom — bet input + action row -->
+  <div class="bj-controls">
+    <div class="bj-bet-row" id="bj-bet-row">
+      <div class="bj-bet-label">BET</div>
+      <input type="number" id="bj-bet-input" class="bj-bet-input" min="1" step="1" value="50">
+      <div class="bj-bet-chips">
+        <button type="button" data-bj-bet="5" class="bj-chip-btn c5">+5</button>
+        <button type="button" data-bj-bet="25" class="bj-chip-btn c25">+25</button>
+        <button type="button" data-bj-bet="100" class="bj-chip-btn c100">+100</button>
+        <button type="button" data-bj-bet="500" class="bj-chip-btn c500">+500</button>
+        <button type="button" id="bj-btn-clear-bet" class="bj-chip-btn bj-chip-clear">CLEAR</button>
+      </div>
+    </div>
+
+    <div class="bj-action-row" id="bj-actions">
+      <button type="button" class="bj-btn bj-btn-deal" id="bj-btn-deal">DEAL</button>
+      <button type="button" class="bj-btn" id="bj-btn-hit"><span>HIT</span><kbd>H</kbd></button>
+      <button type="button" class="bj-btn" id="bj-btn-stand"><span>STAND</span><kbd>S</kbd></button>
+      <button type="button" class="bj-btn" id="bj-btn-double"><span>DOUBLE</span><kbd>D</kbd></button>
+      <button type="button" class="bj-btn" id="bj-btn-split"><span>SPLIT</span><kbd>P</kbd></button>
+      <button type="button" class="bj-btn bj-btn-surrender" id="bj-btn-surrender"><span>SURRENDER</span><kbd>R</kbd></button>
+    </div>
+
+    <div class="bj-insurance-row" id="bj-insurance-row" style="display:none;">
+      <span class="bj-ins-label">Insurance (<span id="bj-insurance-amt">$0</span>)?</span>
+      <button type="button" class="bj-btn" id="bj-btn-insurance-yes">YES</button>
+      <button type="button" class="bj-btn" id="bj-btn-insurance-no">NO</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAT PANEL (floating — visible during any P2P session)              -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div id="chat-panel" class="chat-panel">
+  <div class="chat-header">
+    <span class="chat-title">CHAT</span>
+    <span id="chat-unread" class="chat-unread"></span>
+    <button type="button" id="chat-toggle" class="chat-toggle" title="Collapse">—</button>
+  </div>
+  <div class="chat-history" id="chat-history"></div>
+  <div class="chat-input-row">
+    <input type="text" id="chat-input" class="chat-input" maxlength="500" placeholder="Type…">
+    <button type="button" id="chat-send" class="chat-send">SEND</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- MATCH LOG VIEWER OVERLAY                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div id="match-log-overlay" class="match-log-overlay" style="display:none;">
+  <div class="match-log-modal">
+    <div class="match-log-header">
+      <span class="match-log-title">MATCH LOG</span>
+      <div class="match-log-tabs">
+        <button type="button" class="match-log-tab active" data-mlog-kind="poker">POKER</button>
+        <button type="button" class="match-log-tab" data-mlog-kind="blackjack">BLACKJACK</button>
+      </div>
+      <button type="button" class="match-log-close" id="match-log-close">✕</button>
+    </div>
+    <div class="match-log-body" id="match-log-body"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- OVERLAY: BLACKJACK HELP (RU/EN toggle)                              -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div id="bj-help-overlay" class="bj-help-overlay" style="display:none;">
+  <div class="bj-help-modal">
+    <div class="bj-help-header">
+      <span class="bj-help-title" id="bj-help-title">HOW TO PLAY BLACKJACK</span>
+      <div class="bj-help-lang">
+        <button type="button" class="bj-help-lang-btn" data-bj-lang="en">EN</button>
+        <button type="button" class="bj-help-lang-btn" data-bj-lang="ru">RU</button>
+      </div>
+      <button type="button" class="bj-help-close" id="bj-help-close">✕</button>
+    </div>
+    <!-- ═════════════════════════════════════════════════════════════ -->
+    <!-- ENGLISH                                                          -->
+    <!-- ═════════════════════════════════════════════════════════════ -->
+    <div class="bj-help-body" id="bj-help-body-en">
+
+      <!-- ─── Hero ─── -->
+      <div class="bjh-hero">
+        <h1 class="bjh-hero-title">BLACKJACK</h1>
+        <p class="bjh-hero-sub">The complete player guide · 6 decks · Stands on 17</p>
+      </div>
+
+      <!-- ─── Quick facts grid ─── -->
+      <div class="bjh-facts">
+        <div class="bjh-fact"><div class="bjh-fact-val">21</div><div class="bjh-fact-lbl">Target</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">3:2</div><div class="bjh-fact-lbl">BJ Pays</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">6</div><div class="bjh-fact-lbl">Decks</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">S17</div><div class="bjh-fact-lbl">Dealer</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">4×</div><div class="bjh-fact-lbl">Max Splits</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">½</div><div class="bjh-fact-lbl">Surrender</div></div>
+      </div>
+
+      <!-- ─── The Goal ─── -->
+      <section class="bjh-section">
+        <h3>The Goal</h3>
+        <p class="bjh-lead">Beat the dealer by ending the hand with a total closer to <strong>21</strong> than they have — without going over. <em>Over 21 = bust = instant loss</em>. The dealer plays by fixed rules, so your only opponent is the math.</p>
+      </section>
+
+      <!-- ─── Card Values ─── -->
+      <section class="bjh-section">
+        <h3>Card Values</h3>
+        <div class="bjh-values">
+          <div class="bjh-value-group">
+            <div class="bjh-value-cards">
+              <span class="bjh-mini-card black">2<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card red">5<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card black">9<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-value-name">Pip cards</div>
+            <div class="bjh-value-desc">2–10 count as their face value.</div>
+          </div>
+          <div class="bjh-value-group">
+            <div class="bjh-value-cards">
+              <span class="bjh-mini-card black">J<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card red">Q<span class="bjh-mc-suit">♦</span></span>
+              <span class="bjh-mini-card black">K<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-value-name">Face cards</div>
+            <div class="bjh-value-desc">Jack, Queen, King = <strong>10 points</strong> each. That's why they're also called "tens."</div>
+          </div>
+          <div class="bjh-value-group">
+            <div class="bjh-value-cards">
+              <span class="bjh-mini-card red">A<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card black">A<span class="bjh-mc-suit">♠</span></span>
+            </div>
+            <div class="bjh-value-name">Aces</div>
+            <div class="bjh-value-desc">Worth <strong>1 or 11</strong>, whichever keeps you under 22. A hand with a flexible ace is called <em>soft</em>.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Flow ─── -->
+      <section class="bjh-section">
+        <h3>How a Hand Plays Out</h3>
+        <ol class="bjh-steps">
+          <li>
+            <div class="bjh-step-num">1</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Place your bet</div>
+              <div class="bjh-step-body">Use the chip buttons (+5 / +25 / +100 / +500) or type an amount. Click <strong>DEAL</strong> or press <strong>Space</strong>.</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">2</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Cards are dealt</div>
+              <div class="bjh-step-body">You get <strong>2 face-up</strong>. Dealer gets <strong>one up, one down</strong> (the "hole card").</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">3</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Check for blackjack</div>
+              <div class="bjh-step-body">Ace + 10-value on the first two cards is a <em>natural blackjack</em> → pays <strong>3:2</strong> immediately unless the dealer also has one (push).</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">4</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Your turn</div>
+              <div class="bjh-step-body">Choose <strong>HIT</strong>, <strong>STAND</strong>, <strong>DOUBLE</strong>, <strong>SPLIT</strong>, or <strong>SURRENDER</strong>. Keep going until you stand, bust, or double.</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">5</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Dealer plays</div>
+              <div class="bjh-step-body">The hole card flips. Dealer draws until total is <strong>17 or more</strong>, then stops. Stands on all 17s in this version (S17).</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">6</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Settlement</div>
+              <div class="bjh-step-body">Higher total wins 1:1. Equal total = push. Lower or bust = lose. Blackjack beats all 21s except another blackjack.</div>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ─── Actions ─── -->
+      <section class="bjh-section">
+        <h3>Your Actions</h3>
+        <div class="bjh-actions">
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">HIT</span><span class="bjh-action-key">H</span></div>
+            <p>Take another card. Keep hitting until you stand or bust. No limit.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">STAND</span><span class="bjh-action-key">S</span></div>
+            <p>Keep your current total and end your turn. Dealer takes over.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">DOUBLE</span><span class="bjh-action-key">D</span></div>
+            <p>Double the bet, take <strong>exactly one</strong> more card, auto-stand. Only on first two cards.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">SPLIT</span><span class="bjh-action-key">P</span></div>
+            <p>Two same-value cards? Split into two hands, matching bet. Up to 4 hands total. Split aces get 1 card each.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">SURRENDER</span><span class="bjh-action-key">R</span></div>
+            <p>Fold the hand and get half your bet back. Only on first two cards of a non-split hand.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">INSURANCE</span><span class="bjh-action-key">Y/N</span></div>
+            <p>Offered when dealer shows an Ace. Side bet ½ your stake, pays 2:1 if dealer has BJ. Usually a trap.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Example hands ─── -->
+      <section class="bjh-section">
+        <h3>Example Hands</h3>
+        <div class="bjh-examples">
+          <div class="bjh-example gold">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">A<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">K<span class="bjh-mc-suit">♠</span></span>
+            </div>
+            <div class="bjh-example-total">21 — BLACKJACK</div>
+            <div class="bjh-example-label">Natural · Pays 3:2</div>
+          </div>
+          <div class="bjh-example good">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">A<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">6<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-example-total">7 / 17 — Soft 17</div>
+            <div class="bjh-example-label">Ace is flexible · Hit it!</div>
+          </div>
+          <div class="bjh-example good">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big black">8<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card big red">8<span class="bjh-mc-suit">♦</span></span>
+            </div>
+            <div class="bjh-example-total">16 — Always Split</div>
+            <div class="bjh-example-label">Two shots at 18</div>
+          </div>
+          <div class="bjh-example bad">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big black">K<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card big red">6<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">7<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-example-total">23 — BUST</div>
+            <div class="bjh-example-label">Over 21 · Bet lost</div>
+          </div>
+          <div class="bjh-example good">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">5<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">6<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-example-total">11 — Always Double</div>
+            <div class="bjh-example-label">10-value cards are likely next</div>
+          </div>
+          <div class="bjh-example bad">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">J<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big red">5<span class="bjh-mc-suit">♦</span></span>
+            </div>
+            <div class="bjh-example-total">15 — Hard Hand</div>
+            <div class="bjh-example-label">vs dealer 10? Surrender</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Basic strategy cheat sheet ─── -->
+      <section class="bjh-section">
+        <h3>Basic Strategy Cheat Sheet</h3>
+        <p>The mathematically optimal move for every hand vs. every dealer up card. Memorize this and your house edge drops to ~0.5%.</p>
+        <div class="bjh-strategy-legend">
+          <span class="bjh-key h">H · Hit</span>
+          <span class="bjh-key s">S · Stand</span>
+          <span class="bjh-key d">D · Double</span>
+          <span class="bjh-key p">P · Split</span>
+        </div>
+        <div class="bjh-strategy-wrap">
+          <table class="bjh-strategy">
+            <thead>
+              <tr>
+                <th>YOU</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>
+                <th>7</th><th>8</th><th>9</th><th>10</th><th>A</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th>8 or less</th>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>9</th>
+                <td class="h">H</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>10</th>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>11</th>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="h">H</td></tr>
+              <tr><th>12</th>
+                <td class="h">H</td><td class="h">H</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>13–14</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>15</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>16</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>17+</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td></tr>
+              <tr><th>A,A</th>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td></tr>
+              <tr><th>8,8</th>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─── Pro tips ─── -->
+      <section class="bjh-section">
+        <h3>Golden Rules</h3>
+        <ul class="bjh-tips">
+          <li class="do"><strong>Always split Aces and 8s.</strong> Two chances at 19-21 vs. a terrible 16.</li>
+          <li class="dont"><strong>Never split 10s or 5s.</strong> 20 is already a winning hand. 10 is a double.</li>
+          <li class="do"><strong>Always double 11.</strong> Over 30% of remaining cards make 21.</li>
+          <li class="dont"><strong>Never take insurance.</strong> It's a -6% EV side bet unless you count cards.</li>
+          <li class="do"><strong>Stand on hard 17+.</strong> Drawing here is statistically a disaster.</li>
+          <li class="dont"><strong>Don't hit hard 12 vs. dealer 4-6.</strong> Let the dealer bust themselves.</li>
+          <li class="do"><strong>Double soft 13-18 vs. dealer 5-6.</strong> Cheap aggression, huge upside.</li>
+          <li class="dont"><strong>Don't make even money</strong> when holding blackjack vs. dealer Ace. Take the 3:2.</li>
+        </ul>
+      </section>
+
+      <!-- ─── Insurance warning ─── -->
+      <section class="bjh-section">
+        <div class="bjh-warn">
+          <div class="bjh-warn-title">About Insurance</div>
+          <p>When the dealer's up card is an Ace, you're offered insurance — a side bet of half your stake that pays <strong>2:1</strong> if the dealer has blackjack.</p>
+          <p>It looks like a safety net but it isn't. The dealer needs a 10-value hole card to have BJ — in a fresh shoe that's ~30.8%. Insurance is +EV only if you know the shoe is rich in 10s (card counting). Otherwise it's a ~7% negative expectation side bet. <strong>Skip it.</strong></p>
+        </div>
+      </section>
+
+      <!-- ─── Payout examples ─── -->
+      <section class="bjh-section">
+        <h3>Payout Examples ($100 Bet)</h3>
+        <div class="bjh-payouts">
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">BLACKJACK</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result gold">+$150 (×1.5)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">WIN</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result win">+$100 (×1)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">PUSH</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result push">$0 (bet back)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">LOSS / BUST</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result bad">–$100 (bet gone)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">SURRENDER</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result bad">–$50 (half back)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">DOUBLE WIN</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result win">+$200 (on $200)</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ═════════════════════════════════════════════════════════════ -->
+    <!-- RUSSIAN                                                          -->
+    <!-- ═════════════════════════════════════════════════════════════ -->
+    <div class="bj-help-body" id="bj-help-body-ru" style="display:none;">
+
+      <!-- ─── Hero ─── -->
+      <div class="bjh-hero">
+        <h1 class="bjh-hero-title">BLACKJACK</h1>
+        <p class="bjh-hero-sub">Полное руководство игрока · 6 колод · Стоит на 17</p>
+      </div>
+
+      <!-- ─── Quick facts grid ─── -->
+      <div class="bjh-facts">
+        <div class="bjh-fact"><div class="bjh-fact-val">21</div><div class="bjh-fact-lbl">Цель</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">3:2</div><div class="bjh-fact-lbl">BJ платит</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">6</div><div class="bjh-fact-lbl">Колод</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">S17</div><div class="bjh-fact-lbl">Дилер</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">4×</div><div class="bjh-fact-lbl">Сплит макс</div></div>
+        <div class="bjh-fact"><div class="bjh-fact-val">½</div><div class="bjh-fact-lbl">Сдача</div></div>
+      </div>
+
+      <!-- ─── Цель ─── -->
+      <section class="bjh-section">
+        <h3>Цель игры</h3>
+        <p class="bjh-lead">Победить дилера, набрав сумму карт <strong>ближе к 21</strong>, чем у него, но не больше. <em>Перебор (больше 21) — моментальный проигрыш</em>. Дилер играет по фиксированным правилам, так что твой единственный противник — математика.</p>
+      </section>
+
+      <!-- ─── Значения карт ─── -->
+      <section class="bjh-section">
+        <h3>Значения карт</h3>
+        <div class="bjh-values">
+          <div class="bjh-value-group">
+            <div class="bjh-value-cards">
+              <span class="bjh-mini-card black">2<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card red">5<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card black">9<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-value-name">Числовые</div>
+            <div class="bjh-value-desc">2–10 считаются по номиналу.</div>
+          </div>
+          <div class="bjh-value-group">
+            <div class="bjh-value-cards">
+              <span class="bjh-mini-card black">J<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card red">Q<span class="bjh-mc-suit">♦</span></span>
+              <span class="bjh-mini-card black">K<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-value-name">Фигурные</div>
+            <div class="bjh-value-desc">Валет, Дама, Король = <strong>10 очков</strong> каждая. Поэтому их вместе с десятками называют "десятками".</div>
+          </div>
+          <div class="bjh-value-group">
+            <div class="bjh-value-cards">
+              <span class="bjh-mini-card red">A<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card black">A<span class="bjh-mc-suit">♠</span></span>
+            </div>
+            <div class="bjh-value-name">Тузы</div>
+            <div class="bjh-value-desc">Стоят <strong>1 или 11</strong>, смотря что выгоднее. Рука с гибким тузом называется <em>мягкой</em> (soft).</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Ход раздачи ─── -->
+      <section class="bjh-section">
+        <h3>Как проходит раздача</h3>
+        <ol class="bjh-steps">
+          <li>
+            <div class="bjh-step-num">1</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Сделай ставку</div>
+              <div class="bjh-step-body">Используй кнопки фишек (+5 / +25 / +100 / +500) или введи сумму. Нажми <strong>DEAL</strong> или <strong>Space</strong>.</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">2</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Раздача</div>
+              <div class="bjh-step-body">Ты получаешь <strong>2 карты в открытую</strong>. Дилер — <strong>одну в открытую, одну закрытую</strong> (закрытая называется "hole card").</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">3</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Проверка на блэкджек</div>
+              <div class="bjh-step-body">Туз + 10-очковая карта на первых двух = <em>натуральный блэкджек</em> → выплата <strong>3:2</strong> сразу, если только у дилера нет такого же (тогда ничья).</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">4</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Твой ход</div>
+              <div class="bjh-step-body">Выбери <strong>HIT</strong>, <strong>STAND</strong>, <strong>DOUBLE</strong>, <strong>SPLIT</strong> или <strong>SURRENDER</strong>. Играй пока не остановишься, переборешь или удвоишь.</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">5</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Ход дилера</div>
+              <div class="bjh-step-body">Закрытая карта переворачивается. Дилер добирает пока сумма не станет <strong>17 или больше</strong>, потом останавливается. В этой версии стоит на всех 17 (S17).</div>
+            </div>
+          </li>
+          <li>
+            <div class="bjh-step-num">6</div>
+            <div class="bjh-step-content">
+              <div class="bjh-step-title">Расчёт</div>
+              <div class="bjh-step-body">Больше — победа 1:1. Равно — ничья (push). Меньше или перебор — проигрыш. Блэкджек бьёт любые 21 кроме другого блэкджека.</div>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ─── Действия ─── -->
+      <section class="bjh-section">
+        <h3>Твои действия</h3>
+        <div class="bjh-actions">
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">HIT</span><span class="bjh-action-key">H</span></div>
+            <p>Взять ещё карту. Можно брать сколько угодно пока не остановишься или не переберёшь.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">STAND</span><span class="bjh-action-key">S</span></div>
+            <p>Остановиться на текущей сумме и закончить ход. Далее играет дилер.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">DOUBLE</span><span class="bjh-action-key">D</span></div>
+            <p>Удвоить ставку, взять <strong>ровно одну</strong> карту, автоматически стоп. Только на первых двух картах.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">SPLIT</span><span class="bjh-action-key">P</span></div>
+            <p>Две одинаковые карты? Раздели их на две руки с такой же ставкой. Максимум 4 руки. Сплитованные тузы получают по 1 карте.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">SURRENDER</span><span class="bjh-action-key">R</span></div>
+            <p>Сдаться и получить половину ставки обратно. Только на первых двух картах несплитованной руки.</p>
+          </div>
+          <div class="bjh-action">
+            <div class="bjh-action-head"><span class="bjh-action-name">INSURANCE</span><span class="bjh-action-key">Y/N</span></div>
+            <p>Предлагается когда дилер показывает Туза. Ставка в ½ от основной, платит 2:1 если у дилера BJ. Обычно ловушка.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Примеры рук ─── -->
+      <section class="bjh-section">
+        <h3>Примеры рук</h3>
+        <div class="bjh-examples">
+          <div class="bjh-example gold">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">A<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">K<span class="bjh-mc-suit">♠</span></span>
+            </div>
+            <div class="bjh-example-total">21 — БЛЭКДЖЕК</div>
+            <div class="bjh-example-label">Натуральный · Платит 3:2</div>
+          </div>
+          <div class="bjh-example good">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">A<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">6<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-example-total">7 / 17 — Soft 17</div>
+            <div class="bjh-example-label">Туз гибкий · Бери!</div>
+          </div>
+          <div class="bjh-example good">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big black">8<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card big red">8<span class="bjh-mc-suit">♦</span></span>
+            </div>
+            <div class="bjh-example-total">16 — Всегда Сплит</div>
+            <div class="bjh-example-label">Два шанса на 18</div>
+          </div>
+          <div class="bjh-example bad">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big black">K<span class="bjh-mc-suit">♠</span></span>
+              <span class="bjh-mini-card big red">6<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">7<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-example-total">23 — ПЕРЕБОР</div>
+            <div class="bjh-example-label">Больше 21 · Ставка потеряна</div>
+          </div>
+          <div class="bjh-example good">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">5<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big black">6<span class="bjh-mc-suit">♣</span></span>
+            </div>
+            <div class="bjh-example-total">11 — Всегда Удваивай</div>
+            <div class="bjh-example-label">10-очковых карт в колоде много</div>
+          </div>
+          <div class="bjh-example bad">
+            <div class="bjh-example-cards">
+              <span class="bjh-mini-card big red">J<span class="bjh-mc-suit">♥</span></span>
+              <span class="bjh-mini-card big red">5<span class="bjh-mc-suit">♦</span></span>
+            </div>
+            <div class="bjh-example-total">15 — Жёсткая рука</div>
+            <div class="bjh-example-label">Против дилера 10? Сдавайся</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── Базовая стратегия ─── -->
+      <section class="bjh-section">
+        <h3>Таблица базовой стратегии</h3>
+        <p>Математически оптимальный ход для каждой руки против каждой открытой карты дилера. Запомни это и преимущество казино упадёт до ~0.5%.</p>
+        <div class="bjh-strategy-legend">
+          <span class="bjh-key h">H · Взять</span>
+          <span class="bjh-key s">S · Стоять</span>
+          <span class="bjh-key d">D · Удвоить</span>
+          <span class="bjh-key p">P · Сплит</span>
+        </div>
+        <div class="bjh-strategy-wrap">
+          <table class="bjh-strategy">
+            <thead>
+              <tr>
+                <th>У ТЕБЯ</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th>
+                <th>7</th><th>8</th><th>9</th><th>10</th><th>A</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th>8 и меньше</th>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>9</th>
+                <td class="h">H</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>10</th>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>11</th>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td>
+                <td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="d">D</td><td class="h">H</td></tr>
+              <tr><th>12</th>
+                <td class="h">H</td><td class="h">H</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>13–14</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>15</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>16</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td><td class="h">H</td></tr>
+              <tr><th>17+</th>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td>
+                <td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td><td class="s">S</td></tr>
+              <tr><th>A,A</th>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td></tr>
+              <tr><th>8,8</th>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td>
+                <td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td><td class="p">P</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─── Золотые правила ─── -->
+      <section class="bjh-section">
+        <h3>Золотые правила</h3>
+        <ul class="bjh-tips">
+          <li class="do"><strong>Всегда сплитуй Тузы и Восьмёрки.</strong> Два шанса на 19-21 вместо ужасной 16.</li>
+          <li class="dont"><strong>Никогда не сплитуй 10 и 5.</strong> 20 уже выигрышная рука. 10 — это дабл.</li>
+          <li class="do"><strong>Всегда удваивай на 11.</strong> Больше 30% оставшихся карт делают 21.</li>
+          <li class="dont"><strong>Никогда не бери страховку.</strong> Это ставка с –6% EV если ты не считаешь карты.</li>
+          <li class="do"><strong>Стой на жёсткой 17+.</strong> Брать тут статистическая катастрофа.</li>
+          <li class="dont"><strong>Не бери на жёсткой 12 против дилера 4-6.</strong> Пусть дилер сам переберёт.</li>
+          <li class="do"><strong>Удваивай soft 13-18 против дилера 5-6.</strong> Дешёвая агрессия, огромный апсайд.</li>
+          <li class="dont"><strong>Не бери "even money"</strong> с блэкджеком против туза дилера. Возьми 3:2.</li>
+        </ul>
+      </section>
+
+      <!-- ─── Предупреждение про страховку ─── -->
+      <section class="bjh-section">
+        <div class="bjh-warn">
+          <div class="bjh-warn-title">Про страховку (Insurance)</div>
+          <p>Когда открытая карта дилера — Туз, предлагается страховка: побочная ставка в половину основной, с выплатой <strong>2:1</strong>, если у дилера блэкджек.</p>
+          <p>Выглядит как страховка от катастрофы, но это не так. Дилеру нужна 10-очковая в закрытой чтобы получить BJ — в свежей колоде это ~30.8%. Страховка имеет +EV только если ты знаешь что колода богата десятками (card counting). Иначе это побочная ставка с ~7% отрицательным матожиданием. <strong>Пропускай.</strong></p>
+        </div>
+      </section>
+
+      <!-- ─── Примеры выплат ─── -->
+      <section class="bjh-section">
+        <h3>Примеры выплат (ставка $100)</h3>
+        <div class="bjh-payouts">
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">БЛЭКДЖЕК</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result gold">+$150 (×1.5)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">ПОБЕДА</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result win">+$100 (×1)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">НИЧЬЯ</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result push">$0 (ставка назад)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">ПРОИГРЫШ</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result bad">–$100 (ставка ушла)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">SURRENDER</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result bad">–$50 (половина назад)</span>
+          </div>
+          <div class="bjh-payout">
+            <span class="bjh-payout-bet">DOUBLE WIN</span>
+            <span class="bjh-payout-arrow">→</span>
+            <span class="bjh-payout-result win">+$200 (со $200)</span>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
 
@@ -3200,25 +6142,88 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
 <!-- SCREEN: READY                                                        -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <div id="screen-ready" class="screen">
-  <div class="ready-header">Connected — Ready to Play?</div>
+  <div class="ready-lang-toggle">
+    <button type="button" class="lang-btn" id="lang-en" data-lang="en">EN</button>
+    <button type="button" class="lang-btn" id="lang-ru" data-lang="ru">RU</button>
+  </div>
+  <div class="ready-header" data-i18n="ready.title">Connected — Ready to Play?</div>
+
+  <div class="ready-name-row">
+    <label class="ready-name-label" for="ready-name-input" data-i18n="ready.yourName">Your name</label>
+    <input class="ready-name-input" id="ready-name-input" type="text" maxlength="18" placeholder="Stan" autocomplete="off">
+  </div>
+
+  <div class="ready-variant-card">
+    <div class="ready-variant-header">
+      <span class="ready-variant-label" data-i18n="ready.game">GAME</span>
+      <span class="ready-variant-name" id="ready-variant-name">Texas Hold'em</span>
+    </div>
+    <div class="ready-variant-stats">
+      <div class="rv-stat">
+        <div class="rv-stat-label" data-i18n="ready.holeCards">Hole cards</div>
+        <div class="rv-stat-value" id="ready-holecards">2</div>
+      </div>
+      <div class="rv-stat">
+        <div class="rv-stat-label" data-i18n="ready.blinds">Blinds</div>
+        <div class="rv-stat-value" id="ready-blinds">10 / 20</div>
+      </div>
+      <div class="rv-stat">
+        <div class="rv-stat-label" data-i18n="ready.buyIn">Buy-in</div>
+        <div class="rv-stat-value" id="ready-buyin">$1000</div>
+      </div>
+      <div class="rv-stat">
+        <div class="rv-stat-label" data-i18n="ready.players">Players</div>
+        <div class="rv-stat-value" id="ready-playercount">2</div>
+      </div>
+    </div>
+    <div class="ready-variant-desc" id="ready-variant-desc"></div>
+  </div>
+
   <div class="ready-players">
     <div class="ready-player">
       <div class="ready-player-name" id="ready-you-name">You</div>
       <div class="ready-status-dot" id="ready-dot-you"></div>
     </div>
-    <div class="ready-vs">vs</div>
+    <div class="ready-vs" data-i18n="ready.vs">vs</div>
     <div class="ready-player">
       <div class="ready-player-name" id="ready-opp-name">Opponent</div>
       <div class="ready-status-dot" id="ready-dot-opp"></div>
     </div>
   </div>
-  <button class="btn btn-primary" id="ready-btn">READY?</button>
+  <button class="btn btn-primary" id="ready-btn" data-i18n="ready.ready">READY?</button>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- SCREEN: GAME TABLE                                                   -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <div id="screen-game" class="screen">
+  <div class="table-tabs" id="table-tabs" style="display:none;"></div>
+  <div class="tourney-hud" id="tourney-hud" style="display:none;">
+    <div class="th-col">
+      <span class="th-label">LEVEL</span>
+      <span class="th-value" id="th-level">—</span>
+    </div>
+    <div class="th-col">
+      <span class="th-label">BLINDS</span>
+      <span class="th-value" id="th-blinds">—</span>
+    </div>
+    <div class="th-col">
+      <span class="th-label">ANTE</span>
+      <span class="th-value" id="th-ante">—</span>
+    </div>
+    <div class="th-col">
+      <span class="th-label">ALIVE</span>
+      <span class="th-value" id="th-alive">—</span>
+    </div>
+    <div class="th-col">
+      <span class="th-label">NEXT LVL</span>
+      <span class="th-value" id="th-next">—</span>
+    </div>
+    <div class="th-col th-col-equity">
+      <span class="th-label">ICM EQUITY</span>
+      <span class="th-value" id="th-equity">—</span>
+    </div>
+  </div>
   <div class="game-board">
     <div class="felt-background"></div>
     <div id="seats"></div>
@@ -3268,17 +6273,17 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
       </div>
     </div>
     <div class="raise-presets" id="raise-presets">
-      <button class="preset-btn" data-preset="0.5">½ POT</button>
-      <button class="preset-btn" data-preset="0.67">⅔ POT</button>
-      <button class="preset-btn" data-preset="1">POT</button>
-      <button class="preset-btn" data-preset="1.5">1.5×</button>
-      <button class="preset-btn" data-preset="allin">ALL-IN</button>
+      <button class="preset-btn" data-preset="0.5" data-i18n="preset.half">½ POT</button>
+      <button class="preset-btn" data-preset="0.67" data-i18n="preset.twoThird">⅔ POT</button>
+      <button class="preset-btn" data-preset="1" data-i18n="preset.pot">POT</button>
+      <button class="preset-btn" data-preset="1.5" data-i18n="preset.oneHalf">1.5×</button>
+      <button class="preset-btn" data-preset="allin" data-i18n="action.allIn">ALL-IN</button>
     </div>
     <div class="action-buttons" id="action-buttons">
-      <button class="btn btn-fold" id="btn-fold">Fold <span class="kbd">F</span></button>
-      <button class="btn btn-call" id="btn-call">Call <span class="kbd">C</span></button>
+      <button class="btn btn-fold" id="btn-fold"><span data-i18n="action.fold">Fold</span> <span class="kbd">F</span></button>
+      <button class="btn btn-call" id="btn-call"><span data-i18n="action.call">Call</span> <span class="kbd">C</span></button>
       <div class="raise-group">
-        <button class="btn btn-raise" id="btn-raise">Raise <span class="kbd">R</span></button>
+        <button class="btn btn-raise" id="btn-raise"><span data-i18n="action.raise">Raise</span> <span class="kbd">R</span></button>
         <div style="display:flex;align-items:center;gap:4px;">
           <input class="raise-input" id="raise-input" type="number" min="1" step="10" value="40">
           <div class="raise-stepper">
@@ -3303,6 +6308,15 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
   <div id="opp-hole-cards" style="display:none;"></div>
 
   <div class="side-stack" id="side-stack">
+    <div id="bank-widget">
+      <div>
+        <div class="bw-label">Bank</div>
+        <div class="bw-chips">$0</div>
+      </div>
+      <div class="bw-delta up">+$0</div>
+      <div class="bw-divider"></div>
+      <div class="bw-lifetime">Lifetime +$0 · 0 matches</div>
+    </div>
     <div class="log-panel">
       <div class="log-panel-header">
         <span class="log-title">Action Log</span>
@@ -3332,8 +6346,8 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
     </div>
     <aside class="rules-aside">
       <div class="rules-aside-header">
-        <span>Rules &amp; Reference</span>
-        <button class="rules-close" id="btn-close-rules-side">CLOSE ×</button>
+        <span data-i18n="rules.asideTitle">Rules &amp; Reference</span>
+        <button class="rules-close" id="btn-close-rules-side" data-i18n="rules.close">CLOSE ×</button>
       </div>
       <div class="rules-aside-body"></div>
     </aside>
@@ -3358,9 +6372,12 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
 
 <!-- Showdown result -->
 <div class="overlay" id="overlay-showdown">
-  <div class="modal-card">
+  <div class="modal-card modal-wide showdown-modal">
     <div class="modal-title" id="showdown-winner-title">—</div>
-    <div class="modal-body" id="showdown-body">—</div>
+    <div class="showdown-subtitle" id="showdown-subtitle"></div>
+    <div class="showdown-community" id="showdown-community"></div>
+    <div class="showdown-players" id="showdown-players"></div>
+    <div class="showdown-body-text" id="showdown-body">—</div>
     <div class="modal-buttons">
       <button class="btn btn-primary" id="showdown-next-btn" style="display:none;">Next Hand</button>
       <button class="btn" id="showdown-new-game-btn" style="display:none;">New Game</button>
@@ -3394,7 +6411,7 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
 <!-- Rules -->
 <div class="overlay" id="overlay-rules">
   <div class="modal-card modal-wide">
-    <div class="modal-title">Texas Hold'em · Rules &amp; Reference</div>
+    <div class="modal-title" data-i18n="rules.modalTitle">Texas Hold'em · Rules &amp; Reference</div>
     <div class="rules-body" id="rules-modal-body"></div>
     <div class="modal-buttons">
       <button class="btn" id="btn-close-rules">Got it</button>
@@ -3494,9 +6511,15 @@ body:has(#screen-game.active) #bank-widget { display: flex; }
         </div>
       </div>
       <div class="settings-group">
-        <div class="settings-label">Match Replay</div>
+        <div class="settings-label">Match Replay &amp; Export</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn" id="btn-clear-replay">Clear saved match</button>
+          <button class="btn" id="btn-export-hhf">Export HHF (PokerStars)</button>
+          <button class="btn" id="btn-export-csv">Export stats CSV</button>
+          <button class="btn" id="btn-export-summary">Export summary CSV</button>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:0.66rem;color:rgba(200,168,130,0.5);margin-top:6px;">
+          HHF opens in HM3 / PT4. Stats CSV is one row per lifetime match for Excel / Sheets.
         </div>
       </div>
       <div class="settings-group">

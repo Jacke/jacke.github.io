@@ -25,6 +25,10 @@ params:
     - "kubernetes"
   author: "Stan Sobolev"
 
+  # XP Emulator — set to your cloud storage URL where xp.img and xp-state.bin are hosted
+  # Example: "https://your-r2-bucket.r2.dev" or "https://cdn.example.com/xp-assets"
+  xpAssetsBase: ""
+
   # Profile
   profileImage: "/images/profile.jpg"
 

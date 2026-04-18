@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CONSISTENT.HASH v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;
+  --green:#4ade80;--red:#f43f5e;--purple:#a855f7;
+  --blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;
+  --font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.48) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.24),inset 3px 0 0 rgba(30,80,255,.24);}100%{opacity:0;}}
+
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:72px;color:var(--amber);text-shadow:0 0 40px var(--amber),0 0 80px rgba(255,178,41,.28);letter-spacing:6px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}
+.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+
+/* HEADER */
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:28px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:3px;flex-shrink:0;}
+#scenario-tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}
+#scenario-tabs::-webkit-scrollbar{display:none;}
+.stab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.stab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,.05);}
+.stab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;background:var(--bg);overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+
+/* OP BAR */
+#op-bar{display:flex;align-items:center;gap:7px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.38);flex-shrink:0;flex-wrap:wrap;}
+.obtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all .1s;}
+.obtn:hover{background:rgba(255,178,41,.08);}
+.obtn.add{border-color:rgba(74,222,128,.5);color:#86efac;}
+.obtn.rem{border-color:rgba(244,63,94,.5);color:#fda4af;}
+.obtn.lkp{border-color:rgba(34,211,238,.5);color:#67e8f9;}
+.obtn.demo{border-color:rgba(168,85,247,.5);color:#d8b4fe;}
+.op-sep{width:1px;height:18px;background:rgba(255,178,41,.12);}
+.op-label{font-size:8.5px;color:var(--amber-dim);letter-spacing:1px;}
+#node-inp{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 7px;width:72px;outline:none;}
+#node-inp:focus{border-color:var(--amber);}
+#key-inp2{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 7px;width:72px;outline:none;}
+#key-inp2:focus{border-color:var(--amber);}
+select#vn-count{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 5px;outline:none;cursor:pointer;}
+select#vn-count option{background:#111;}
+
+/* STEP */
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.add{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.07);}
+.pbadge.remove{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.07);}
+.pbadge.lookup{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.07);}
+.pbadge.migrate{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.08);}
+.pbadge.hash{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.07);}
+.pbadge.found{color:#10b981;border-color:#10b981;background:rgba(16,185,129,.07);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+
+/* STATS */
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+
+/* CONTROLS */
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+
+/* RIGHT */
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.09);}
+.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,.4),1px 0 1px rgba(50,80,255,.4);pointer-events:none;}
+.cline.active .cc{position:relative;}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}
+.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+
+<div id="boot">
+  <div id="boot-logo">CONSISTENT.HASH</div>
+  <div id="boot-tagline">DISTRIBUTED HASHING VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+
+<div id="crt-wrap">
+<div id="main">
+  <div id="header">
+    <div id="logo">CONSISTENT.HASH</div>
+    <div id="scenario-tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="op-bar">
+        <span class="op-label">NODE</span>
+        <input type="text" id="node-inp" placeholder="node4" maxlength="8">
+        <button class="obtn add" onclick="doAddNode()">⊕ ADD</button>
+        <button class="obtn rem" onclick="doRemoveNode()">⊖ REMOVE</button>
+        <div class="op-sep"></div>
+        <span class="op-label">KEY</span>
+        <input type="text" id="key-inp2" placeholder="user:42" maxlength="12">
+        <button class="obtn lkp" onclick="doLookup()">⊙ LOOKUP</button>
+        <div class="op-sep"></div>
+        <span class="op-label">VNODES</span>
+        <select id="vn-count">
+          <option value="1">1</option>
+          <option value="3" selected>3</option>
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+        </select>
+        <div class="op-sep"></div>
+        <button class="obtn demo" onclick="loadDemo()">🎬 DEMO</button>
+        <button class="obtn rem" style="font-size:12px;padding:2px 7px" onclick="clearRing()">⊘ CLR</button>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Add nodes to the ring or load DEMO.</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">NODES</span><span class="sv" id="s-nodes">0</span></div>
+        <div class="si"><span class="sl">V-NODES</span><span class="sv" id="s-vnodes">0</span></div>
+        <div class="si"><span class="sv" id="s-sep" style="font-size:12px;color:rgba(255,178,41,.2)">|</span></div>
+        <div class="si"><span class="sl">MIGRATED</span><span class="sv" id="s-mig">0</span></div>
+        <div class="si"><span class="sl">NAIVE%</span><span class="sv" id="s-naive">—</span></div>
+        <div class="si"><span class="sl">STEP</span><span class="sv" id="s-tick">0</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–3</span> Scenario</span>
+        <span class="kbh"><span class="kbk">ENTER</span> Add</span>
+      </div>
+    </div>
+
+    <div id="right">
+      <div class="psec">
+        <div class="phdr">▸ GO SOURCE CODE</div>
+        <div id="code-scroll"></div>
+      </div>
+      <div id="r-scroll">
+        <div class="psec">
+          <div class="phdr">▸ WHY CONSISTENT?</div>
+          <div id="why-info" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ VIRTUAL NODES</div>
+          <div id="vnode-info" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ INTERVIEW FACTS</div>
+          <div id="facts" class="info-block"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ══════ NOISE ══════ */
+(()=>{
+  const c=document.getElementById('noise'),x=c.getContext('2d');
+  const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);
+  const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();
+})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+
+/* ══════ AUDIO ══════ */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){
+  if(muted||!AC)return;
+  try{
+    const g=AC.createGain(),ws=AC.createWaveShaper();
+    const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}
+    ws.curve=cv;ws.connect(AC.destination);g.connect(ws);
+    const o=AC.createOscillator();o.connect(g);
+    const p={add:[480,.08],remove:[180,.10],lookup:[400,.06],migrate:[340,.09],hash:[360,.05],found:[600,.09],click:[350,.04]};
+    const[f,d]=p[type]||[350,.05];
+    o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';
+    g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);
+    o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);
+  }catch(e){}
+}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ══════ SYNTAX ══════ */
+function hlGo(l){
+  let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');
+  s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+  s=s.replace(/\b(func|for|if|return|var|const|type|struct|int|uint32|string|sort|make|append|len|fmt|Sprintf)\b/g,'<span class="kw">$1</span>');
+  s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+  s=s.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="nm">$1</span>');
+  return s;
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+const CODE=[
+  'type Ring struct {',
+  '    vnodes  []VNode  // sorted by hash',
+  '    replicas int     // virtual nodes per node',
+  '}',
+  'type VNode struct {',
+  '    hash uint32',
+  '    node string',
+  '}',
+  '',
+  'func (r *Ring) Add(node string) {',
+  '    for i := 0; i < r.replicas; i++ {',
+  '        key := fmt.Sprintf("%s#%d", node, i)',
+  '        h   := fnv32(key)',
+  '        r.vnodes = append(r.vnodes, VNode{h, node})',
+  '    }',
+  '    sort.Slice(r.vnodes, func(i,j int) bool {',
+  '        return r.vnodes[i].hash < r.vnodes[j].hash',
+  '    })',
+  '}',
+  '',
+  'func (r *Ring) Get(key string) string {',
+  '    h := fnv32(key)',
+  '    // binary search: first vnode with hash >= h',
+  '    idx := sort.Search(len(r.vnodes), func(i int) bool {',
+  '        return r.vnodes[i].hash >= h',
+  '    })',
+  '    if idx == len(r.vnodes) { idx = 0 } // wrap',
+  '    return r.vnodes[idx].node',
+  '}',
+];
+
+/* ══════ HASH ══════ */
+const RING_SIZE=0xFFFFFFFF;
+function fnv32(s){
+  let h=0x811c9dc5;
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=(h*0x01000193)>>>0;}
+  return h;
+}
+function keyAngle(hash){return(hash/RING_SIZE)*Math.PI*2-Math.PI/2;}
+
+/* ══════ NODE COLORS ══════ */
+const NODE_COLORS=['#60a5fa','#4ade80','#f97316','#a855f7','#22d3ee','#f43f5e','#fbbf24','#ec4899'];
+const nodeColorMap={};let colorIdx=0;
+function nodeColor(name){
+  if(!nodeColorMap[name]){nodeColorMap[name]=NODE_COLORS[colorIdx%NODE_COLORS.length];colorIdx++;}
+  return nodeColorMap[name];
+}
+
+/* ══════ RING STATE ══════ */
+let ring={nodes:{},vnodes:[],replicas:3};
+// nodes: name -> {name, keys:[]}
+// vnodes: [{hash,node,vIdx}] sorted
+
+function ringAdd(name,replicas){
+  if(ring.nodes[name])return;
+  ring.nodes[name]={name,keys:[]};
+  nodeColor(name);
+  for(let i=0;i<replicas;i++){
+    const h=fnv32(`${name}#${i}`);
+    ring.vnodes.push({hash:h,node:name,vIdx:i});
+  }
+  ring.vnodes.sort((a,b)=>a.hash-b.hash);
+}
+function ringRemove(name){
+  if(!ring.nodes[name])return;
+  delete ring.nodes[name];
+  ring.vnodes=ring.vnodes.filter(v=>v.node!==name);
+}
+function ringGet(key){
+  if(!ring.vnodes.length)return null;
+  const h=fnv32(key);
+  let lo=0,hi=ring.vnodes.length;
+  while(lo<hi){const mid=(lo+hi)>>1;ring.vnodes[mid].hash>=h?hi=mid:lo=mid+1;}
+  if(lo>=ring.vnodes.length)lo=0;
+  return ring.vnodes[lo];
+}
+function assignKeys(keys){
+  // clear all
+  Object.values(ring.nodes).forEach(n=>n.keys=[]);
+  keys.forEach(k=>{const v=ringGet(k);if(v&&ring.nodes[v.node])ring.nodes[v.node].keys.push(k);});
+}
+
+/* ══════ STEP BUILDER ══════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:320};
+let totalMigrated=0;
+let currentKeys=[];// keys distributed on ring
+
+function snapshotRing(){
+  return{
+    nodes:Object.fromEntries(Object.entries(ring.nodes).map(([k,v])=>([k,{...v,keys:[...v.keys]}]))),
+    vnodes:ring.vnodes.map(v=>({...v})),
+    replicas:ring.replicas,
+  };
+}
+
+/* ADD NODE steps */
+function buildAddSteps(name,replicas){
+  const steps=[];
+  const prevSnap=snapshotRing();
+
+  // Before: record which keys go where
+  const before={};
+  if(currentKeys.length){
+    assignKeys(currentKeys);
+    Object.entries(ring.nodes).forEach(([n,nd])=>before[n]=[...nd.keys]);
+  }
+
+  function snap(phase,desc,cl,highlight=null,migKeys=[]){
+    steps.push({
+      phase,desc,cl,
+      ring:snapshotRing(),
+      highlight,migKeys,
+      nodes:Object.keys(ring.nodes).length,
+      vnodeCount:ring.vnodes.length,
+      migrated:totalMigrated,
+      tick:steps.length,
+    });
+  }
+
+  snap('init',`Adding node "${name}" with ${replicas} virtual nodes.`,9);
+
+  // compute new vnodes
+  const newVnodes=[];
+  for(let i=0;i<replicas;i++){
+    const h=fnv32(`${name}#${i}`);
+    newVnodes.push({hash:h,node:name,vIdx:i,new:true});
+  }
+
+  // show each vnode being placed
+  ringAdd(name,replicas);
+  const hl=newVnodes.map(v=>v.hash);
+
+  snap('hash',`hash("${name}#0..${replicas-1}") → ${replicas} positions on ring. Sorting all vnodes.`,11,hl);
+
+  // show added
+  snap('add',`"${name}" inserted. Its ${replicas} virtual nodes occupy ${replicas} ring positions (blue arcs = ownership).`,14,hl);
+
+  // calculate key migration
+  if(currentKeys.length){
+    assignKeys(currentKeys);
+    const after={};
+    Object.entries(ring.nodes).forEach(([n,nd])=>after[n]=[...nd.keys]);
+    const migKeys=[];
+    // keys that moved TO name
+    (after[name]||[]).forEach(k=>{
+      // find which node had it before
+      Object.entries(before).forEach(([n,ks])=>{if(ks.includes(k))migKeys.push({key:k,from:n,to:name});});
+    });
+    totalMigrated+=migKeys.length;
+    const naivePct=Math.round(100/Object.keys(ring.nodes).length);
+    snap('migrate',`Key migration: ${migKeys.length} key(s) moved to "${name}". Only keys in [new node's] arc segment migrate — others untouched. Naive rehash would move ~${naivePct}% (${Math.round(currentKeys.length*naivePct/100)} keys).`,16,hl,migKeys);
+    snap('add',`Ring balanced. ${Object.keys(ring.nodes).length} nodes × ${replicas} vnodes. Total ${ring.vnodes.length} ring positions.`,14,hl);
+  }
+
+  return steps;
+}
+
+/* REMOVE NODE steps */
+function buildRemoveSteps(name){
+  const steps=[];
+  if(!ring.nodes[name]){
+    steps.push({phase:'init',desc:`Node "${name}" not on ring.`,cl:-1,ring:snapshotRing(),nodes:Object.keys(ring.nodes).length,vnodeCount:ring.vnodes.length,migrated:totalMigrated,tick:0});
+    return steps;
+  }
+
+  const removedVnodes=ring.vnodes.filter(v=>v.node===name).map(v=>({...v}));
+  const hl=removedVnodes.map(v=>v.hash);
+
+  // snapshot keys before removal
+  if(currentKeys.length)assignKeys(currentKeys);
+  const before={};
+  Object.entries(ring.nodes).forEach(([n,nd])=>before[n]=[...nd.keys]);
+  const keysToMigrate=[...(before[name]||[])];
+
+  function snap(phase,desc,cl,migKeys=[]){
+    steps.push({phase,desc,cl,ring:snapshotRing(),highlight:hl,migKeys,nodes:Object.keys(ring.nodes).length,vnodeCount:ring.vnodes.length,migrated:totalMigrated,tick:steps.length});
+  }
+
+  snap('init',`Removing node "${name}". ${removedVnodes.length} virtual nodes will be ejected from ring.`,9);
+  snap('remove',`"${name}" vnodes highlighted. Clockwise successor nodes will absorb its key ranges.`,12,hl);
+
+  ringRemove(name);
+
+  if(currentKeys.length&&ring.vnodes.length){
+    assignKeys(currentKeys);
+    const migKeys=keysToMigrate.map(k=>{
+      const v=ringGet(k);
+      return{key:k,from:name,to:v?v.node:'(none)'};
+    });
+    totalMigrated+=migKeys.length;
+    snap('migrate',`${keysToMigrate.length} key(s) redistributed to successor nodes. Zero disruption to other keys.`,14,migKeys);
+  }
+
+  snap('remove',`"${name}" removed. ${Object.keys(ring.nodes).length} nodes remain. Ring re-balanced automatically.`,16,[]);
+  return steps;
+}
+
+/* LOOKUP steps */
+function buildLookupSteps(key){
+  const steps=[];
+  const h=fnv32(key);
+  function snap(phase,desc,cl,lookupHash=null,resultNode=null){
+    steps.push({phase,desc,cl,ring:snapshotRing(),lookupHash,resultNode,nodes:Object.keys(ring.nodes).length,vnodeCount:ring.vnodes.length,migrated:totalMigrated,tick:steps.length});
+  }
+  if(!ring.vnodes.length){snap('init','Ring empty. Add nodes first.',0);return steps;}
+  snap('init',`LOOKUP key="${key}"`,9);
+  snap('hash',`hash("${key}") = 0x${h.toString(16).padStart(8,'0')} = ${h}. Walk clockwise from this position.`,11,h);
+  const result=ringGet(key);
+  if(!result){snap('init','No nodes on ring.',0);return steps;}
+  snap('found',`First vnode clockwise: ${result.node}#${result.vIdx} at 0x${result.hash.toString(16).padStart(8,'0')}. Key "${key}" → "${result.node}".`,20,h,result);
+  return steps;
+}
+
+/* ══════ CANVAS ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){
+  const wrap=document.getElementById('viz-wrap');
+  CW=canvas.width=wrap.clientWidth;
+  CH=canvas.height=wrap.clientHeight;
+  if(ST.steps.length)renderFrame(ST.steps[ST.idx]);
+  else renderRingDirect();
+}
+
+function ringCenter(){return{cx:CW/2,cy:CH/2,R:Math.min(CW,CH)*0.36};}
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+  const{ring:r,highlight,migKeys,lookupHash,resultNode}=step;
+  drawRing(r,highlight,lookupHash,resultNode,migKeys);
+}
+
+function renderRingDirect(){
+  ctx.clearRect(0,0,CW,CH);
+  if(!ring.vnodes.length){
+    ctx.font=`18px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.18)';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('RING EMPTY — ADD NODES',CW/2,CH/2);
+    return;
+  }
+  const snap={nodes:ring.nodes,vnodes:ring.vnodes,replicas:ring.replicas};
+  drawRing(snap,null,null,null,[]);
+}
+
+function drawRing(r,highlight,lookupHash,resultNode,migKeys){
+  const{cx,cy,R}=ringCenter();
+
+  // Ring circle
+  ctx.save();
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,178,41,0.18)';ctx.lineWidth=1.5;ctx.setLineDash([4,6]);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+
+  // Ring label
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.2)';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(`HASH RING [0 … 0xFFFFFFFF]`,cx,cy-R-18);
+
+  const vnodes=r.vnodes||[];
+  const nodes=r.nodes||{};
+
+  // Arc segments: color ownership arcs
+  if(vnodes.length>0){
+    for(let i=0;i<vnodes.length;i++){
+      const v=vnodes[i];
+      const next=vnodes[(i+1)%vnodes.length];
+      const a1=keyAngle(v.hash);
+      const a2=i===vnodes.length-1?keyAngle(next.hash)+Math.PI*2:keyAngle(next.hash);
+      const col=nodeColor(v.node);
+      ctx.save();
+      ctx.beginPath();ctx.arc(cx,cy,R,a1,a2);
+      ctx.strokeStyle=col+'66';ctx.lineWidth=8;ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Migration arrows (keys moving between nodes)
+  if(migKeys&&migKeys.length){
+    migKeys.slice(0,12).forEach(mk=>{
+      const fromNode=nodes[mk.from];const toNode=nodes[mk.to];
+      if(!fromNode||!toNode)return;
+      // draw a small arrow from from-node's arc to to-node's arc
+      const fvn=vnodes.find(v=>v.node===mk.from);
+      const tvn=vnodes.find(v=>v.node===mk.to);
+      if(!fvn||!tvn)return;
+      const fa=keyAngle(fvn.hash);const ta=keyAngle(tvn.hash);
+      const x1=cx+Math.cos(fa)*(R*0.6);const y1=cy+Math.sin(fa)*(R*0.6);
+      const x2=cx+Math.cos(ta)*(R*0.6);const y2=cy+Math.sin(ta)*(R*0.6);
+      ctx.save();ctx.strokeStyle='rgba(249,115,22,0.5)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.setLineDash([]);
+      // tip
+      const ang=Math.atan2(y2-y1,x2-x1);
+      ctx.fillStyle='rgba(249,115,22,0.7)';
+      ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-8*Math.cos(ang-.4),y2-8*Math.sin(ang-.4));ctx.lineTo(x2-8*Math.cos(ang+.4),y2-8*Math.sin(ang+.4));ctx.closePath();ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  // Lookup hash marker
+  if(lookupHash!=null){
+    const a=keyAngle(lookupHash);
+    const x=cx+Math.cos(a)*(R+12);const y=cy+Math.sin(a)*(R+12);
+    ctx.save();ctx.shadowColor='#22d3ee';ctx.shadowBlur=14;
+    ctx.fillStyle='#22d3ee';ctx.strokeStyle='#22d3ee';
+    ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fill();
+    // line to ring
+    ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);ctx.lineTo(x,y);ctx.stroke();
+    ctx.font=`10px 'IBM Plex Mono'`;ctx.fillStyle='#67e8f9';ctx.textAlign='center';
+    const lx=cx+Math.cos(a)*(R+30);const ly=cy+Math.sin(a)*(R+30);
+    ctx.fillText('KEY',lx,ly);
+    ctx.restore();
+
+    // clockwise arc to resultNode
+    if(resultNode){
+      const ra=keyAngle(resultNode.hash);
+      ctx.save();ctx.strokeStyle='rgba(34,211,238,0.5)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(cx,cy,R,a,ra);ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Virtual nodes on ring
+  vnodes.forEach((v,i)=>{
+    const a=keyAngle(v.hash);
+    const x=cx+Math.cos(a)*R;const y=cy+Math.sin(a)*R;
+    const col=nodeColor(v.node);
+    const isHL=highlight&&highlight.includes(v.hash);
+    const isResult=resultNode&&resultNode.hash===v.hash;
+
+    ctx.save();
+    if(isHL||isResult){ctx.shadowColor=isResult?'#22d3ee':col;ctx.shadowBlur=16;}
+    ctx.beginPath();ctx.arc(x,y,isHL||isResult?7:5,0,Math.PI*2);
+    ctx.fillStyle=isResult?'#22d3ee':col;ctx.fill();
+    if(isResult){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();}
+    ctx.restore();
+
+    // label for highlight or result
+    if(isHL||isResult||vnodes.length<=24){
+      const lx=cx+Math.cos(a)*(R+22);const ly=cy+Math.sin(a)*(R+22);
+      ctx.font=`9px 'VT323'`;ctx.fillStyle=isResult?'#67e8f9':col+'cc';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(`${v.node[0].toUpperCase()}${v.vIdx}`,lx,ly);
+    }
+  });
+
+  // Node legend (center area)
+  const nodeNames=Object.keys(nodes);
+  if(nodeNames.length){
+    const legendX=cx-60;const legendY=cy-nodeNames.length*13;
+    nodeNames.forEach((name,i)=>{
+      const col=nodeColor(name);
+      const nd=nodes[name];
+      ctx.save();
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(legendX,legendY+i*22,6,0,Math.PI*2);ctx.fill();
+      ctx.font=`13px 'VT323'`;ctx.fillStyle=col;
+      ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(`${name}  (${(nd.keys||[]).length} keys)`,legendX+12,legendY+i*22);
+      ctx.restore();
+    });
+  }
+
+  // Key distribution arcs label
+  if(currentKeys.length&&nodeNames.length){
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.2)';
+    ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(`${currentKeys.length} keys distributed`,cx,cy+R+28);
+  }
+}
+
+/* ══════ APPLY STEP ══════ */
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  badge.className='pbadge '+(step.phase||'init');
+  badge.textContent=(step.phase||'INIT').toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-nodes').textContent=step.nodes||0;
+  document.getElementById('s-vnodes').textContent=step.vnodeCount||0;
+  document.getElementById('s-mig').textContent=step.migrated||0;
+  document.getElementById('s-tick').textContent=step.tick||0;
+  const n=step.nodes||0;
+  document.getElementById('s-naive').textContent=n>1?Math.round(100/(n))+'%':'—';
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(CODE,step.cl>=0?step.cl:-1);
+  if(step.phase&&step.phase!=='init')snd(step.phase);
+  if(step.phase==='migrate')triggerCA();
+}
+
+function runSteps(steps){
+  if(ST.playing)pause();
+  ST.steps=steps;ST.idx=0;
+  if(!steps.length)return;
+  applyStep(steps[0]);
+  setTimeout(()=>play(),250);
+}
+
+/* ══════ ACTIONS ══════ */
+function doAddNode(){
+  initAudio();
+  const name=document.getElementById('node-inp').value.trim()||'node';
+  const rep=parseInt(document.getElementById('vn-count').value)||3;
+  if(ring.nodes[name]){
+    document.getElementById('step-txt').textContent=`"${name}" already on ring.`;return;
+  }
+  const steps=buildAddSteps(name,rep);
+  runSteps(steps);snd('click');
+}
+
+function doRemoveNode(){
+  initAudio();
+  const name=document.getElementById('node-inp').value.trim();
+  if(!ring.nodes[name]){document.getElementById('step-txt').textContent=`"${name}" not on ring.`;return;}
+  const steps=buildRemoveSteps(name);
+  runSteps(steps);snd('click');
+}
+
+function doLookup(){
+  initAudio();
+  const key=document.getElementById('key-inp2').value.trim()||'user:1';
+  const steps=buildLookupSteps(key);
+  runSteps(steps);snd('click');
+}
+
+function loadDemo(){
+  initAudio();
+  clearRing();
+  const rep=parseInt(document.getElementById('vn-count').value)||3;
+  currentKeys=['user:1','user:2','user:3','user:4','user:5','order:10','order:11','order:12','session:A','session:B','cache:X','cache:Y','job:99','job:100'];
+  let allSteps=[];
+  ['node1','node2','node3'].forEach(name=>{
+    allSteps=allSteps.concat(buildAddSteps(name,rep));
+  });
+  // lookup demo
+  allSteps=allSteps.concat(buildLookupSteps('user:1'));
+  // add a 4th node to show minimal migration
+  allSteps=allSteps.concat(buildAddSteps('node4',rep));
+  // remove node2
+  allSteps=allSteps.concat(buildRemoveSteps('node2'));
+  runSteps(allSteps);
+  snd('click');
+}
+
+function clearRing(){
+  if(ST.playing)pause();
+  ring={nodes:{},vnodes:[],replicas:3};
+  currentKeys=[];totalMigrated=0;colorIdx=0;Object.keys(nodeColorMap).forEach(k=>delete nodeColorMap[k]);
+  ST.steps=[];ST.idx=0;
+  renderRingDirect();
+  document.getElementById('pbadge').className='pbadge init';document.getElementById('pbadge').textContent='INIT';
+  document.getElementById('step-txt').textContent='Ring cleared. ADD nodes or load DEMO.';
+  document.getElementById('step-ctr').textContent='0 / 0';document.getElementById('prog-bar').style.width='0%';
+  document.getElementById('s-nodes').textContent='0';document.getElementById('s-vnodes').textContent='0';
+  document.getElementById('s-mig').textContent='0';document.getElementById('s-naive').textContent='—';
+  snd('click');
+}
+
+/* ══════ SCENARIOS ══════ */
+const SCENARIOS={
+  basic:{label:'BASIC RING'},
+  vnodes:{label:'VIRTUAL NODES'},
+  scale:{label:'SCALE UP/DOWN'},
+};
+let curScene='basic';
+
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.stab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  clearRing();
+  const rep={basic:1,vnodes:3,scale:5}[key]||3;
+  document.getElementById('vn-count').value=rep;
+  const keys={
+    basic:['k1','k2','k3','k4','k5','k6','k7','k8'],
+    vnodes:['user:1','user:2','user:3','user:4','user:5','order:10','order:11','order:12','session:A','session:B','cache:X','cache:Y'],
+    scale:['k1','k2','k3','k4','k5','k6','k7','k8','k9','k10','k11','k12','k13','k14','k15'],
+  }[key]||[];
+  currentKeys=keys;
+
+  let allSteps=[];
+  if(key==='basic'){
+    ['srvA','srvB','srvC'].forEach(n=>allSteps=allSteps.concat(buildAddSteps(n,1)));
+    allSteps=allSteps.concat(buildLookupSteps('user:99'));
+    allSteps=allSteps.concat(buildAddSteps('srvD',1));
+    allSteps=allSteps.concat(buildRemoveSteps('srvB'));
+  } else if(key==='vnodes'){
+    ['node1','node2','node3'].forEach(n=>allSteps=allSteps.concat(buildAddSteps(n,3)));
+    allSteps=allSteps.concat(buildLookupSteps('user:1'));
+    allSteps=allSteps.concat(buildAddSteps('node4',3));
+  } else {
+    ['db1','db2','db3'].forEach(n=>allSteps=allSteps.concat(buildAddSteps(n,5)));
+    allSteps=allSteps.concat(buildLookupSteps('record:777'));
+    // scale up: add 2 nodes
+    allSteps=allSteps.concat(buildAddSteps('db4',5));
+    allSteps=allSteps.concat(buildAddSteps('db5',5));
+    // scale down: remove one
+    allSteps=allSteps.concat(buildRemoveSteps('db2'));
+  }
+  runSteps(allSteps);snd('click');
+}
+
+/* ══════ PLAYBACK ══════ */
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){
+  if(!ST.steps.length)return;
+  if(ST.idx>=ST.steps.length-1)ST.idx=0;
+  ST.playing=true;
+  document.getElementById('play-btn').textContent='⏸ PAUSE';
+  document.getElementById('play-btn').classList.add('playing');
+  ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);
+}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:900,2:700,3:500,4:380,5:280,6:200,7:140,8:90,9:55,10:25};ST.speed=m[v]||280;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+/* ══════ KEYBOARD ══════ */
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'Enter':doAddNode();break;
+    case'1':selectScene('basic');break;case'2':selectScene('vnodes');break;case'3':selectScene('scale');break;
+  }
+});
+
+/* ══════ TABS + RIGHT PANEL ══════ */
+function buildTabs(){
+  const order=[['basic','1. BASIC'],['vnodes','2. VIRTUAL NODES'],['scale','3. SCALE']];
+  document.getElementById('scenario-tabs').innerHTML=order.map(([k,l])=>
+    `<button class="stab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`
+  ).join('');
+}
+
+function fillRightPanel(){
+  document.getElementById('why-info').innerHTML=`
+    <strong>Naive modulo hashing</strong>: key → node = hash(key) % N<br>
+    Adding/removing a node changes N → <em>almost every key remaps</em>. In a 10-node cluster removing 1 node remaps ~90% of keys = massive cache invalidation.<br><br>
+    <strong>Consistent hashing</strong>: place both nodes and keys on a shared hash ring [0, 2³²). Each key goes to the first node clockwise. Adding a node: only keys in the new node's arc migrate. Removing: only its keys migrate to the successor.<br><br>
+    <strong>Migration ratio</strong>: 1/(N+1) keys move on add, 1/N keys move on remove — regardless of total key count.`;
+
+  document.getElementById('vnode-info').innerHTML=`
+    Without virtual nodes, physical nodes may cluster on the ring → uneven load. One node might own 60% of the ring.<br><br>
+    <strong>Virtual nodes (replicas)</strong>: each physical node gets <em>k</em> positions on the ring (e.g., node1#0, node1#1, node1#2). Keys interleave evenly across nodes.<br><br>
+    More vnodes = better balance but more memory for the ring sorted array. Typical production: 100–200 vnodes per physical node.<br><br>
+    <span class="rw-tag">k=1</span> poor balance<br>
+    <span class="rw-tag">k=3–5</span> good demo<br>
+    <span class="rw-tag">k=100+</span> production`;
+
+  document.getElementById('facts').innerHTML=`
+    <span class="rw-tag">Cassandra</span> uses consistent hashing for token ring<br>
+    <span class="rw-tag">DynamoDB</span> ring-based sharding with virtual nodes<br>
+    <span class="rw-tag">Redis Cluster</span> uses 16384 hash slots (similar concept)<br>
+    <span class="rw-tag">HAProxy</span> consistent hash load balancing<br>
+    <span class="rw-tag">CDN</span> cache servers use consistent hashing<br>
+    <span class="rw-tag">Go impl</span>: sorted slice + binary search O(log n)<br>
+    <span class="rw-tag">Paper</span>: Karger et al. 1997 — original CHashing paper<br>
+    When N nodes: add node moves 1/(N+1) keys, remove moves 1/N keys`;
+}
+
+/* ══════ BOOT ══════ */
+function boot(){
+  const term=document.getElementById('boot-terminal');
+  const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'CONSISTENT.HASH v1.0 — INITIALIZING...',s:'',d:180},
+    {t:'LOADING: HASH_RING.MOD (FNV-32)',s:'OK',d:130},
+    {t:'LOADING: VIRTUAL_NODES.MOD',s:'OK',d:130},
+    {t:'LOADING: MIGRATION_TRACKER.MOD',s:'OK',d:140},
+    {t:'LOADING: BINARY_SEARCH.MOD (clockwise)',s:'OK',d:120},
+    {t:'MOUNTING CANVAS RENDERER...',s:'DONE',d:150},
+    {t:'ALL MODULES LOADED. STARTING...',s:'',d:240},
+  ];
+  let li=0;
+  function al(){
+    if(li>=lines.length){setTimeout(sa,300);return;}
+    const bl=lines[li];
+    const div=document.createElement('div');div.className='bl';
+    div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;
+    term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));
+    fill.style.width=Math.round((li/lines.length)*100)+'%';
+    li++;setTimeout(al,bl.d);
+  }al();
+}
+function sa(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();fillRightPanel();
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  selectScene('basic');
+}
+boot();
+</script>
+</body>
+</html>

@@ -16,7 +16,7 @@ import { DEFAULT_CONFIG } from './types.js';
 export type EngineEvent =
   | { kind: 'hand-start'; handNum: number; button: number }
   | { kind: 'blinds-posted'; sb: { player: number; amount: number }; bb: { player: number; amount: number } }
-  | { kind: 'hole-cards'; cards: ReadonlyArray<readonly [Card, Card] | null> }
+  | { kind: 'hole-cards'; cards: ReadonlyArray<readonly Card[] | null> }
   | { kind: 'action'; player: number; action: Action; effective: number; allIn: boolean }
   | { kind: 'phase'; phase: Phase }
   | { kind: 'community'; cards: Card[]; phase: 'flop' | 'turn' | 'river' }
@@ -68,6 +68,7 @@ export function createGameState(
     allIn: falses(),
     folded: falses(),
     lastRaiseSize: BB_AMOUNT,
+    blinds: null,
     gameOver: false,
   };
 }
@@ -118,12 +119,28 @@ export function dealHand(state: GameState, deck: Card[]): EngineEvent[] {
   state.holeCards = holeBuf.map(h => (h.length > 0 ? h as readonly Card[] : null));
   events.push({ kind: 'hole-cards', cards: state.holeCards });
 
-  // Post blinds.
+  // Post antes (tournament only — cash mode leaves `blinds` null).
+  const anteAmt = state.blinds?.ante ?? 0;
+  if (anteAmt > 0) {
+    for (let i = 0; i < state.numPlayers; i++) {
+      const ante = Math.min(anteAmt, state.stacks[i]!);
+      if (ante <= 0) continue;
+      state.stacks[i]! -= ante;
+      state.handContribs[i]! += ante;
+      state.pot += ante;
+      if (state.stacks[i] === 0) state.allIn[i] = true;
+    }
+  }
+
+  // Post blinds. Tournament mode uses per-hand override; cash mode uses constants.
+  const sbConfig = state.blinds?.sb ?? SB_AMOUNT;
+  const bbConfig = state.blinds?.bb ?? BB_AMOUNT;
   const bb = bbIndex(state);
-  const sbAmt = Math.min(SB_AMOUNT, state.stacks[sb]!);
-  const bbAmt = Math.min(BB_AMOUNT, state.stacks[bb]!);
+  const sbAmt = Math.min(sbConfig, state.stacks[sb]!);
+  const bbAmt = Math.min(bbConfig, state.stacks[bb]!);
   postBlind(state, sb, sbAmt);
   postBlind(state, bb, bbAmt);
+  state.lastRaiseSize = bbConfig;
   events.push({
     kind: 'blinds-posted',
     sb: { player: sb, amount: sbAmt },
@@ -288,7 +305,7 @@ export function nextStreet(state: GameState): EngineEvent[] {
   const events: EngineEvent[] = [];
 
   state.bets = new Array<number>(state.numPlayers).fill(0);
-  state.lastRaiseSize = BB_AMOUNT;
+  state.lastRaiseSize = state.blinds?.bb ?? BB_AMOUNT;
 
   // Check if we need to go through a discard phase
   const discardPhase = getDiscardPhase(state.config.variant);

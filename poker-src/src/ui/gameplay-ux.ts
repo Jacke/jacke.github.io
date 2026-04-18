@@ -43,9 +43,10 @@ export function renderHandMeter(state: GameState): void {
 
   if (state.community.length === 0) {
     // Preflop — show hole-card summary only
-    const [a, b] = hole!;
-    const rA = a[0];
-    const rB = b[0];
+    const a = hole![0] ?? '2s';
+    const b = hole![1] ?? '2h';
+    const rA = a[0] ?? '2';
+    const rB = b[0] ?? '2';
     const suited = a[1] === b[1];
     const pair = rA === rB;
     const text = pair ? `Pair of ${rA}'s` : `${rA}${rB}${suited ? ' suited' : ' offsuit'}`;

@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DB.VIZ v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.48)100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.write{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.09);}
+.pbadge.read{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,.07);}
+.pbadge.wal{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.08);}
+.pbadge.flush{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.compact{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.09);}
+.pbadge.scan{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.07);}
+.pbadge.vacuum{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.09);}
+.pbadge.split{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.09);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:10px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.si{display:flex;gap:5px;align-items:baseline;}.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:'VT323',monospace;font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}.cline.active{background:rgba(255,178,41,.09);}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}#r-scroll::-webkit-scrollbar{width:3px;}#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas><div id="scan-line"></div><div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">DB.VIZ</div>
+  <div id="boot-tagline">DATABASE INTERNALS VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">DB.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc"><span class="pbadge init" id="pbadge">INIT</span><span id="step-txt">Select scenario (1–5).</span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">DISK_IO</span><span class="sv" id="s-io">0</span></div>
+        <div class="si"><span class="sl">PAGES</span><span class="sv" id="s-pages">0</span></div>
+        <div class="si"><span class="sl">WAL_LSN</span><span class="sv" id="s-lsn">0</span></div>
+        <div class="si"><span class="sl">DEAD_ROWS</span><span class="sv" id="s-dead" style="color:#f43f5e">0</span></div>
+        <div class="si"><span class="sl">AMPLIFY</span><span class="sv" id="s-amp">1x</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–5</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ SQL / PSEUDOCODE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ COMPLEXITY</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ INTERVIEW FACTS</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+let AC=null,muted=false;
+function snd(t){if(muted||!AC)return;try{const g=AC.createGain(),ws=AC.createWaveShaper();const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}ws.curve=cv;ws.connect(AC.destination);g.connect(ws);const o=AC.createOscillator();o.connect(g);const p={write:[340,.08],read:[500,.06],wal:[400,.08],flush:[460,.07],compact:[280,.12],scan:[480,.06],vacuum:[220,.1],split:[360,.08],click:[360,.04]};const[f,d]=p[t]||[380,.05];o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+function hlSQL(l){let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');s=s.replace(/(--.*)/g,'<span class="cm">$1</span>');s=s.replace(/'([^']*)'/g,'<span class="str">\'$1\'</span>');s=s.replace(/\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|EXPLAIN|ANALYZE|CREATE|INDEX|ON|SET|BEGIN|COMMIT|ROLLBACK|VACUUM|ORDER|BY|LIMIT|AND|OR|NOT|IS|NULL|IN|JOIN|TABLE|VALUES|INTO)\b/gi,m=>'<span class="kw">'+m+'</span>');s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');return s;}
+function renderCode(lines,active){const el=document.getElementById('code-scroll');el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc">${hlSQL(l)}</span></div>`).join('');if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}}
+
+const SCENARIOS={
+  btree:{label:'B-TREE WRITE',
+    code:['-- PostgreSQL B-Tree index write path','','INSERT INTO users(id, name) VALUES (42, \'alice\');','','-- 1. WAL write (append-only, sequential IO)','--    LSN advances, record: "insert row (42, alice)"','-- 2. Shared buffer check','--    page in cache? → modify in-place','--    page not in cache? → read from disk (8KB page)','-- 3. Modify page in shared_buffers (RAM)','--    B-tree: traverse root → internal → leaf','--    leaf: insert key=42, pointer to heap','-- 4. If leaf FULL: page split','--    new page allocated, keys distributed 50/50','--    parent updated (may cascade)','-- 5. Page marked DIRTY in buffer pool','-- 6. Checkpoint: dirty pages flushed to disk'],
+    cx:`<strong>Insert</strong>: O(log N) tree traversal + O(1) WAL append<br><strong>Split</strong>: O(log N) cascade in worst case<br><strong>Page size</strong>: 8KB (PostgreSQL default)<br><strong>Write amp</strong>: 1 logical write = WAL + page modify + checkpoint flush`,
+    how:`B-Tree index maintains sorted order. Every INSERT/UPDATE/DELETE must update the index.<br><br><strong>WAL first</strong>: record always written to WAL before data page — durability guarantee. On crash, WAL replays to restore consistency.<br><br><strong>Page split</strong>: when a leaf page fills up, it's split into two. The split key is promoted to the parent node, which may cascade to the root (increasing tree height by 1 when root splits).<br><br>PostgreSQL uses <em>right-link pointers</em> for concurrent B-tree access (Lehman-Yao B-tree).`,
+    facts:`<span class="rw-tag">fill_factor</span> default 90% — leaves 10% space for updates without splits<br><span class="rw-tag">HOT update</span> Heap Only Tuple — update without index change if no indexed col changes<br><span class="rw-tag">B-Tree height</span> typical: 3–4 levels for millions of rows (fanout ~200)<br><span class="rw-tag">pg_buffercache</span> inspect which pages are in shared_buffers<br><span class="rw-tag">Write amp</span> B-tree: ~10x; LSM: ~30x write amp but better raw write throughput`,
+  },
+  lsm:{label:'LSM COMPACTION',
+    code:['-- LSM Tree (used by: RocksDB, Cassandra, LevelDB)','','-- Write path (O(1) — append only!):','-- 1. Write to WAL (crash recovery)','-- 2. Write to MemTable (in-memory sorted tree)','-- 3. Done! Return to caller. Fast write.','','-- MemTable flush (when full, ~64MB):','-- 4. MemTable frozen → Immutable MemTable','-- 5. Background flush: sorted SSTable to L0','','-- Compaction (background, tiered/leveled):','-- 6. L0 files accumulate (overlap allowed)','-- 7. Compact L0 → L1: merge-sort, dedupe','-- 8. L1 → L2 → L3: sorted, no overlap per level','--    Each level 10x larger than previous','','-- Read path:','-- Check MemTable → L0 → L1 → L2 → L3','-- Bloom filter: skip SSTable if key not present'],
+    cx:`<strong>Write</strong>: O(1) — append to MemTable<br><strong>Read</strong>: O(log N) per level × levels — bloom filter helps<br><strong>Write amp</strong>: ~10-30x (compaction rewrites data)<br><strong>Space amp</strong>: ~1.1x leveled (vs 2x B-tree during split)`,
+    how:`LSM (Log-Structured Merge) separates writes from disk layout.<br><br><strong>Levels</strong>: L0 (newest, unsorted), L1-LN (sorted, no key overlap within level). Each level is 10x larger.<br><br><strong>Compaction</strong>: merges SSTables, drops deleted keys (tombstones), eliminates duplicates. Leveled compaction = better read performance. Tiered = better write throughput.<br><br><strong>Bloom filter</strong>: per-SSTable probabilistic filter. 99% of "not found" reads skip disk IO entirely.`,
+    facts:`<span class="rw-tag">Tombstone</span> delete = write a marker, not actual deletion — cleaned in compaction<br><span class="rw-tag">Bloom filter</span> false positive rate = 1% at 10 bits/key — tune with bloom_bits<br><span class="rw-tag">RocksDB</span> used by: TiDB, CockroachDB, Cassandra, MyRocks, Kafka<br><span class="rw-tag">Read amp</span> worst case: check all levels; bloom filters reduce to ~1 disk IO<br><span class="rw-tag">STCS vs LCS</span> Size-Tiered (write-optimized) vs Leveled (read-optimized) compaction`,
+  },
+  wal:{label:'WAL WRITE PATH',
+    code:['-- WAL (Write-Ahead Log) guarantees durability','','BEGIN;','UPDATE accounts SET balance = balance - 100','  WHERE id = 1;   -- debit','UPDATE accounts SET balance = balance + 100','  WHERE id = 2;   -- credit','COMMIT;','','-- WAL sequence:','-- LSN 1001: BEGIN xid=5432','-- LSN 1002: UPDATE heap page 42, row 7, old=500 new=400','-- LSN 1003: UPDATE heap page 18, row 3, old=200 new=300','-- LSN 1004: COMMIT xid=5432','-- → fsync() on LSN 1004 before returning to client','','-- CRASH RECOVERY:','-- replay WAL from last checkpoint','-- committed xids: redo','-- incomplete xids: skip (rolled back automatically)'],
+    cx:`<strong>WAL write</strong>: sequential append — fastest disk pattern<br><strong>fsync</strong>: on COMMIT — 1-10ms latency (depends on disk)<br><strong>Checkpoint</strong>: dirty pages flushed, WAL can be truncated<br><strong>Recovery</strong>: O(WAL since checkpoint) on restart`,
+    how:`WAL provides <em>atomicity</em> and <em>durability</em> (the A and D in ACID).<br><br><strong>Write order</strong>: WAL record written and fsynced BEFORE the data page is modified on disk. Even if the server crashes mid-write, WAL has the record.<br><br><strong>Recovery</strong>: on restart, read WAL from last checkpoint. For each committed transaction, redo the changes to data pages. Uncommitted transactions are ignored (automatic rollback).<br><br>Checkpoints flush dirty buffers to disk, letting older WAL segments be recycled.`,
+    facts:`<span class="rw-tag">synchronous_commit=off</span> skip fsync — async commit, ~200µs faster, small loss window<br><span class="rw-tag">wal_level</span> minimal/replica/logical — affects what's logged<br><span class="rw-tag">max_wal_size</span> controls checkpoint frequency (default 1GB)<br><span class="rw-tag">pg_lsn</span> SELECT pg_current_wal_lsn() — check current position<br><span class="rw-tag">WAL shipping</span> streaming replication sends WAL to standbys in real time`,
+  },
+  scan:{label:'INDEX vs SEQ SCAN',
+    code:['-- Query planner: index scan vs sequential scan','','-- Scenario: 1M rows, status IN (\'active\',\'pending\')','EXPLAIN ANALYZE','SELECT * FROM orders WHERE status = \'completed\';','','-- Low selectivity (1% of rows):','-- → Index Scan (btree on status)','--   cost=0.43..8.45 rows=10000','--   Index Cond: status=\'completed\'','--   Heap Fetches: 10000 (random IO!)','','-- High selectivity (80% of rows):','-- → Seq Scan','--   cost=0..18334 rows=800000','--   Filter: status IN (\'active\', \'pending\')','--   sequential IO → much faster than 800K random IOs','','-- Index scan random IO cost: ~8ms × 10000 = 80s','-- Seq scan sequential IO: ~1ms/MB × 8GB = 8s','-- Planner uses statistics (pg_stats) to decide'],
+    cx:`<strong>Index scan</strong>: O(log N) find + O(k) heap fetches — k random IOs<br><strong>Seq scan</strong>: O(N) but sequential IO — 10-100x faster per byte than random<br><strong>Tipping point</strong>: ~5-15% selectivity (depends on table size, cache ratio)<br><strong>Index-only scan</strong>: covers all columns — no heap fetch needed`,
+    how:`The query planner compares estimated costs using table statistics.<br><br><strong>Random IO</strong>: ~8ms HDD, ~0.1ms SSD — index scan with many matches gets expensive fast.<br><strong>Sequential IO</strong>: ~100MB/s HDD, ~500MB/s SSD — scanning the whole table may be faster than 10K random reads.<br><br><strong>VACUUM</strong> updates visibility map — enables index-only scans by confirming pages are all-visible (no heap fetch needed for visible rows).<br><br>Statistics: <code>ANALYZE</code> samples ~300 values per column, builds histograms and correlation statistics.`,
+    facts:`<span class="rw-tag">EXPLAIN ANALYZE</span> actual rows vs estimated — large diff = stale stats<br><span class="rw-tag">ANALYZE</span> run after bulk load to update planner statistics<br><span class="rw-tag">correlation</span> pg_stats.correlation: -1 to 1 — how clustered data is on disk<br><span class="rw-tag">BRIN index</span>: block range index — ideal for naturally ordered data (timestamps)<br><span class="rw-tag">parallel seq scan</span>: PostgreSQL can parallelize seq scans across workers`,
+  },
+  vacuum:{label:'MVCC + VACUUM',
+    code:['-- MVCC: each UPDATE creates a NEW row version','','UPDATE users SET name = \'bob\' WHERE id = 1;','','-- Before UPDATE:','-- heap page: (xmin=100, xmax=0, name=\'alice\') ← live','','-- After UPDATE:','-- heap page: (xmin=100, xmax=200, name=\'alice\') ← dead','--             (xmin=200, xmax=0,   name=\'bob\')   ← live','-- dead tuple occupies space! causes table bloat','','-- VACUUM reclaims dead tuples:','VACUUM users;  -- non-blocking (no lock)','-- marks dead tuple space as reusable','-- updates visibility map (enables index-only scans)','-- does NOT return space to OS (use VACUUM FULL)','','VACUUM FULL users;  -- exclusive lock! rewrites table','-- returns space to OS','-- blocks all reads/writes during rewrite'],
+    cx:`<strong>UPDATE</strong>: O(1) write new version + mark old as dead<br><strong>VACUUM</strong>: O(dead tuples) — scans pages, reclaims space<br><strong>autovacuum</strong>: runs when dead_tuples > 20% + 50 rows<br><strong>bloat</strong>: dead tuple ratio = (dead / (live + dead))`,
+    how:`PostgreSQL MVCC: readers never block writers, writers never block readers. The cost is dead tuple accumulation.<br><br><strong>Transaction visibility</strong>: each row has <code>xmin</code> (created by) and <code>xmax</code> (deleted/updated by). A row is visible if xmin committed before your snapshot AND xmax is empty or committed after.<br><br><strong>VACUUM</strong> scans pages, marks tuples whose xmax is committed as dead (space reusable). It also updates the <em>visibility map</em> — once a page is all-visible, index-only scans skip the heap fetch.<br><br><strong>VACUUM FULL</strong>: rewrites the whole table. Exclusive lock. Avoid on production except during maintenance windows.`,
+    facts:`<span class="rw-tag">autovacuum</span> runs automatically — don't disable it<br><span class="rw-tag">pg_stat_user_tables</span> n_dead_tup / n_live_tup = bloat ratio<br><span class="rw-tag">transaction ID wraparound</span> VACUUM must run every ~2B transactions or DB freezes<br><span class="rw-tag">HOT chains</span> VACUUM prunes HOT chains (heap-only tuple updates)<br><span class="rw-tag">REINDEX CONCURRENTLY</span>: rebuild bloated index without locking (PostgreSQL 12+)`,
+  },
+};
+
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const w=document.getElementById('viz-wrap');CW=canvas.width=w.clientWidth;CH=canvas.height=w.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+
+/* ══════ STEP BUILDERS ══════ */
+function buildSteps(key){
+  const steps=[];
+  function snap(phase,desc,cl,state){steps.push({phase,desc,cl,...state});}
+
+  if(key==='btree'){
+    snap('init','B-Tree index write path. INSERT triggers WAL write, then B-tree traversal and page modification.',0,{tree:null,wal:[],dirty:[],io:0,pages:3,lsn:1000,dead:0,amp:'1x'});
+    snap('wal','Step 1: WAL record appended FIRST. "INSERT row id=42". Sequential disk write. LSN advances.',4,{tree:{nodes:[{id:'root',keys:['20','50'],hl:false,level:0},{id:'l1',keys:['5','10','15'],hl:false,level:1},{id:'l2',keys:['25','30','35'],hl:false,level:1},{id:'l3',keys:['55','60'],hl:false,level:1}],searching:null},wal:[{lsn:1001,op:'INSERT id=42',active:true}],io:1,pages:3,lsn:1001,dead:0,amp:'2x'});
+    snap('read','Step 2: Traverse B-tree from root. root.keys=[20,50]. 42 > 20 and 42 < 50 → go to middle child.',5,{tree:{nodes:[{id:'root',keys:['20','50'],hl:true,level:0},{id:'l1',keys:['5','10','15'],hl:false,level:1},{id:'l2',keys:['25','30','35'],hl:false,level:1},{id:'l3',keys:['55','60'],hl:false,level:1}],searching:'root→l2'},wal:[{lsn:1001,op:'INSERT id=42'}],io:2,pages:3,lsn:1001,dead:0,amp:'2x'});
+    snap('write','Step 3: Leaf page l2 found. Insert key=42 in sorted order. Page modified in shared_buffers (RAM).',11,{tree:{nodes:[{id:'root',keys:['20','50'],hl:false,level:0},{id:'l1',keys:['5','10','15'],hl:false,level:1},{id:'l2',keys:['25','30','35','42'],hl:true,level:1,dirty:true},{id:'l3',keys:['55','60'],hl:false,level:1}],searching:null},wal:[{lsn:1001,op:'INSERT id=42'},{lsn:1002,op:'MODIFY leaf page l2'}],io:3,pages:3,lsn:1002,dead:0,amp:'2x'});
+    snap('split','Page FULL scenario: leaf page overflows max keys. Split: distribute keys 50/50, promote middle key.',13,{tree:{nodes:[{id:'root',keys:['20','35','50'],hl:true,level:0,dirty:true},{id:'l1',keys:['5','10','15'],hl:false,level:1},{id:'l2a',keys:['25','30'],hl:true,level:1,dirty:true,splitting:true},{id:'l2b',keys:['35','40','42'],hl:true,level:1,dirty:true,new:true},{id:'l3',keys:['55','60'],hl:false,level:1}],searching:null},wal:[{lsn:1001,op:'INSERT id=42'},{lsn:1002,op:'MODIFY l2'},{lsn:1003,op:'SPLIT: new page + parent update',active:true}],io:5,pages:5,lsn:1003,dead:0,amp:'3x'});
+    triggerCA&&triggerCA();
+    snap('flush','Checkpoint: dirty pages flushed to disk. WAL can be truncated up to checkpoint LSN.',15,{tree:{nodes:[{id:'root',keys:['20','35','50'],hl:false,level:0},{id:'l1',keys:['5','10','15'],hl:false,level:1},{id:'l2a',keys:['25','30'],hl:false,level:1},{id:'l2b',keys:['35','40','42'],hl:false,level:1},{id:'l3',keys:['55','60'],hl:false,level:1}],searching:null},wal:[{lsn:1001,op:'INSERT id=42'},{lsn:1002,op:'MODIFY l2'},{lsn:1003,op:'SPLIT'},{lsn:1004,op:'CHECKPOINT ← WAL can be truncated here',active:true}],io:7,pages:5,lsn:1004,dead:0,amp:'3x'});
+  }
+
+  else if(key==='lsm'){
+    snap('init','LSM Tree write path. Writes go to MemTable (RAM) first — O(1) write regardless of data size.',0,{memtable:[],l0:[],l1:[],l2:[],tombstones:[],io:0,pages:0,lsn:0,dead:0,amp:'1x'});
+    snap('wal','WAL append: crash recovery record. Then MemTable write (RAM sorted tree). Return to caller.',0,{memtable:[{k:'k5',v:'v5',new:true},{k:'k12',v:'v12'},{k:'k8',v:'v8'}],l0:[],l1:[],l2:[],io:1,pages:0,lsn:1,dead:0,amp:'1x'});
+    snap('write','MemTable accumulates. O(1) writes. Sorted order maintained. Size: ~64MB before flush.',1,{memtable:[{k:'k2',v:'v2'},{k:'k5',v:'v5'},{k:'k8',v:'v8'},{k:'k12',v:'v12'},{k:'k15',v:'v15',new:true},{k:'k20',v:'del',tomb:true,new:true}],l0:[],l1:[],l2:[],io:2,pages:0,lsn:3,dead:1,amp:'1x'});
+    snap('flush','MemTable FULL (64MB). Frozen as immutable. Background goroutine flushes to L0 SSTable (sorted).',6,{memtable:[],l0:[{id:'sst0a',keys:['k2','k5','k8','k12','k15'],tomb:['k20'],new:true,bloom:true}],l1:[],l2:[],io:4,pages:2,lsn:3,dead:0,amp:'2x'});
+    snap('compact','L0 has 4 SSTables (key ranges OVERLAP allowed). Trigger compaction: merge-sort L0 → L1.',7,{memtable:[{k:'k30',v:'v30'}],l0:[{id:'sst0a',keys:['k2','k5','k8']},{id:'sst0b',keys:['k4','k6','k10']},{id:'sst0c',keys:['k1','k7','k11']},{id:'sst0d',keys:['k3','k9','k13'],compacting:true}],l1:[{id:'sst1a',keys:['k1'..'k13'],new:true,noOverlap:true}],l2:[],io:8,pages:6,lsn:5,dead:0,amp:'4x'});
+    triggerCA&&triggerCA();
+    snap('compact','L1 → L2 compaction: merges, deduplicates, drops tombstones. Each level 10x larger.',10,{memtable:[{k:'k30',v:'v30'},{k:'k31',v:'v31'}],l0:[{id:'sst0e',keys:['k30','k31']}],l1:[{id:'sst1b',keys:['k14'..'k40']}],l2:[{id:'sst2a',keys:['k1'..'k13'],from:'L1',new:true,compact:true}],io:14,pages:10,lsn:7,dead:0,amp:'8x'});
+    snap('read','Read path: MemTable → L0 (newest) → L1 → L2. Bloom filter skips SSTables that lack the key.',14,{memtable:[{k:'k30',v:'v30',search:true}],l0:[{id:'sst0e',keys:['k30'],bloom:'hit',hl:true}],l1:[{id:'sst1b',bloom:'skip'}],l2:[{id:'sst2a',bloom:'skip'}],io:15,pages:10,lsn:7,dead:0,amp:'8x'});
+  }
+
+  else if(key==='wal'){
+    snap('init','WAL (Write-Ahead Log): sequential append guarantees durability. ACID "D".',0,{txns:[],wal:[],buffers:[],checkpoint:null,io:0,pages:0,lsn:1000,dead:0,amp:'—'});
+    snap('wal','BEGIN transaction xid=5432. LSN 1001: begin record appended to WAL.',1,{txns:[{id:5432,state:'active',ops:[]}],wal:[{lsn:1001,op:'BEGIN xid=5432',col:'#60a5fa',active:true}],buffers:[],io:1,pages:0,lsn:1001,dead:0,amp:'seq'});
+    snap('wal','UPDATE accounts id=1: balance 500 → 400. WAL record: "UNDO=500, REDO=400, page=42, row=7".',3,{txns:[{id:5432,state:'active',ops:['UPDATE id=1: 500→400']}],wal:[{lsn:1001,op:'BEGIN xid=5432',col:'#60a5fa'},{lsn:1002,op:'UPDATE p42/r7 old=500 new=400',col:'#f97316',active:true}],buffers:[{page:42,row:7,old:500,new_:400,dirty:true,hl:true}],io:2,pages:1,lsn:1002,dead:0,amp:'seq'});
+    snap('wal','UPDATE accounts id=2: balance 200 → 300. WAL record: "UNDO=200, REDO=300, page=18, row=3".',4,{txns:[{id:5432,state:'active',ops:['UPDATE id=1: 500→400','UPDATE id=2: 200→300']}],wal:[{lsn:1001,op:'BEGIN xid=5432',col:'#60a5fa'},{lsn:1002,op:'UPDATE p42/r7: 500→400',col:'#f97316'},{lsn:1003,op:'UPDATE p18/r3: 200→300',col:'#f97316',active:true}],buffers:[{page:42,row:7,old:500,new_:400,dirty:true},{page:18,row:3,old:200,new_:300,dirty:true,hl:true}],io:3,pages:2,lsn:1003,dead:0,amp:'seq'});
+    snap('flush','COMMIT: WAL record written + fsync(). Client gets "OK" ONLY after fsync completes.',6,{txns:[{id:5432,state:'committed',ops:['UPDATE id=1','UPDATE id=2']}],wal:[{lsn:1001,op:'BEGIN',col:'#60a5fa'},{lsn:1002,op:'UPDATE p42',col:'#f97316'},{lsn:1003,op:'UPDATE p18',col:'#f97316'},{lsn:1004,op:'COMMIT xid=5432',col:'#4ade80',active:true,fsynced:true}],buffers:[{page:42,row:7,dirty:true},{page:18,row:3,dirty:true}],io:5,pages:2,lsn:1004,dead:0,amp:'seq'});
+    snap('write','Checkpoint: dirty buffers flushed to data files. WAL up to checkpoint LSN can be recycled.',0,{txns:[{id:5432,state:'committed',ops:[]}],wal:[{lsn:1001,op:'BEGIN',col:'rgba(96,165,250,.3)'},{lsn:1002,op:'UPDATE',col:'rgba(249,115,22,.3)'},{lsn:1003,op:'UPDATE',col:'rgba(249,115,22,.3)'},{lsn:1004,op:'COMMIT',col:'rgba(74,222,128,.3)'},{lsn:1005,op:'CHECKPOINT ← truncate before this',col:'#fbbf24',active:true}],buffers:[{page:42,dirty:false,flushed:true},{page:18,dirty:false,flushed:true}],io:7,pages:2,lsn:1005,dead:0,amp:'seq'});
+  }
+
+  else if(key==='scan'){
+    snap('init','Query planner: index scan vs seq scan. Decision based on estimated IO cost vs selectivity.',0,{query:null,plan:null,io:0,pages:0,lsn:0,dead:0,amp:'—',tableRows:1000000,selectivity:0});
+    snap('read','Table: orders, 1M rows, 8GB. Query: WHERE status=\'completed\' (1% of rows = 10K matches).',4,{query:"WHERE status='completed'",plan:null,io:0,pages:0,lsn:0,dead:0,amp:'—',tableRows:1000000,selectivity:0.01,indexRows:10000});
+    snap('read','Planner: 10K rows × random IO cost (4.0/page) = 40K cost units. Index scan cheaper.',4,{query:"WHERE status='completed'",plan:{type:'INDEX SCAN',index:'idx_orders_status',cost:'0.43..8450',rows:10000,ioType:'RANDOM'},io:10000,pages:10000,lsn:0,dead:0,amp:'random',tableRows:1000000,selectivity:0.01,indexRows:10000});
+    snap('scan','Different query: WHERE status IN (\'active\',\'pending\') — 80% of rows = 800K matches.',12,{query:"WHERE status IN ('active','pending')",plan:null,io:0,pages:0,lsn:0,dead:0,amp:'—',tableRows:1000000,selectivity:0.8,indexRows:800000});
+    snap('scan','Planner: 800K random IOs expensive. Sequential scan cheaper: read 8GB sequentially.',12,{query:"WHERE status IN ('active','pending')",plan:{type:'SEQ SCAN',cost:'0..18334',rows:800000,ioType:'SEQUENTIAL',note:'10-100x faster than 800K random reads'},io:1000,pages:65536,lsn:0,dead:0,amp:'seq',tableRows:1000000,selectivity:0.8,indexRows:800000});
+    snap('read','Index-only scan: SELECT status FROM orders WHERE id<1000. All columns in index → no heap fetch.',0,{query:"SELECT status FROM orders WHERE id < 1000",plan:{type:'INDEX ONLY SCAN',index:'idx_orders_id_status',cost:'0.43..50',rows:999,ioType:'INDEX ONLY',note:'visibility map: page all-visible → skip heap'},io:5,pages:5,lsn:0,dead:0,amp:'1x',tableRows:1000000,selectivity:0.001,indexRows:999});
+  }
+
+  else if(key==='vacuum'){
+    snap('init','MVCC: every UPDATE writes a new row version. Old versions accumulate as dead tuples.',0,{heap:[],deadCount:0,liveCount:0,io:0,pages:1,lsn:0,dead:0,amp:'—',vacuumRunning:false,visMap:false});
+    snap('write','Initial state: row id=1, xmin=100, xmax=0 (live). name=\'alice\'.',2,{heap:[{id:1,xmin:100,xmax:0,val:'alice',state:'live',hl:true}],deadCount:0,liveCount:1,io:1,pages:1,lsn:0,dead:0,amp:'1x',vacuumRunning:false,visMap:false});
+    snap('write','UPDATE id=1 SET name=\'bob\'. Old tuple: xmax=200 (dead). New tuple: xmin=200 (live). BOTH on heap.',3,{heap:[{id:1,xmin:100,xmax:200,val:'alice',state:'dead',hl:true},{id:1,xmin:200,xmax:0,val:'bob',state:'live',hl:true,new_:true}],deadCount:1,liveCount:1,io:2,pages:1,lsn:0,dead:1,amp:'2x',vacuumRunning:false,visMap:false});
+    snap('write','More updates. Dead tuples accumulate. Heap bloat grows. Index still points to dead tuples.',3,{heap:[{id:1,xmin:100,xmax:200,val:'alice',state:'dead'},{id:2,xmin:100,xmax:210,val:'carol',state:'dead'},{id:3,xmin:100,xmax:0,val:'dave',state:'live'},{id:1,xmin:200,xmax:220,val:'bob',state:'dead'},{id:2,xmin:210,xmax:0,val:'eve',state:'live'},{id:1,xmin:220,xmax:0,val:'charlie',state:'live',new_:true}],deadCount:3,liveCount:3,io:4,pages:2,lsn:0,dead:3,amp:'3x',vacuumRunning:false,visMap:false});
+    snap('vacuum','VACUUM triggered (autovacuum: dead > 20% + 50 rows). Scans pages, marks dead tuples reusable.',13,{heap:[{id:1,xmin:100,xmax:200,val:'alice',state:'reclaimed',hl:true},{id:2,xmin:100,xmax:210,val:'carol',state:'reclaimed',hl:true},{id:3,xmin:100,xmax:0,val:'dave',state:'live'},{id:1,xmin:200,xmax:220,val:'bob',state:'reclaimed',hl:true},{id:2,xmin:210,xmax:0,val:'eve',state:'live'},{id:1,xmin:220,xmax:0,val:'charlie',state:'live'}],deadCount:0,liveCount:3,io:6,pages:2,lsn:0,dead:0,amp:'—',vacuumRunning:true,visMap:false});
+    triggerCA&&triggerCA();
+    snap('flush','VACUUM done. Dead space freed (reusable). Visibility map updated. Index-only scans enabled.',15,{heap:[{id:3,xmin:100,xmax:0,val:'dave',state:'live'},{id:2,xmin:210,xmax:0,val:'eve',state:'live'},{id:1,xmin:220,xmax:0,val:'charlie',state:'live'},{id:'—',xmin:'-',xmax:'-',val:'[free]',state:'free'},{id:'—',xmin:'-',xmax:'-',val:'[free]',state:'free'},{id:'—',xmin:'-',xmax:'-',val:'[free]',state:'free'}],deadCount:0,liveCount:3,io:7,pages:2,lsn:0,dead:0,amp:'1x',vacuumRunning:false,visMap:true});
+  }
+
+  return steps;
+}
+
+/* ══════ RENDER ══════ */
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  switch(curScene){
+    case'btree': renderBtree(step); break;
+    case'lsm':   renderLSM(step);   break;
+    case'wal':   renderWAL(step);   break;
+    case'scan':  renderScan(step);  break;
+    case'vacuum':renderVacuum(step);break;
+  }
+}
+
+/* ─── B-TREE RENDER ─── */
+function renderBtree(step){
+  const PAD=14;
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`B-TREE  io=${step.io}  pages=${step.pages}  lsn=${step.lsn}  write_amp=${step.amp}`,PAD,4);
+  if(!step.tree)return;
+  const{nodes}=step.tree;
+  const levels=[[nodes.find(n=>n.id==='root')].filter(Boolean),nodes.filter(n=>n.level===1&&!n.id.startsWith('root'))];
+  const nodeW=Math.min(140,(CW-PAD*2)/Math.max(...levels.map(l=>l.length))-14);
+  const nodeH=38;
+  levels.forEach((level,li)=>{
+    const y=40+li*90;
+    const totalW=level.length*(nodeW+14)-14;
+    const startX=(CW-PAD*2-totalW)/2+PAD;
+    level.forEach((n,ni)=>{
+      if(!n)return;
+      const x=startX+ni*(nodeW+14);
+      const col=n.hl?(n.splitting?'#f97316':n.new?'#4ade80':'#fbbf24'):'rgba(255,178,41,.4)';
+      ctx.save();if(n.hl){ctx.shadowColor=col;ctx.shadowBlur=12;}
+      if(n.dirty){ctx.fillStyle=col+'22';}else{ctx.fillStyle='rgba(255,178,41,.06)';}
+      ctx.strokeStyle=col;ctx.lineWidth=n.hl?2:1;
+      ctx.fillRect(x,y,nodeW,nodeH);ctx.strokeRect(x,y,nodeW,nodeH);
+      ctx.font=`10px 'IBM Plex Mono'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+      const kstr=n.keys.join(' | ');
+      ctx.fillText(kstr.length>16?kstr.substring(0,16)+'..':kstr,x+nodeW/2,y+nodeH/2-5);
+      ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle=col+'88';
+      ctx.fillText(n.id+(n.dirty?' DIRTY':'')+(n.new?' NEW':''),x+nodeW/2,y+nodeH/2+9);
+      ctx.restore();
+      // connector to parent
+      if(li>0){
+        const root=levels[0][0];const rootX=PAD+(CW-PAD*2)/2;const rootY=40;
+        ctx.save();ctx.strokeStyle='rgba(255,178,41,.15)';ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(x+nodeW/2,y);ctx.lineTo(rootX,rootY+nodeH);ctx.stroke();ctx.restore();
+      }
+    });
+  });
+  // WAL strip
+  const wy=CH-step.wal.length*20-10;
+  ctx.font=`9px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.4)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('WAL',PAD,wy-14);
+  step.wal.forEach((w,i)=>{
+    const col=w.active?'#fbbf24':'rgba(255,178,41,.3)';
+    ctx.save();if(w.active){ctx.shadowColor='#fbbf24';ctx.shadowBlur=6;}
+    ctx.fillStyle=w.active?'rgba(251,191,36,.1)':'transparent';ctx.strokeStyle=col;ctx.lineWidth=w.active?1.5:1;
+    ctx.fillRect(PAD,wy+i*20,CW-PAD*2,18);ctx.strokeRect(PAD,wy+i*20,CW-PAD*2,18);
+    ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(`LSN ${w.lsn}: ${w.op}`,PAD+6,wy+i*20+9);ctx.restore();
+  });
+}
+
+/* ─── LSM RENDER ─── */
+function renderLSM(step){
+  const PAD=14;
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`LSM  io=${step.io}  pages=${step.pages}  lsn=${step.lsn}  write_amp=${step.amp}`,PAD,4);
+
+  const layers=[
+    {label:'MEMTABLE (RAM)',data:step.memtable||[],col:'#60a5fa',y:24,h:44},
+    {label:'L0 (SSTables, overlap OK)',data:step.l0||[],col:'#4ade80',y:80,h:44},
+    {label:'L1 (sorted, no overlap)',data:step.l1||[],col:'#a855f7',y:136,h:44},
+    {label:'L2 (10x larger)',data:step.l2||[],col:'#f97316',y:192,h:44},
+  ];
+  layers.forEach(lay=>{
+    ctx.save();ctx.font=`10px 'VT323'`;ctx.fillStyle=lay.col+'88';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(lay.label,PAD,lay.y);
+    const items=lay.data;
+    if(!items||items.length===0){
+      ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.1)';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText('(empty)',PAD,lay.y+12+lay.h/2);
+      ctx.restore();return;
+    }
+    const iw=Math.min(120,(CW-PAD*2)/items.length-8);
+    items.forEach((it,i)=>{
+      const ix=PAD+i*(iw+8);const iy=lay.y+14;
+      const isSearch=it.search||it.hl;
+      const col=it.compact?'#a855f7':it.new?'#4ade80':it.compacting?'#f97316':isSearch?'#fbbf24':lay.col;
+      ctx.save();if(it.new||isSearch){ctx.shadowColor=col;ctx.shadowBlur=8;}
+      ctx.fillStyle=col+'18';ctx.strokeStyle=col;ctx.lineWidth=it.new||isSearch?2:1;
+      ctx.fillRect(ix,iy,iw,lay.h);ctx.strokeRect(ix,iy,iw,lay.h);
+      ctx.font=`10px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='top';
+      if(it.id)ctx.fillText(it.id,ix+iw/2,iy+2);
+      ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle=col+'aa';ctx.textBaseline='middle';
+      const kl=Array.isArray(it.keys)?it.keys.slice(0,2).join(','):it.keys||'';
+      ctx.fillText(kl+(it.tomb?'✝':''),ix+iw/2,iy+lay.h/2+4);
+      if(it.bloom){ctx.fillStyle=it.bloom==='hit'?'#4ade80':'rgba(255,255,255,.2)';ctx.font=`7px 'Share Tech Mono'`;ctx.fillText('BF:'+it.bloom,ix+iw/2,iy+lay.h-5);}
+      if(it.tomb){ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='#f43f5e66';ctx.fillText('tomb',ix+iw/2,iy+lay.h-8);}
+      ctx.restore();
+    });
+    ctx.restore();
+  });
+
+  // legend
+  [['#60a5fa','MEMTABLE=RAM, O(1) write'],['#4ade80','SSTable=immutable sorted file'],['#f97316','COMPACTING'],['#a855f7','COMPACTED']].forEach(([c,t],i)=>{
+    ctx.fillStyle=c+'55';ctx.strokeStyle=c;ctx.lineWidth=1;ctx.fillRect(PAD,CH-50+i*12,8,8);ctx.strokeRect(PAD,CH-50+i*12,8,8);
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(t,PAD+12,CH-50+i*12);
+  });
+}
+
+/* ─── WAL RENDER ─── */
+function renderWAL(step){
+  const PAD=14;
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`WAL WRITE PATH  lsn=${step.lsn}  io=${step.io}`,PAD,4);
+
+  // WAL strip on left half
+  const wW=Math.min(CW*0.55-PAD,380);
+  ctx.font=`11px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.5)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('WAL (sequential disk)',PAD,22);
+  (step.wal||[]).forEach((w,i)=>{
+    const wy=38+i*24;const col=w.active?w.col||'#fbbf24':w.col||'rgba(255,178,41,.25)';
+    ctx.save();if(w.active){ctx.shadowColor=col;ctx.shadowBlur=8;}
+    ctx.fillStyle=w.fsynced?'rgba(74,222,128,.1)':w.active?col+'15':'transparent';
+    ctx.strokeStyle=col;ctx.lineWidth=w.active?1.5:1;
+    ctx.fillRect(PAD,wy,wW,20);ctx.strokeRect(PAD,wy,wW,20);
+    ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(`${w.lsn}: ${w.op}${w.fsynced?' ⟨FSYNCED⟩':''}`,PAD+4,wy+10);ctx.restore();
+  });
+
+  // Shared buffers on right
+  const bX=wW+PAD+20;
+  ctx.font=`11px 'VT323'`;ctx.fillStyle='rgba(96,165,250,.5)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('SHARED BUFFERS (RAM)',bX,22);
+  (step.buffers||[]).forEach((b,i)=>{
+    const by=38+i*36;const col=b.flushed?'rgba(74,222,128,.5)':b.hl?'#fbbf24':b.dirty?'#f97316':'rgba(96,165,250,.4)';
+    ctx.save();if(b.hl){ctx.shadowColor=col;ctx.shadowBlur=8;}
+    ctx.fillStyle=col+'18';ctx.strokeStyle=col;ctx.lineWidth=b.hl?2:1;
+    ctx.fillRect(bX,by,CW-bX-PAD,32);ctx.strokeRect(bX,by,CW-bX-PAD,32);
+    ctx.font=`10px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`page ${b.page} row ${b.row||'—'}`,bX+4,by+2);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col+'aa';ctx.textBaseline='middle';
+    const st=b.flushed?'FLUSHED to disk':b.dirty?`DIRTY: ${b.old||''}→${b.new_||''}`:b.new_?`${b.old}→${b.new_}`:'—';
+    ctx.fillText(st,bX+4,by+22);ctx.restore();
+  });
+
+  // txn panel
+  if(step.txns&&step.txns.length){
+    const t=step.txns[0];
+    const ty=CH-44;
+    const col=t.state==='committed'?'#4ade80':t.state==='active'?'#fbbf24':'#f97316';
+    ctx.save();ctx.fillStyle=col+'12';ctx.strokeStyle=col;ctx.lineWidth=1;
+    ctx.fillRect(PAD,ty,CW-PAD*2,36);ctx.strokeRect(PAD,ty,CW-PAD*2,36);
+    ctx.font=`12px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(`TXN xid=${t.id}  state=${t.state.toUpperCase()}  ops: ${t.ops.join(', ')||'none'}`,PAD+6,ty+18);ctx.restore();
+  }
+}
+
+/* ─── SCAN RENDER ─── */
+function renderScan(step){
+  const PAD=14;
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`QUERY PLANNER  table=orders rows=${(step.tableRows||0).toLocaleString()}  selectivity=${((step.selectivity||0)*100).toFixed(1)}%`,PAD,4);
+
+  if(step.query){
+    ctx.save();ctx.font=`12px 'IBM Plex Mono'`;ctx.fillStyle='#fbbf24';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('QUERY: '+step.query,PAD,22);ctx.restore();
+  }
+
+  // Table strip
+  const tY=44,tW=CW-PAD*2,tH=30;
+  const sel=step.selectivity||0;
+  ctx.save();ctx.fillStyle='rgba(255,178,41,.05)';ctx.strokeStyle='rgba(255,178,41,.2)';ctx.lineWidth=1;
+  ctx.fillRect(PAD,tY,tW,tH);ctx.strokeRect(PAD,tY,tW,tH);
+  // highlight matching portion
+  const plan=step.plan;
+  const matchW=tW*sel;
+  const col=plan&&plan.type==='SEQ SCAN'?'#22d3ee':plan?'#60a5fa':'rgba(255,178,41,.3)';
+  ctx.fillStyle=col+'30';ctx.fillRect(PAD,tY,matchW,tH);
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.4)';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`orders table: ${(step.tableRows||0).toLocaleString()} rows  (${(sel*100).toFixed(0)}% match = ${(step.indexRows||0).toLocaleString()} rows)`,PAD+tW/2,tY+tH/2);
+  ctx.restore();
+
+  // Plan box
+  if(plan){
+    const pY=90,pH=100;
+    const pcol=plan.type==='SEQ SCAN'?'#22d3ee':plan.type.includes('ONLY')?'#4ade80':'#60a5fa';
+    ctx.save();ctx.shadowColor=pcol;ctx.shadowBlur=12;
+    ctx.fillStyle=pcol+'14';ctx.strokeStyle=pcol;ctx.lineWidth=2;
+    ctx.fillRect(PAD,pY,tW,pH);ctx.strokeRect(PAD,pY,tW,pH);
+    ctx.font=`20px 'VT323'`;ctx.fillStyle=pcol;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(plan.type,PAD+8,pY+4);
+    ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=pcol+'aa';ctx.textBaseline='top';
+    if(plan.index)ctx.fillText('index: '+plan.index,PAD+8,pY+28);
+    ctx.fillText('cost: '+plan.cost,PAD+8,pY+44);
+    ctx.fillText('rows: '+plan.rows,PAD+8,pY+58);
+    ctx.fillText('io_type: '+plan.ioType,PAD+8,pY+72);
+    if(plan.note){ctx.fillStyle=pcol+'66';ctx.fillText('note: '+plan.note,PAD+8,pY+86);}
+    ctx.restore();
+  }
+
+  // IO comparison bar
+  const barY=CH-60;
+  ctx.font=`10px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.4)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('COST COMPARISON',PAD,barY);
+  const bars=[
+    {label:'random IO (index scan)',cost:step.io,max:10000,col:'#f97316'},
+    {label:'sequential IO (seq scan)',cost:Math.min(step.pages,1000),max:1000,col:'#22d3ee'},
+  ];
+  bars.forEach((b,i)=>{
+    const by=barY+14+i*18,bw=(CW-PAD*2-160)*Math.min(b.cost/b.max,1);
+    ctx.fillStyle=b.col+'44';ctx.strokeStyle=b.col+'88';ctx.lineWidth=1;
+    ctx.fillRect(PAD+150,by,bw||2,12);ctx.strokeRect(PAD+150,by,CW-PAD*2-150,12);
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle=b.col+'99';ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(b.label,PAD,by+6);
+  });
+}
+
+/* ─── VACUUM RENDER ─── */
+function renderVacuum(step){
+  const PAD=14;
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`MVCC+VACUUM  live=${step.liveCount||0}  dead=${step.deadCount||0}  vis_map=${step.visMap?'updated':'—'}`,PAD,4);
+
+  if(step.vacuumRunning){
+    ctx.save();ctx.fillStyle='rgba(168,85,247,.05)';ctx.fillRect(0,0,CW,CH);
+    ctx.font=`16px 'VT323'`;ctx.fillStyle='rgba(168,85,247,.4)';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('VACUUM RUNNING (non-blocking)',CW/2,16);ctx.restore();
+  }
+
+  const rows=step.heap||[];
+  const cols=3,rW=(CW-PAD*2)/cols-10,rH=54;
+  rows.forEach((r,i)=>{
+    const rx=PAD+(i%cols)*(rW+10),ry=28+Math.floor(i/cols)*(rH+8);
+    const col=r.state==='dead'?'#f43f5e':r.state==='reclaimed'?'rgba(168,85,247,.5)':r.state==='free'?'rgba(255,255,255,.1)':r.hl?'#fbbf24':'#4ade80';
+    ctx.save();if(r.new_||r.hl){ctx.shadowColor=col;ctx.shadowBlur=8;}
+    ctx.fillStyle=col+'14';ctx.strokeStyle=col;ctx.lineWidth=r.hl?2:1;
+    if(r.state==='dead')ctx.setLineDash([3,3]);
+    ctx.fillRect(rx,ry,rW,rH);ctx.strokeRect(rx,ry,rW,rH);ctx.setLineDash([]);
+    ctx.font=`11px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`id=${r.id} → ${r.val}`,rx+4,ry+2);
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle=col+'99';
+    ctx.fillText(`xmin=${r.xmin} xmax=${r.xmax}`,rx+4,ry+18);
+    ctx.fillText(r.state.toUpperCase()+(r.new_?' (NEW)':''),rx+4,ry+30);
+    if(r.state==='dead')ctx.fillText('⚰ dead tuple',rx+4,ry+42);
+    if(r.state==='reclaimed')ctx.fillText('♻ space reclaimed',rx+4,ry+42);
+    if(r.state==='free')ctx.fillText('□ free slot',rx+4,ry+42);
+    ctx.restore();
+  });
+
+  // visibility map indicator
+  if(step.visMap){
+    const vY=CH-28;
+    ctx.save();ctx.fillStyle='rgba(74,222,128,.12)';ctx.strokeStyle='#4ade80';ctx.lineWidth=1;
+    ctx.fillRect(PAD,vY,CW-PAD*2,22);ctx.strokeRect(PAD,vY,CW-PAD*2,22);
+    ctx.font=`11px 'VT323'`;ctx.fillStyle='#4ade80';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('VISIBILITY MAP UPDATED — index-only scans enabled (no heap fetch needed)',CW/2,vY+11);ctx.restore();
+  }
+}
+
+/* ══════ PLAYBACK ══════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:520};
+let curScene='btree';
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  const phase=step.phase||'init';
+  badge.className='pbadge '+phase;badge.textContent=phase.toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-io').textContent=step.io||0;
+  document.getElementById('s-pages').textContent=step.pages||0;
+  document.getElementById('s-lsn').textContent=step.lsn||0;
+  document.getElementById('s-dead').textContent=step.dead||step.deadCount||0;
+  document.getElementById('s-amp').textContent=step.amp||'—';
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SCENARIOS[curScene].code,step.cl>=0?step.cl:-1);
+  if(phase&&phase!=='init')snd(phase);
+  if(phase==='split'||phase==='compact')triggerCA();
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){if(!ST.steps.length)return;if(ST.idx>=ST.steps.length-1)ST.idx=0;ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENARIOS[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  if(ST.playing)pause();
+  ST.steps=buildSteps(key);ST.idx=0;
+  if(ST.steps.length){applyStep(ST.steps[0]);setTimeout(()=>play(),300);}
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectScene('btree');break;case'2':selectScene('lsm');break;
+    case'3':selectScene('wal');break;case'4':selectScene('scan');break;
+    case'5':selectScene('vacuum');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['btree','1. B-TREE WRITE'],['lsm','2. LSM COMPACT'],['wal','3. WAL PATH'],['scan','4. INDEX vs SEQ'],['vacuum','5. MVCC+VACUUM']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+
+function boot(){
+  const term=document.getElementById('boot-terminal');const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'DB.VIZ v1.0 — INITIALIZING...',s:'',d:180},
+    {t:'LOADING: BTREE.MOD (Lehman-Yao, fill_factor=90)',s:'OK',d:120},
+    {t:'LOADING: LSM.MOD (RocksDB leveled compaction)',s:'OK',d:120},
+    {t:'LOADING: WAL.MOD (fsync, checkpoint, recovery)',s:'OK',d:120},
+    {t:'LOADING: SCAN.MOD (planner cost model)',s:'OK',d:120},
+    {t:'LOADING: VACUUM.MOD (MVCC, dead tuples, vismap)',s:'OK',d:120},
+    {t:'DATABASE INTERNALS ONLINE.',s:'',d:200},
+  ];
+  let li=0;
+  function al(){if(li>=lines.length){setTimeout(sa,300);return;}const bl=lines[li];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));fill.style.width=Math.round((li/lines.length)*100)+'%';li++;setTimeout(al,bl.d);}al();
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();const sc=SCENARIOS['btree'];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);window.addEventListener('resize',resizeCanvas);resizeCanvas();setTimeout(()=>selectScene('btree'),300);if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,1758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEARCH.EXE v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060501;
+  --amber: #ffb229;
+  --amber-dim: #c47e00;
+  --amber-faint: rgba(255,178,41,0.15);
+  --green: #4ade80;
+  --red: #f43f5e;
+  --purple: #a855f7;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+  --pink: #ec4899;
+  --font-logo: 'VT323', monospace;
+  --font-ui: 'Share Tech Mono', monospace;
+  --font-code: 'IBM Plex Mono', monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+
+/* CRT vignette + bloom */
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,0.88) 100%);pointer-events:none;z-index:9000;}
+body::after{content:'';position:fixed;inset:0;box-shadow:inset 0 0 140px rgba(255,178,41,0.07);pointer-events:none;z-index:9001;}
+
+/* CRT flicker */
+@keyframes crt-flicker{
+  0%{filter:brightness(1) contrast(1.04);}
+  91%{filter:brightness(1) contrast(1.04);}
+  92%{filter:brightness(0.88) contrast(1.12);}
+  93%{filter:brightness(1) contrast(1.04);}
+  96%{filter:brightness(0.94) contrast(1.07);}
+  97%{filter:brightness(1.02) contrast(1.04);}
+  100%{filter:brightness(1) contrast(1.04);}
+}
+
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+
+/* Scanline */
+#scanline{position:fixed;top:0;left:0;right:0;height:4px;background:linear-gradient(to bottom,transparent,rgba(255,178,41,0.05),transparent);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-4px;}to{top:100vh;}}
+
+/* Noise canvas */
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.04;}
+
+/* CA overlay */
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim 0.28s ease forwards;}
+@keyframes ca-anim{
+  0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,0.25),inset 3px 0 0 rgba(30,80,255,0.25);}
+  100%{opacity:0;}
+}
+
+/* BOOT SCREEN */
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber),0 0 80px rgba(255,178,41,0.3);letter-spacing:10px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-family:var(--font-ui);font-size:14px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity 0.1s;}
+.bl.show{opacity:1;}
+.bl-ok{color:#4ade80;}
+.bl-warn{color:#f59e0b;}
+.bl-err{color:#f43f5e;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,0.1);border:1px solid rgba(255,178,41,0.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width 0.08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,0.3);letter-spacing:3px;}
+#boot-cursor{display:inline-block;width:10px;height:16px;background:var(--amber);animation:bcursor 0.7s step-end infinite;vertical-align:middle;margin-left:4px;}
+@keyframes bcursor{50%{opacity:0;}}
+
+/* MAIN APP */
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn 0.6s ease;}
+
+/* HEADER */
+#header{display:flex;align-items:center;gap:12px;padding:6px 16px;border-bottom:1px solid rgba(255,178,41,0.18);background:rgba(0,0,0,0.5);flex-shrink:0;}
+#logo{font-family:var(--font-logo);font-size:34px;color:var(--amber);text-shadow:0 0 20px var(--amber);letter-spacing:5px;flex-shrink:0;}
+#algo-tabs{display:flex;gap:4px;flex-wrap:wrap;flex:1;}
+.atab{font-family:var(--font-ui);font-size:10px;padding:4px 10px;border:1px solid rgba(255,178,41,0.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;transition:all 0.12s;}
+.atab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,0.05);}
+.atab.active{border-color:var(--amber);background:rgba(255,178,41,0.11);color:var(--amber);box-shadow:0 0 8px rgba(255,178,41,0.25);}
+#snd-btn{font-size:16px;background:transparent;border:1px solid rgba(255,178,41,0.25);color:var(--amber);padding:4px 8px;cursor:pointer;flex-shrink:0;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+
+/* LEFT PANEL */
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,0.12);}
+
+/* VIZ AREA */
+#viz{flex:1;position:relative;overflow:hidden;padding:14px;}
+
+/* Target badge */
+#tgt-badge{position:absolute;top:10px;left:14px;font-family:var(--font-ui);font-size:12px;color:var(--amber);border:1px solid rgba(255,178,41,0.35);padding:3px 10px;background:rgba(0,0,0,0.7);z-index:10;letter-spacing:1px;}
+#tgt-btn{position:absolute;top:10px;left:166px;font-family:var(--font-ui);font-size:10px;color:var(--amber-dim);border:1px solid rgba(255,178,41,0.2);padding:3px 8px;background:transparent;cursor:pointer;z-index:10;letter-spacing:1px;}
+#tgt-btn:hover{color:var(--amber);border-color:rgba(255,178,41,0.45);}
+
+/* Formula overlay */
+#formula{position:absolute;top:10px;right:10px;font-family:var(--font-code);font-size:10px;color:rgba(236,72,153,0.75);background:rgba(0,0,0,0.8);border:1px solid rgba(236,72,153,0.25);padding:7px 10px;max-width:260px;line-height:1.6;display:none;z-index:10;}
+
+/* Queue/Stack display */
+#qs-display{position:absolute;bottom:30px;right:8px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;z-index:10;}
+#qs-label{font-size:9px;color:var(--amber-dim);letter-spacing:2px;}
+#qs-items{display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;max-width:220px;}
+.qs-item{font-family:var(--font-logo);font-size:13px;padding:2px 6px;border:1px solid rgba(96,165,250,0.4);color:#93c5fd;background:rgba(96,165,250,0.07);}
+.qs-item.stk{border-color:rgba(236,72,153,0.4);color:#f9a8d4;background:rgba(236,72,153,0.07);}
+
+/* BAR CHART */
+#bars{display:flex;align-items:flex-end;height:100%;gap:3px;padding-bottom:24px;}
+.bar{flex:1;min-width:6px;border-radius:2px 2px 0 0;background:linear-gradient(to top,rgba(255,178,41,0.28),rgba(255,178,41,0.1));border:1px solid rgba(255,178,41,0.18);transition:height 0.12s ease;position:relative;}
+.bar.comparing{background:linear-gradient(to top,#f59e0b,#fbbf24);border-color:#f59e0b;box-shadow:0 0 14px rgba(245,158,11,0.7);animation:bar-cmp 0.25s ease;}
+.bar.found{background:linear-gradient(to top,#059669,#34d399);border-color:#10b981;box-shadow:0 0 24px rgba(16,185,129,0.9);animation:bar-found 0.5s ease;}
+.bar.miss{background:linear-gradient(to top,#be123c,#fb7185);border-color:#f43f5e;box-shadow:0 0 12px rgba(244,63,94,0.6);}
+.bar.lo{background:linear-gradient(to top,#2563eb,#93c5fd);border-color:#60a5fa;box-shadow:0 0 10px rgba(96,165,250,0.5);}
+.bar.hi{background:linear-gradient(to top,#ea580c,#fb923c);border-color:#f97316;box-shadow:0 0 10px rgba(249,115,22,0.5);}
+.bar.mid{background:linear-gradient(to top,#7c3aed,#c084fc);border-color:#a855f7;box-shadow:0 0 18px rgba(168,85,247,0.8);animation:bar-mid 0.35s ease;}
+.bar.range{background:linear-gradient(to top,rgba(255,178,41,0.4),rgba(255,178,41,0.18));border-color:rgba(255,178,41,0.35);}
+.bar.eliminated{background:rgba(30,30,30,0.5);border-color:rgba(80,80,80,0.15);opacity:0.3;}
+.bar.jump{background:linear-gradient(to top,#0e7490,#22d3ee);border-color:#06b6d4;box-shadow:0 0 12px rgba(6,182,212,0.6);}
+.bar.probe{background:linear-gradient(to top,#9d174d,#f472b6);border-color:#ec4899;box-shadow:0 0 16px rgba(236,72,153,0.8);animation:bar-probe 0.35s ease;}
+.bar.exp-bound{background:linear-gradient(to top,#15803d,#86efac);border-color:#4ade80;box-shadow:0 0 10px rgba(74,222,128,0.6);}
+@keyframes bar-cmp{0%{transform:scaleY(1);}50%{transform:scaleY(1.04);filter:brightness(1.7);}100%{transform:scaleY(1);}}
+@keyframes bar-found{0%{transform:scaleY(1)scaleX(1);}30%{transform:scaleY(1.18)scaleX(1.12);filter:brightness(2.8);}60%{transform:scaleY(0.96)scaleX(1.06);}100%{transform:scaleY(1)scaleX(1);}}
+@keyframes bar-mid{0%{transform:translateY(0);}40%{transform:translateY(-16px);filter:brightness(2.2);}100%{transform:translateY(0);}}
+@keyframes bar-probe{0%{transform:scaleX(1);}50%{transform:scaleX(1.14);filter:brightness(2);}100%{transform:scaleX(1);}}
+
+/* GRAPH SVG area */
+#graph-svg{display:none;width:100%;height:100%;}
+.g-edge{stroke:rgba(255,178,41,0.14);stroke-width:1.5;transition:all 0.2s;}
+.g-edge.active{stroke:rgba(255,178,41,0.5);stroke-width:2;}
+.g-edge.path-e{stroke:#a855f7;stroke-width:3;filter:drop-shadow(0 0 5px rgba(168,85,247,0.7));}
+.g-node circle{fill:rgba(255,178,41,0.06);stroke:rgba(255,178,41,0.28);stroke-width:1.5;r:22;transition:all 0.2s;}
+.g-node.visited circle{fill:rgba(16,185,129,0.18);stroke:#10b981;filter:drop-shadow(0 0 6px rgba(16,185,129,0.5));}
+.g-node.current circle{fill:rgba(245,158,11,0.28);stroke:#f59e0b;r:24;filter:drop-shadow(0 0 12px rgba(245,158,11,0.9));}
+.g-node.queued circle{fill:rgba(96,165,250,0.14);stroke:#60a5fa;}
+.g-node.stacked circle{fill:rgba(236,72,153,0.14);stroke:#ec4899;}
+.g-node.path-n circle{fill:rgba(168,85,247,0.28);stroke:#a855f7;r:24;filter:drop-shadow(0 0 10px rgba(168,85,247,0.8));}
+.g-node.backtrack circle{fill:rgba(249,115,22,0.18);stroke:#f97316;}
+.g-node.start-n circle{fill:rgba(16,185,129,0.22);stroke:#10b981;stroke-width:2.5;}
+.g-node.end-n circle{fill:rgba(244,63,94,0.22);stroke:#f43f5e;stroke-width:2.5;}
+.g-node text{fill:var(--amber);font-family:var(--font-logo);font-size:17px;dominant-baseline:central;text-anchor:middle;pointer-events:none;}
+.g-node.current text,.g-node.path-n text{font-size:18px;}
+
+/* GRID (A*) */
+#grid-area{display:none;width:100%;height:100%;align-items:center;justify-content:center;}
+#grid-wrap{display:grid;}
+.gcell{border:1px solid rgba(255,178,41,0.1);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--font-code);position:relative;transition:background 0.15s,box-shadow 0.15s;}
+.gcell.empty{}
+.gcell.wall{background:rgba(255,178,41,0.04);}
+.gcell.wall::after{content:'▓';font-size:18px;color:rgba(255,178,41,0.12);}
+.gcell.open-s{background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.35);box-shadow:inset 0 0 8px rgba(245,158,11,0.15);}
+.gcell.closed-s{background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.25);}
+.gcell.curr-c{background:rgba(245,158,11,0.28);border-color:#f59e0b;box-shadow:0 0 14px rgba(245,158,11,0.65);}
+.gcell.path-c{background:rgba(168,85,247,0.22);border-color:#a855f7;box-shadow:0 0 10px rgba(168,85,247,0.5);}
+.gcell.start-c{background:rgba(16,185,129,0.25);border-color:#10b981;}
+.gcell.end-c{background:rgba(244,63,94,0.25);border-color:#f43f5e;}
+.cf{color:var(--amber);font-size:11px;font-weight:500;line-height:1;}
+.cgh{color:rgba(255,178,41,0.38);font-size:7.5px;line-height:1.2;}
+.c-lbl{position:absolute;top:2px;left:3px;font-size:8px;color:rgba(255,178,41,0.25);}
+
+/* PROGRESS BAR */
+#prog-wrap{height:2px;background:rgba(255,178,41,0.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,0.25),var(--amber));box-shadow:0 0 6px rgba(255,178,41,0.4);transition:width 0.12s linear;}
+
+/* STEP DESC */
+#step-desc{padding:7px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid rgba(255,178,41,0.09);background:rgba(0,0,0,0.32);min-height:38px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:17px;padding:2px 9px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.compare{color:#f59e0b;border-color:#f59e0b;background:rgba(245,158,11,0.09);}
+.pbadge.found{color:#10b981;border-color:#10b981;background:rgba(16,185,129,0.09);}
+.pbadge.miss{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,0.09);}
+.pbadge.visit{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,0.09);}
+.pbadge.backtrack{color:#f97316;border-color:#f97316;background:rgba(249,115,22,0.09);}
+.pbadge.path{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,0.09);}
+.pbadge.recurse{color:#ec4899;border-color:#ec4899;background:rgba(236,72,153,0.09);}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);background:rgba(255,178,41,0.04);}
+#step-txt{font-size:11px;color:rgba(255,178,41,0.65);flex:1;font-family:var(--font-ui);}
+
+/* STATS */
+#stats{display:flex;gap:20px;padding:5px 14px;border-top:1px solid rgba(255,178,41,0.09);background:rgba(0,0,0,0.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:7px;align-items:baseline;}
+.sl{font-size:9px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:var(--font-logo);font-size:22px;color:var(--amber);text-shadow:0 0 8px rgba(255,178,41,0.4);}
+
+/* CONTROLS */
+#controls{display:flex;align-items:center;gap:8px;padding:7px 14px;border-top:1px solid rgba(255,178,41,0.13);background:rgba(0,0,0,0.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:17px;padding:4px 11px;border:1px solid rgba(255,178,41,0.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all 0.1s;}
+.cbtn:hover{background:rgba(255,178,41,0.08);box-shadow:0 0 8px rgba(255,178,41,0.25);}
+.cbtn:active{filter:brightness(1.4);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:22px;background:rgba(255,178,41,0.13);}
+.sw{display:flex;align-items:center;gap:5px;}
+.sl2{font-size:9px;color:var(--amber-dim);letter-spacing:1px;}
+input[type=range]{-webkit-appearance:none;appearance:none;width:80px;height:2px;background:rgba(255,178,41,0.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--amber);cursor:pointer;box-shadow:0 0 5px rgba(255,178,41,0.5);}
+#step-ctr{font-family:var(--font-logo);font-size:17px;color:var(--amber-dim);margin-left:auto;}
+
+/* KB HINTS */
+#kbhints{display:flex;gap:14px;padding:3px 14px;background:rgba(0,0,0,0.38);border-top:1px solid rgba(255,178,41,0.06);flex-shrink:0;}
+.kbh{font-size:9px;color:rgba(255,178,41,0.3);}
+.kbk{border:1px solid rgba(255,178,41,0.2);padding:0 3px;font-size:8px;}
+
+/* RIGHT PANEL */
+#right{width:378px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,0.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,0.09);}
+.phdr{font-family:var(--font-logo);font-size:13px;letter-spacing:3px;color:var(--amber-dim);padding:5px 11px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,178,41,0.07);}
+
+/* CODE */
+#code-scroll{overflow-y:auto;max-height:195px;padding:6px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:10.5px;line-height:1.72;padding:0 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,0.09);}
+.cline.active .code-content{position:relative;}
+.cline.active .code-content::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,0.5),1px 0 1px rgba(50,80,255,0.5);pointer-events:none;}
+.ln{color:rgba(255,178,41,0.18);width:22px;text-align:right;margin-right:10px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}
+.ty{color:#e5c07b;}
+.str{color:#98c379;}
+.nm{color:#d19a66;}
+.fn{color:#61afef;}
+.cm{color:#4b5263;font-style:italic;}
+
+/* COMPLEXITY TABLE */
+.cx-tbl{width:100%;border-collapse:collapse;font-size:10.5px;}
+.cx-tbl th{padding:5px 8px;font-family:var(--font-ui);color:var(--amber-dim);letter-spacing:1.5px;font-size:8.5px;border-bottom:1px solid rgba(255,178,41,0.13);text-align:left;}
+.cx-tbl td{padding:5px 8px;font-family:var(--font-code);border-bottom:1px solid rgba(255,178,41,0.05);}
+.cx-best{color:#10b981;}
+.cx-avg{color:var(--amber);}
+.cx-worst{color:#f43f5e;}
+.cx-spc{color:#60a5fa;}
+.cx-note{color:rgba(255,178,41,0.45);font-size:9.5px;}
+
+/* RIGHT SCROLL */
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.18);}
+.legend-wrap{display:flex;flex-wrap:wrap;gap:7px;padding:8px 11px;}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:9.5px;color:rgba(255,178,41,0.55);}
+.leg-dot{width:10px;height:10px;border-radius:1px;}
+.use-list{padding:7px 11px;display:flex;flex-direction:column;gap:4px;}
+.use-item{font-size:10.5px;line-height:1.5;display:flex;gap:5px;}
+.use-item.good{color:#86efac;}
+.use-item.bad{color:#fca5a5;}
+.use-item .bu{flex-shrink:0;}
+.rw{padding:8px 11px;font-size:10.5px;color:rgba(255,178,41,0.48);line-height:1.65;border-top:1px solid rgba(255,178,41,0.07);}
+.rw strong{color:var(--amber-dim);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,0.08);border:1px solid rgba(255,178,41,0.2);padding:1px 6px;margin:1px 2px;font-size:9.5px;color:rgba(255,178,41,0.6);}
+
+/* SCROLLBAR GLOBAL */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scanline"></div>
+<div id="ca-overlay"></div>
+
+<!-- BOOT -->
+<div id="boot">
+  <div id="boot-logo">SEARCH.EXE</div>
+  <div id="boot-tagline">ALGORITHM VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="crt-wrap">
+<div id="main">
+  <!-- HEADER -->
+  <div id="header">
+    <div id="logo">SEARCH.EXE</div>
+    <div id="algo-tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <!-- PANELS -->
+  <div id="panels">
+    <!-- LEFT -->
+    <div id="left">
+      <div id="viz">
+        <div id="tgt-badge">TARGET: --</div>
+        <button id="tgt-btn" onclick="newTarget()">⟳ NEW TARGET</button>
+        <div id="formula"></div>
+        <div id="qs-display"><span id="qs-label"></span><div id="qs-items"></div></div>
+        <!-- BAR CHART -->
+        <div id="bars"></div>
+        <!-- GRAPH -->
+        <svg id="graph-svg" viewBox="0 0 560 290" preserveAspectRatio="xMidYMid meet"></svg>
+        <!-- GRID (A*) -->
+        <div id="grid-area"><div id="grid-wrap"></div></div>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Initializing...</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">COMPARISONS</span><span class="sv" id="s-cmp">0</span></div>
+        <div class="si"><span class="sl">STEPS</span><span class="sv" id="s-stp">0</span></div>
+        <div class="si"><span class="sl">DEPTH</span><span class="sv" id="s-dep">0</span></div>
+        <div class="si"><span class="sl">PASS</span><span class="sv" id="s-pas">0</span></div>
+        <div class="si" style="margin-left:auto"><span class="sl">N</span><span class="sv" id="s-n">14</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <button class="cbtn" id="shuf-btn" onclick="doShuffle()">⇄ SHUFFLE</button>
+        <button class="cbtn" id="sort-btn" onclick="doSort()">↑ SORTED</button>
+        <button class="cbtn" id="rev-btn" onclick="doReverse()">↓ REVERSED</button>
+        <div class="csep"></div>
+        <div class="sw"><span class="sl2">SIZE</span>
+          <input type="range" id="sz-sl" min="8" max="32" value="14" oninput="changeSize(this.value)">
+          <span class="sl2" id="sz-val">14</span></div>
+        <div class="sw"><span class="sl2">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)"></div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play/Pause</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">S</span> Shuffle</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–8</span> Select Algo</span>
+      </div>
+    </div>
+    <!-- RIGHT -->
+    <div id="right">
+      <div class="psec">
+        <div class="phdr">▸ GO SOURCE CODE</div>
+        <div id="code-scroll"></div>
+      </div>
+      <div class="psec">
+        <div class="phdr">▸ COMPLEXITY</div>
+        <table class="cx-tbl"><thead><tr><th>BEST</th><th>AVG</th><th>WORST</th><th>SPACE</th><th>NOTES</th></tr></thead>
+        <tbody id="cx-body"></tbody></table>
+      </div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ LEGEND</div><div class="legend-wrap" id="legend"></div></div>
+        <div class="psec"><div class="phdr">▸ WHEN TO USE</div><div class="use-list" id="use-when"></div></div>
+        <div class="psec"><div class="phdr">▸ REAL WORLD</div><div class="rw" id="real-world"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════ */
+const ST = {
+  algo: 'linear',
+  arr: [],
+  target: 0,
+  steps: [],
+  idx: 0,
+  playing: false,
+  playTimer: null,
+  speed: 300,
+  size: 14,
+  muted: false,
+  audioCtx: null,
+  tick: 0,
+};
+
+/* ═══════════════════════════════════════════════════════
+   AUDIO ENGINE
+═══════════════════════════════════════════════════════ */
+function ensureAudio() {
+  if (!ST.audioCtx) ST.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ST.audioCtx.state === 'suspended') ST.audioCtx.resume();
+}
+
+function makeCurve(n=256) {
+  const c = new Float32Array(n);
+  for (let i=0;i<n;i++){const x=2*i/n-1;c[i]=Math.tanh(x*1.8)*0.7;}
+  return c;
+}
+
+function tone(freq, dur, type='square', vol=0.12, slide=null) {
+  if (ST.muted) return;
+  ensureAudio();
+  const ctx = ST.audioCtx;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const ws = ctx.createWaveShaper();
+  ws.curve = makeCurve();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  if (slide) osc.frequency.exponentialRampToValueAtTime(slide, ctx.currentTime + dur/1000);
+  gain.gain.setValueAtTime(vol, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur/1000);
+  osc.connect(ws); ws.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + dur/1000 + 0.01);
+}
+
+function playSound(type) {
+  if (ST.muted) return;
+  switch(type) {
+    case 'compare': tone(880, 50, 'square', 0.09, 660); break;
+    case 'found':
+      [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,90,'sine',0.13),i*90));
+      break;
+    case 'miss': tone(200, 80, 'sawtooth', 0.1, 150); break;
+    case 'step': tone(440, 60, 'triangle', 0.07); break;
+    case 'mid': tone(600, 70, 'square', 0.09); break;
+    case 'click': tone(1200, 25, 'square', 0.06); break;
+    case 'shuffle':
+      ensureAudio();
+      if (ST.muted) return;
+      const ctx = ST.audioCtx;
+      const buf = ctx.createBuffer(1,ctx.sampleRate*0.015,ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*0.4;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start();
+      break;
+    case 'visit': tone(500, 55, 'triangle', 0.08); break;
+    case 'backtrack': tone(300, 70, 'sawtooth', 0.07); break;
+    case 'path': tone(784, 120, 'sine', 0.1); break;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   CRT EFFECTS
+═══════════════════════════════════════════════════════ */
+(function initNoise(){
+  const c = document.getElementById('noise');
+  const ctx = c.getContext('2d');
+  function resize(){ c.width=innerWidth; c.height=innerHeight; }
+  resize(); window.addEventListener('resize',resize);
+  function draw(){
+    const id = ctx.createImageData(c.width,c.height);
+    const d = id.data;
+    for(let i=0;i<d.length;i+=4){
+      const v = Math.random()>0.965?255:0;
+      d[i]=d[i+1]=d[i+2]=v; d[i+3]=v?180:0;
+    }
+    ctx.putImageData(id,0,0);
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+function scheduleGlitch(){
+  setTimeout(()=>{
+    document.getElementById('crt-wrap').style.filter='brightness(0.25)';
+    setTimeout(()=>{
+      document.getElementById('crt-wrap').style.filter='';
+      scheduleGlitch();
+    }, 28+Math.random()*20);
+  }, 3000+Math.random()*6000);
+}
+scheduleGlitch();
+
+function triggerCA(){
+  const el=document.getElementById('ca-overlay');
+  el.classList.remove('fire');
+  void el.offsetWidth;
+  el.classList.add('fire');
+}
+
+/* ═══════════════════════════════════════════════════════
+   SYNTAX HIGHLIGHTER
+═══════════════════════════════════════════════════════ */
+function hlGo(line) {
+  let s = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');
+  s = s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+  const kws = /\b(func|for|if|else|return|var|const|range|len|make|append|int|bool|string|nil|true|false|package|import|type|struct|map|interface|go|defer|select|case|default|break|continue|switch|float64)\b/g;
+  s = s.replace(kws,'<span class="kw">$1</span>');
+  s = s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+  s = s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');
+  return s;
+}
+
+function renderCode(lines, activeLine) {
+  const el = document.getElementById('code-scroll');
+  el.innerHTML = lines.map((l,i)=>{
+    const active = i===activeLine;
+    const content = hlGo(l);
+    return `<div class="cline${active?' active':''}">
+      <span class="ln">${i+1}</span>
+      <span class="code-content" data-t="${l.replace(/"/g,'&quot;')}">${content}</span>
+    </div>`;
+  }).join('');
+  if (activeLine>=0) {
+    const activeEl = el.querySelectorAll('.cline')[activeLine];
+    if (activeEl) activeEl.scrollIntoView({block:'nearest'});
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   GRAPH DATA (BFS / DFS)
+═══════════════════════════════════════════════════════ */
+const GN = [
+  {id:0,x:75, y:145,lbl:'A'},
+  {id:1,x:180,y:65, lbl:'B'},
+  {id:2,x:300,y:35, lbl:'C'},
+  {id:3,x:175,y:215,lbl:'D'},
+  {id:4,x:285,y:145,lbl:'E'},
+  {id:5,x:390,y:70, lbl:'F'},
+  {id:6,x:275,y:250,lbl:'G'},
+  {id:7,x:390,y:205,lbl:'H'},
+  {id:8,x:475,y:120,lbl:'I'},
+  {id:9,x:475,y:235,lbl:'J'},
+];
+const GADJ = {0:[1,3],1:[0,2,4],2:[1,5],3:[0,4,6],4:[1,3,5,7],5:[2,4,8],6:[3,7],7:[4,6,8,9],8:[5,7,9],9:[7,8]};
+const GEDGES = [[0,1],[0,3],[1,2],[1,4],[2,5],[3,4],[3,6],[4,5],[4,7],[5,8],[6,7],[7,8],[7,9],[8,9]];
+const G_START = 0, G_END = 9;
+
+/* ═══════════════════════════════════════════════════════
+   A* GRID DATA
+═══════════════════════════════════════════════════════ */
+const AROWS=7, ACOLS=7;
+const AWALLS = new Set(['0,3','1,1','1,5','2,2','2,5','3,0','3,3','4,1','4,4','5,2','5,5','6,3']);
+const AS=[0,0], AE=[6,6];
+
+/* ═══════════════════════════════════════════════════════
+   ALGORITHM DATA
+═══════════════════════════════════════════════════════ */
+const ALGOS = {
+
+linear: {
+  name:'Linear Search', label:'LINEAR', type:'array',
+  complexity:{best:'O(1)',avg:'O(n)',worst:'O(n)',space:'O(1)',note:'Unsorted OK'},
+  desc:'Scans each element sequentially from left to right. No preconditions on data. Simple but slow for large arrays.',
+  use:['Array is small (n < 100)','Data is unsorted','Single search on unindexed data','Searching linked list structure','Target is near the beginning'],
+  avoid:['Array is large and sorted (use Binary)','Performance-critical hot path','Repeated searches on same dataset'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">strings.Contains</span> Go stdlib (byte scan)<br>
+    <span class="rw-tag">Array.find()</span> JavaScript V8 engine<br>
+    <span class="rw-tag">grep</span> line-by-line file search<br>
+    CPU cache-friendly for small arrays due to sequential memory access. Modern CPUs prefetch consecutive memory efficiently.`,
+  code:[
+    'func LinearSearch(arr []int, target int) int {',
+    '    for i := 0; i < len(arr); i++ {',
+    '        if arr[i] == target {',
+    '            return i',
+    '        }',
+    '    }',
+    '    return -1',
+    '}',
+  ],
+  legend:[
+    {color:'#f59e0b',label:'Comparing'},
+    {color:'#10b981',label:'Found'},
+    {color:'#f43f5e',label:'Miss/Not found'},
+  ],
+},
+
+binary: {
+  name:'Binary Search', label:'BINARY', type:'array',
+  complexity:{best:'O(1)',avg:'O(log n)',worst:'O(log n)',space:'O(1)',note:'Requires sorted'},
+  desc:'Divides the search space in half each iteration. Requires sorted data. Extremely efficient on large arrays with O(log n) comparisons.',
+  use:['Array is sorted','Large dataset (n > 1000)','Frequent searches on same data','Finding insertion point','Range queries'],
+  avoid:['Unsorted data (must sort first)','Linked lists (no O(1) access)','Tiny arrays (overhead not worth it)'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">sort.Search()</span> Go stdlib<br>
+    <span class="rw-tag">PostgreSQL</span> B-tree index page lookup<br>
+    <span class="rw-tag">git bisect</span> finds regression commit<br>
+    <span class="rw-tag">std::lower_bound</span> C++ STL<br>
+    Every database index. Binary search is one of the most important algorithms in computer science.`,
+  code:[
+    'func BinarySearch(arr []int, target int) int {',
+    '    lo, hi := 0, len(arr)-1',
+    '    for lo <= hi {',
+    '        mid := lo + (hi-lo)/2',
+    '        if arr[mid] == target {',
+    '            return mid',
+    '        } else if arr[mid] < target {',
+    '            lo = mid + 1',
+    '        } else {',
+    '            hi = mid - 1',
+    '        }',
+    '    }',
+    '    return -1',
+    '}',
+  ],
+  legend:[
+    {color:'#60a5fa',label:'lo boundary'},
+    {color:'#f97316',label:'hi boundary'},
+    {color:'#a855f7',label:'mid (probe)'},
+    {color:'rgba(255,178,41,0.35)',label:'Active range'},
+    {color:'rgba(80,80,80,0.4)',label:'Eliminated'},
+    {color:'#10b981',label:'Found'},
+  ],
+},
+
+jump: {
+  name:'Jump Search', label:'JUMP', type:'array',
+  complexity:{best:'O(1)',avg:'O(√n)',worst:'O(√n)',space:'O(1)',note:'Sorted, √n blocks'},
+  desc:'Jumps ahead by √n blocks to find a range, then does linear scan backward. Optimal jump size is √n. Better than linear, simpler than binary.',
+  use:['Sorted array','Jump cost is high (seek-heavy storage)','When backtracking is cheap','Rotational disk access patterns','Block-structured data'],
+  avoid:['Random access is cheap (use binary)','Unsorted data','Very large arrays where O(log n) matters'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">Skip Lists</span> jump pointer inspiration<br>
+    <span class="rw-tag">Tape drives</span> sequential + skip reads<br>
+    <span class="rw-tag">B-tree leaf scan</span> block-level skip<br>
+    Historically used in disk-based search where forward seeks are much faster than backward seeks.`,
+  code:[
+    'func JumpSearch(arr []int, target int) int {',
+    '    n := len(arr)',
+    '    step := int(math.Sqrt(float64(n)))',
+    '    prev := 0',
+    '    for arr[min(step,n)-1] < target {',
+    '        prev = step',
+    '        step += int(math.Sqrt(float64(n)))',
+    '        if prev >= n { return -1 }',
+    '    }',
+    '    for arr[prev] < target {',
+    '        prev++',
+    '        if prev == min(step, n) { return -1 }',
+    '    }',
+    '    if arr[prev] == target { return prev }',
+    '    return -1',
+    '}',
+  ],
+  legend:[
+    {color:'#22d3ee',label:'Jump block boundary'},
+    {color:'#f59e0b',label:'Comparing'},
+    {color:'#10b981',label:'Found'},
+    {color:'#f43f5e',label:'Miss'},
+    {color:'rgba(255,178,41,0.35)',label:'Search range'},
+  ],
+},
+
+exponential: {
+  name:'Exponential Search', label:'EXPO', type:'array',
+  complexity:{best:'O(1)',avg:'O(log n)',worst:'O(log n)',space:'O(1)',note:'Unbounded arrays'},
+  desc:'Doubles the bound index (1,2,4,8,16...) until exceeding target, then binary searches the found range. Ideal for unbounded/infinite arrays.',
+  use:['Unbounded or infinite sorted array','Target is near the beginning','Streaming sorted data','When upper bound is unknown','Sorted rotational structures'],
+  avoid:['Known-size small arrays','Unsorted data','When binary search range is already known'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">Elasticsearch</span> unbounded scroll search<br>
+    <span class="rw-tag">Time-series DB</span> finding event in stream<br>
+    <span class="rw-tag">OS paging</span> exponential backoff + search<br>
+    Combines the best of both worlds: fast for nearby elements, O(log n) for distant ones.`,
+  code:[
+    'func ExponentialSearch(arr []int, target int) int {',
+    '    if arr[0] == target { return 0 }',
+    '    n := len(arr)',
+    '    bound := 1',
+    '    for bound < n && arr[bound] <= target {',
+    '        bound *= 2',
+    '    }',
+    '    lo := bound / 2',
+    '    hi := min(bound, n-1)',
+    '    // binary search in [lo, hi]',
+    '    for lo <= hi {',
+    '        mid := lo + (hi-lo)/2',
+    '        if arr[mid] == target { return mid }',
+    '        if arr[mid] < target { lo = mid + 1 } else { hi = mid - 1 }',
+    '    }',
+    '    return -1',
+    '}',
+  ],
+  legend:[
+    {color:'#4ade80',label:'Exponential bound'},
+    {color:'#a855f7',label:'Binary mid (phase 2)'},
+    {color:'#60a5fa',label:'lo boundary'},
+    {color:'#f97316',label:'hi boundary'},
+    {color:'rgba(255,178,41,0.35)',label:'Search range'},
+    {color:'#10b981',label:'Found'},
+  ],
+},
+
+interpolation: {
+  name:'Interpolation Search', label:'INTERP', type:'array',
+  complexity:{best:'O(1)',avg:'O(log log n)',worst:'O(n)',space:'O(1)',note:'Uniform dist.'},
+  desc:'Uses interpolation formula to estimate probe position. For uniformly distributed data, achieves O(log log n) — faster than binary search. Degrades on skewed data.',
+  use:['Uniformly distributed sorted data','Telephone/dictionary lookups','Sensor readings with uniform range','Numeric keys with known range','When data distribution is predictable'],
+  avoid:['Non-uniform distributions','Duplicate values','Strings or complex keys','When worst-case O(n) is unacceptable'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">Phone books</span> classic O(log log n) example<br>
+    <span class="rw-tag">Dictionary lookup</span> opens near target letter<br>
+    <span class="rw-tag">Genome indexing</span> uniform base distribution<br>
+    Formula: pos = lo + (target − arr[lo]) × (hi − lo) / (arr[hi] − arr[lo])`,
+  code:[
+    'func InterpolationSearch(arr []int, target int) int {',
+    '    lo, hi := 0, len(arr)-1',
+    '    for lo <= hi && target >= arr[lo] && target <= arr[hi] {',
+    '        // interpolation formula',
+    '        pos := lo + (target-arr[lo])*(hi-lo)/(arr[hi]-arr[lo])',
+    '        if arr[pos] == target {',
+    '            return pos',
+    '        }',
+    '        if arr[pos] < target {',
+    '            lo = pos + 1',
+    '        } else {',
+    '            hi = pos - 1',
+    '        }',
+    '    }',
+    '    return -1',
+    '}',
+  ],
+  legend:[
+    {color:'#ec4899',label:'Interpolated probe'},
+    {color:'#60a5fa',label:'lo boundary'},
+    {color:'#f97316',label:'hi boundary'},
+    {color:'rgba(255,178,41,0.35)',label:'Active range'},
+    {color:'rgba(80,80,80,0.4)',label:'Eliminated'},
+    {color:'#10b981',label:'Found'},
+  ],
+},
+
+bfs: {
+  name:'Breadth-First Search', label:'BFS', type:'graph',
+  complexity:{best:'O(1)',avg:'O(V+E)',worst:'O(V+E)',space:'O(V)',note:'Shortest path'},
+  desc:'Explores all neighbors level by level using a queue (FIFO). Guarantees shortest path in unweighted graphs. Complete and optimal for uniform edge costs.',
+  use:['Finding shortest path (unweighted)','Level-order traversal','Social network degree of separation','Web crawlers','Broadcasting in networks'],
+  avoid:['Weighted graphs (use Dijkstra/A*)','Deep trees with few wide levels','Memory-constrained environments','When path quality > path length'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">Facebook</span> friend suggestions (degree)<br>
+    <span class="rw-tag">BitTorrent</span> peer discovery protocol<br>
+    <span class="rw-tag">GPS routing</span> on grid-like road networks<br>
+    <span class="rw-tag">Linux kernel</span> scheduling graph traversal<br>
+    Node A=start, Node J=target. Watch the queue grow and shrink level by level.`,
+  code:[
+    'func BFS(adj map[int][]int, start, end int) []int {',
+    '    queue := []int{start}',
+    '    visited := map[int]bool{start: true}',
+    '    parent := map[int]int{start: -1}',
+    '    for len(queue) > 0 {',
+    '        node := queue[0]',
+    '        queue = queue[1:]',
+    '        if node == end {',
+    '            return buildPath(parent, start, end)',
+    '        }',
+    '        for _, nb := range adj[node] {',
+    '            if !visited[nb] {',
+    '                visited[nb] = true',
+    '                parent[nb] = node',
+    '                queue = append(queue, nb)',
+    '            }',
+    '        }',
+    '    }',
+    '    return nil',
+    '}',
+  ],
+  legend:[
+    {color:'#10b981',label:'Visited'},
+    {color:'#f59e0b',label:'Current node'},
+    {color:'#60a5fa',label:'In queue'},
+    {color:'#a855f7',label:'Shortest path'},
+    {color:'rgba(255,178,41,0.06)',label:'Unvisited'},
+  ],
+},
+
+dfs: {
+  name:'Depth-First Search', label:'DFS', type:'graph',
+  complexity:{best:'O(1)',avg:'O(V+E)',worst:'O(V+E)',space:'O(V)',note:'Stack-based'},
+  desc:'Explores as deep as possible along each branch using a stack (LIFO). Does not guarantee shortest path. Uses less memory than BFS for wide graphs. Foundation for topological sort, cycle detection, SCC.',
+  use:['Topological sorting (DAGs)','Cycle detection in graphs','Maze solving','Tree/subtree operations','Strongly connected components'],
+  avoid:['Shortest path (use BFS)','Infinite or very deep graphs','When completeness is required on infinite spaces'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">Go compiler</span> type dependency resolution<br>
+    <span class="rw-tag">Git</span> commit graph traversal<br>
+    <span class="rw-tag">Garbage collectors</span> mark phase (DFS mark)<br>
+    <span class="rw-tag">Tarjan's SCC</span> uses DFS with low-link<br>
+    Watch the stack: DFS dives deep before backtracking.`,
+  code:[
+    'func DFS(adj map[int][]int, start, end int) []int {',
+    '    stack := []int{start}',
+    '    visited := map[int]bool{}',
+    '    parent := map[int]int{start: -1}',
+    '    for len(stack) > 0 {',
+    '        node := stack[len(stack)-1]',
+    '        stack = stack[:len(stack)-1]',
+    '        if visited[node] { continue }',
+    '        visited[node] = true',
+    '        if node == end {',
+    '            return buildPath(parent, start, end)',
+    '        }',
+    '        for _, nb := range adj[node] {',
+    '            if !visited[nb] {',
+    '                parent[nb] = node',
+    '                stack = append(stack, nb)',
+    '            }',
+    '        }',
+    '    }',
+    '    return nil',
+    '}',
+  ],
+  legend:[
+    {color:'#10b981',label:'Visited'},
+    {color:'#f59e0b',label:'Current node'},
+    {color:'#ec4899',label:'On stack'},
+    {color:'#f97316',label:'Backtracking'},
+    {color:'#a855f7',label:'Path found'},
+  ],
+},
+
+astar: {
+  name:'A* Search', label:'A*', type:'grid',
+  complexity:{best:'O(1)',avg:'O(b^d)',worst:'O(b^d)',space:'O(b^d)',note:'Heuristic-guided'},
+  desc:'Informed search using f(n)=g(n)+h(n) where g=cost from start, h=heuristic estimate to goal. With admissible heuristic (Manhattan distance), A* finds optimal path. Widely considered the best general pathfinding algorithm.',
+  use:['Weighted grid pathfinding','Game AI movement','GPS route planning','Robot navigation','Any problem with admissible heuristic'],
+  avoid:['Unknown/dynamic environments (use D*)','When h=0 (becomes Dijkstra)','Real-time replanning requirements','Extremely large state spaces'],
+  realWorld:`<strong>Used in:</strong><br>
+    <span class="rw-tag">Google Maps</span> routing (A* variant)<br>
+    <span class="rw-tag">Unreal Engine</span> NavMesh pathfinding<br>
+    <span class="rw-tag">StarCraft II</span> unit pathfinding<br>
+    <span class="rw-tag">Robotics (ROS)</span> global planner<br>
+    Amber=open set (to explore), Green=closed set (explored), Purple=optimal path found.`,
+  code:[
+    'func AStar(grid [][]int, start, end [2]int) [][2]int {',
+    '    open := &MinHeap{{start, 0}}',
+    '    g := map[[2]int]int{start: 0}',
+    '    f := map[[2]int]int{start: h(start, end)}',
+    '    parent := map[[2]int][2]int{}',
+    '    for open.Len() > 0 {',
+    '        curr := heap.Pop(open).([2]int)',
+    '        if curr == end {',
+    '            return buildPath(parent, start, end)',
+    '        }',
+    '        for _, nb := range neighbors(grid, curr) {',
+    '            tentG := g[curr] + 1',
+    '            if prev, ok := g[nb]; !ok || tentG < prev {',
+    '                parent[nb] = curr',
+    '                g[nb] = tentG',
+    '                f[nb] = tentG + h(nb, end)',
+    '                heap.Push(open, nb)',
+    '            }',
+    '        }',
+    '    }',
+    '    return nil // no path',
+    '}',
+  ],
+  legend:[
+    {color:'rgba(245,158,11,0.28)',label:'Open set (frontier)'},
+    {color:'rgba(16,185,129,0.18)',label:'Closed set (explored)'},
+    {color:'rgba(245,158,11,0.55)',label:'Current node'},
+    {color:'rgba(168,85,247,0.35)',label:'Optimal path'},
+    {color:'rgba(16,185,129,0.35)',label:'Start'},
+    {color:'rgba(244,63,94,0.35)',label:'Goal'},
+    {color:'rgba(255,178,41,0.05)',label:'Wall'},
+  ],
+},
+
+};
+
+/* ═══════════════════════════════════════════════════════
+   STEP GENERATORS
+═══════════════════════════════════════════════════════ */
+
+function genArr(n) {
+  const arr = [];
+  for (let i=0;i<n;i++) arr.push(12+Math.floor(Math.random()*82));
+  return arr;
+}
+
+/* --- LINEAR --- */
+function genLinear(arr, target) {
+  const steps = [];
+  const n = arr.length;
+  let cmp = 0;
+  steps.push({type:'array',arr:[...arr],roles:{},phase:'init',desc:`Linear scan for target = ${target}. Will check each element left to right.`,cl:1,stats:{cmp:0,stp:0,dep:0,pas:0}});
+  for (let i=0;i<n;i++){
+    cmp++;
+    steps.push({type:'array',arr:[...arr],roles:{[i]:'comparing'},phase:'compare',
+      desc:`Checking arr[${i}] = ${arr[i]}  ${arr[i]===target?'== ✓':'!= ✗'}  target(${target})`,cl:2,stats:{cmp,stp:i+1,dep:0,pas:0}});
+    if (arr[i]===target){
+      steps.push({type:'array',arr:[...arr],roles:{[i]:'found'},phase:'found',
+        desc:`✓ FOUND! arr[${i}] = ${arr[i]} matches target ${target}`,cl:3,stats:{cmp,stp:i+1,dep:0,pas:0}});
+      return steps;
+    }
+    steps.push({type:'array',arr:[...arr],roles:{[i]:'miss'},phase:'compare',
+      desc:`arr[${i}] = ${arr[i]} ≠ ${target}, moving forward`,cl:1,stats:{cmp,stp:i+1,dep:0,pas:0}});
+  }
+  steps.push({type:'array',arr:[...arr],roles:{},phase:'miss',desc:`✗ NOT FOUND. Scanned all ${n} elements. Target ${target} not present.`,cl:6,stats:{cmp,stp:n,dep:0,pas:0}});
+  return steps;
+}
+
+/* --- BINARY --- */
+function genBinary(arr, target) {
+  const sorted = [...arr].sort((a,b)=>a-b);
+  const steps = [];
+  let lo=0, hi=sorted.length-1, cmp=0, stp=0;
+  const n = sorted.length;
+  function roles(lo,hi,mid=-1) {
+    const r={};
+    for(let i=0;i<n;i++){
+      if(i<lo||i>hi) r[i]='eliminated';
+      else if(i===lo && i===hi) r[i]= mid===i?'mid':'lo';
+      else if(i===lo) r[i]='lo';
+      else if(i===hi) r[i]='hi';
+      else if(i===mid) r[i]='mid';
+      else r[i]='range';
+    }
+    return r;
+  }
+  steps.push({type:'array',arr:[...sorted],roles:roles(0,n-1),phase:'init',
+    desc:`Array sorted. Binary search for ${target}. lo=0, hi=${n-1}`,cl:1,stats:{cmp:0,stp:0,dep:0,pas:0}});
+  while(lo<=hi){
+    const mid=lo+Math.floor((hi-lo)/2); cmp++; stp++;
+    steps.push({type:'array',arr:[...sorted],roles:roles(lo,hi,mid),phase:'compare',
+      desc:`lo=${lo}, hi=${hi}, mid=${mid}: arr[${mid}]=${sorted[mid]} vs target=${target}`,cl:3,stats:{cmp,stp,dep:Math.ceil(Math.log2(n+1)),pas:0}});
+    if(sorted[mid]===target){
+      const r=roles(lo,hi,mid); r[mid]='found';
+      steps.push({type:'array',arr:[...sorted],roles:r,phase:'found',
+        desc:`✓ FOUND at index ${mid}! arr[${mid}] = ${sorted[mid]}`,cl:4,stats:{cmp,stp,dep:Math.ceil(Math.log2(n+1)),pas:0}});
+      return steps;
+    } else if(sorted[mid]<target){
+      steps.push({type:'array',arr:[...sorted],roles:roles(lo,hi,mid),phase:'compare',
+        desc:`arr[${mid}]=${sorted[mid]} < ${target} → search RIGHT half, lo = ${mid+1}`,cl:6,stats:{cmp,stp,dep:Math.ceil(Math.log2(n+1)),pas:0}});
+      lo=mid+1;
+    } else {
+      steps.push({type:'array',arr:[...sorted],roles:roles(lo,hi,mid),phase:'compare',
+        desc:`arr[${mid}]=${sorted[mid]} > ${target} → search LEFT half, hi = ${mid-1}`,cl:8,stats:{cmp,stp,dep:Math.ceil(Math.log2(n+1)),pas:0}});
+      hi=mid-1;
+    }
+  }
+  const r={};for(let i=0;i<n;i++)r[i]='eliminated';
+  steps.push({type:'array',arr:[...sorted],roles:r,phase:'miss',
+    desc:`✗ NOT FOUND. Target ${target} not in sorted array.`,cl:12,stats:{cmp,stp,dep:Math.ceil(Math.log2(n+1)),pas:0}});
+  return steps;
+}
+
+/* --- JUMP --- */
+function genJump(arr, target) {
+  const sorted=[...arr].sort((a,b)=>a-b);
+  const n=sorted.length;
+  const blockSize=Math.max(1,Math.floor(Math.sqrt(n)));
+  const steps=[];
+  let prev=0, step=blockSize, cmp=0, stp=0, pass=0;
+
+  steps.push({type:'array',arr:[...sorted],roles:{},phase:'init',
+    desc:`Array sorted. Jump size = √${n} ≈ ${blockSize}. Phase 1: jump by blocks.`,cl:2,stats:{cmp:0,stp:0,dep:0,pas:0}});
+
+  // Phase 1: jumping blocks
+  while(Math.min(step,n)-1 < n && sorted[Math.min(step,n)-1] < target){
+    const blockEnd = Math.min(step,n)-1;
+    cmp++; stp++; pass++;
+    const r={};
+    for(let i=0;i<n;i++){
+      if(i>=prev && i<=blockEnd) r[i]='jump';
+      else if(i<prev) r[i]='eliminated';
+    }
+    steps.push({type:'array',arr:[...sorted],roles:r,phase:'compare',
+      desc:`Block [${prev}..${blockEnd}]: arr[${blockEnd}]=${sorted[blockEnd]} < ${target}, jump forward`,cl:4,stats:{cmp,stp,dep:0,pas:pass}});
+    prev=step; step+=blockSize;
+    if(prev>=n){
+      steps.push({type:'array',arr:[...sorted],roles:{},phase:'miss',
+        desc:`✗ Jumped past end. Target ${target} not found.`,cl:6,stats:{cmp,stp,dep:0,pas:pass}});
+      return steps;
+    }
+  }
+
+  const rangeEnd=Math.min(step,n)-1;
+  // Phase 2: linear scan backward
+  steps.push({type:'array',arr:[...sorted],roles:(()=>{const r={};for(let i=0;i<n;i++){if(i>=prev&&i<=rangeEnd)r[i]='range';else r[i]='eliminated';}return r;})(),phase:'compare',
+    desc:`Block [${prev}..${rangeEnd}] may contain ${target}. Phase 2: linear scan.`,cl:9,stats:{cmp,stp,dep:0,pas:pass}});
+
+  for(let i=prev;i<=rangeEnd;i++){
+    cmp++; stp++;
+    const r={};
+    for(let j=0;j<n;j++){
+      if(j<prev||j>rangeEnd) r[j]='eliminated';
+      else if(j===i) r[j]='comparing';
+      else r[j]='range';
+    }
+    steps.push({type:'array',arr:[...sorted],roles:r,phase:'compare',
+      desc:`Linear scan: arr[${i}]=${sorted[i]} vs target ${target}`,cl:10,stats:{cmp,stp,dep:0,pas:pass}});
+    if(sorted[i]===target){
+      r[i]='found';
+      steps.push({type:'array',arr:[...sorted],roles:r,phase:'found',
+        desc:`✓ FOUND at index ${i}! arr[${i}] = ${sorted[i]}`,cl:12,stats:{cmp,stp,dep:0,pas:pass}});
+      return steps;
+    }
+    if(sorted[i]>target) break;
+  }
+  const r2={};for(let i=0;i<n;i++)r2[i]='eliminated';
+  steps.push({type:'array',arr:[...sorted],roles:r2,phase:'miss',
+    desc:`✗ NOT FOUND. Target ${target} not in array.`,cl:13,stats:{cmp,stp,dep:0,pas:pass}});
+  return steps;
+}
+
+/* --- EXPONENTIAL --- */
+function genExponential(arr, target) {
+  const sorted=[...arr].sort((a,b)=>a-b);
+  const n=sorted.length;
+  const steps=[];
+  let cmp=0, stp=0;
+
+  steps.push({type:'array',arr:[...sorted],roles:{},phase:'init',
+    desc:`Array sorted. Exponential search for ${target}. Will double bound: 1,2,4,8,16...`,cl:0,stats:{cmp:0,stp:0,dep:0,pas:0}});
+
+  if(sorted[0]===target){
+    steps.push({type:'array',arr:[...sorted],roles:{0:'found'},phase:'found',
+      desc:`✓ FOUND at index 0! Direct hit.`,cl:1,stats:{cmp:1,stp:1,dep:0,pas:0}});
+    return steps;
+  }
+
+  let bound=1;
+  // Phase 1: exponential bound
+  while(bound<n && sorted[bound]<=target){
+    cmp++; stp++;
+    const r={};
+    for(let i=0;i<n;i++){
+      if(i<bound/2) r[i]='eliminated';
+      else if(i===bound) r[i]='exp-bound';
+      else if(i<bound) r[i]='range';
+    }
+    steps.push({type:'array',arr:[...sorted],roles:r,phase:'compare',
+      desc:`Bound=${bound}: arr[${bound}]=${sorted[bound]} ≤ ${target}, doubling bound → ${bound*2}`,cl:4,stats:{cmp,stp,dep:0,pas:0}});
+    bound*=2;
+  }
+
+  // Phase 2: binary search in [bound/2, min(bound, n-1)]
+  let lo=Math.floor(bound/2), hi=Math.min(bound,n-1);
+  steps.push({type:'array',arr:[...sorted],roles:(()=>{const r={};for(let i=0;i<n;i++){if(i<lo||i>hi)r[i]='eliminated';else r[i]='range';}return r;})(),phase:'compare',
+    desc:`Bound exceeded ${target}. Binary search in range [${lo},${hi}].`,cl:9,stats:{cmp,stp,dep:0,pas:0}});
+
+  while(lo<=hi){
+    const mid=lo+Math.floor((hi-lo)/2); cmp++; stp++;
+    const r={};
+    for(let i=0;i<n;i++){
+      if(i<lo||i>hi) r[i]='eliminated';
+      else if(i===lo) r[i]='lo';
+      else if(i===hi) r[i]='hi';
+      else if(i===mid) r[i]='mid';
+      else r[i]='range';
+    }
+    steps.push({type:'array',arr:[...sorted],roles:r,phase:'compare',
+      desc:`Binary: mid=${mid}, arr[${mid}]=${sorted[mid]} vs ${target}`,cl:11,stats:{cmp,stp,dep:0,pas:0}});
+    if(sorted[mid]===target){
+      r[mid]='found';
+      steps.push({type:'array',arr:[...sorted],roles:r,phase:'found',
+        desc:`✓ FOUND at index ${mid}! arr[${mid}] = ${sorted[mid]}`,cl:11,stats:{cmp,stp,dep:0,pas:0}});
+      return steps;
+    }
+    if(sorted[mid]<target) lo=mid+1; else hi=mid-1;
+  }
+  const r={};for(let i=0;i<n;i++)r[i]='eliminated';
+  steps.push({type:'array',arr:[...sorted],roles:r,phase:'miss',
+    desc:`✗ NOT FOUND. Target ${target} not in array.`,cl:14,stats:{cmp,stp,dep:0,pas:0}});
+  return steps;
+}
+
+/* --- INTERPOLATION --- */
+function genInterpolation(arr, target) {
+  const sorted=[...arr].sort((a,b)=>a-b);
+  const n=sorted.length;
+  const steps=[];
+  let lo=0,hi=n-1,cmp=0,stp=0;
+
+  function roles(lo,hi,pos=-1,elimBefore=0,elimAfter=n) {
+    const r={};
+    for(let i=0;i<n;i++){
+      if(i<lo||i>hi) r[i]='eliminated';
+      else if(i===lo) r[i]='lo';
+      else if(i===hi) r[i]='hi';
+      else if(i===pos) r[i]='probe';
+      else r[i]='range';
+    }
+    return r;
+  }
+
+  steps.push({type:'array',arr:[...sorted],roles:roles(0,n-1),phase:'init',
+    desc:`Array sorted. Interpolation search for ${target}. Using formula: pos = lo + (T-arr[lo])×(hi-lo)/(arr[hi]-arr[lo])`,cl:0,stats:{cmp:0,stp:0,dep:0,pas:0},formula:null});
+
+  while(lo<=hi && target>=sorted[lo] && target<=sorted[hi]){
+    if(sorted[lo]===sorted[hi]){
+      if(sorted[lo]===target){
+        steps.push({type:'array',arr:[...sorted],roles:{[lo]:'found'},phase:'found',
+          desc:`✓ FOUND at index ${lo}!`,cl:5,stats:{cmp,stp,dep:0,pas:0}});
+      } else {
+        steps.push({type:'array',arr:[...sorted],roles:roles(lo,hi),phase:'miss',
+          desc:`✗ lo==hi but value doesn't match target.`,cl:12,stats:{cmp,stp,dep:0,pas:0}});
+      }
+      return steps;
+    }
+    const pos = lo + Math.floor((target-sorted[lo])*(hi-lo)/(sorted[hi]-sorted[lo]));
+    const formula = `pos = ${lo} + (${target}-${sorted[lo]})×(${hi}-${lo}) / (${sorted[hi]}-${sorted[lo]})\n    = ${lo} + ${target-sorted[lo]}×${hi-lo} / ${sorted[hi]-sorted[lo]}\n    = ${pos}`;
+    cmp++; stp++;
+    const r=roles(lo,hi,pos);
+    steps.push({type:'array',arr:[...sorted],roles:r,phase:'compare',
+      desc:`Probe at pos=${pos}: arr[${pos}]=${sorted[pos]} vs target=${target}`,cl:4,stats:{cmp,stp,dep:0,pas:0},formula});
+    if(sorted[pos]===target){
+      r[pos]='found';
+      steps.push({type:'array',arr:[...sorted],roles:r,phase:'found',
+        desc:`✓ FOUND at index ${pos}! arr[${pos}] = ${sorted[pos]}`,cl:5,stats:{cmp,stp,dep:0,pas:0}});
+      return steps;
+    }
+    if(sorted[pos]<target){
+      steps.push({type:'array',arr:[...sorted],roles:r,phase:'compare',
+        desc:`arr[${pos}]=${sorted[pos]} < ${target} → search right, lo = ${pos+1}`,cl:8,stats:{cmp,stp,dep:0,pas:0},formula});
+      lo=pos+1;
+    } else {
+      steps.push({type:'array',arr:[...sorted],roles:r,phase:'compare',
+        desc:`arr[${pos}]=${sorted[pos]} > ${target} → search left, hi = ${pos-1}`,cl:10,stats:{cmp,stp,dep:0,pas:0},formula});
+      hi=pos-1;
+    }
+  }
+  const r={};for(let i=0;i<n;i++)r[i]='eliminated';
+  steps.push({type:'array',arr:[...sorted],roles:r,phase:'miss',
+    desc:`✗ NOT FOUND. Target ${target} out of [${sorted[lo]||'?'},${sorted[hi]||'?'}] range or not in array.`,cl:12,stats:{cmp,stp,dep:0,pas:0}});
+  return steps;
+}
+
+/* --- BFS --- */
+function genBFS() {
+  const steps=[];
+  let cmp=0,stp=0;
+  const nodeStates=(obj)=>{const s={};GN.forEach(n=>s[n.id]=obj[n.id]||'unvisited');return s;};
+  const initS=nodeStates({[G_START]:'start-n',[G_END]:'end-n'});
+
+  steps.push({type:'graph',ns:initS,es:{},queue:[G_START],stack:null,phase:'init',
+    desc:`BFS from A(${G_START}) to J(${G_END}). Initialize queue with start node.`,cl:1,stats:{cmp:0,stp:0,dep:0,pas:0}});
+
+  const visited=new Set([G_START]);
+  const parent={[G_START]:-1};
+  const queue=[G_START];
+  let depth=0;
+  const levelMap={[G_START]:0};
+
+  while(queue.length>0){
+    const node=queue.shift();
+    stp++;
+    const s=nodeStates({...Object.fromEntries([...visited].map(v=>[v,'visited'])),[node]:'current',[G_END]:'end-n',[G_START]:'start-n'});
+    steps.push({type:'graph',ns:s,es:{},queue:[...queue],stack:null,phase:'visit',
+      desc:`Dequeuing node ${GN[node].lbl}(${node}). Level=${levelMap[node]}. Checking neighbors.`,cl:5,stats:{cmp,stp,dep:levelMap[node],pas:0}});
+
+    if(node===G_END){
+      // reconstruct path
+      const path=[];let cur=G_END;
+      while(cur!==-1){path.push(cur);cur=parent[cur];}
+      path.reverse();
+      const es={};
+      for(let i=0;i<path.length-1;i++) es[`${path[i]}-${path[i+1]}`]='path-e';
+      const ps=nodeStates({...Object.fromEntries([...visited].map(v=>[v,'visited']))});
+      path.forEach(n=>ps[n]='path-n'); ps[G_START]='start-n'; ps[G_END]='end-n';
+      steps.push({type:'graph',ns:ps,es,queue:[],stack:null,phase:'path',
+        desc:`✓ FOUND path: ${path.map(n=>GN[n].lbl).join(' → ')} (${path.length-1} edges, BFS shortest path)`,cl:8,stats:{cmp,stp,dep:path.length-1,pas:0}});
+      return steps;
+    }
+
+    for(const nb of GADJ[node]){
+      cmp++;
+      if(!visited.has(nb)){
+        visited.add(nb); parent[nb]=node; queue.push(nb);
+        levelMap[nb]=(levelMap[node]||0)+1;
+        const s2=nodeStates({...Object.fromEntries([...visited].map(v=>[v,'visited'])),[node]:'current',[G_END]:'end-n',[G_START]:'start-n'});
+        s2[nb]='queued';
+        steps.push({type:'graph',ns:s2,es:{},queue:[...queue],stack:null,phase:'compare',
+          desc:`Neighbor ${GN[nb].lbl}(${nb}) not visited → enqueue. Queue: [${queue.map(i=>GN[i].lbl).join(',')}]`,cl:11,stats:{cmp,stp,dep:levelMap[nb],pas:0}});
+      }
+    }
+  }
+  steps.push({type:'graph',ns:nodeStates({}),es:{},queue:[],stack:null,phase:'miss',
+    desc:`✗ Path NOT FOUND.`,cl:16,stats:{cmp,stp,dep:0,pas:0}});
+  return steps;
+}
+
+/* --- DFS --- */
+function genDFS() {
+  const steps=[];
+  let cmp=0,stp=0;
+  const nodeStates=(obj)=>{const s={};GN.forEach(n=>s[n.id]=obj[n.id]||'unvisited');return s;};
+  const initS=nodeStates({[G_START]:'start-n',[G_END]:'end-n'});
+
+  steps.push({type:'graph',ns:initS,es:{},queue:null,stack:[G_START],phase:'init',
+    desc:`DFS from A(${G_START}) to J(${G_END}). Push start to stack.`,cl:1,stats:{cmp:0,stp:0,dep:0,pas:0}});
+
+  const visited=new Set();
+  const parent={[G_START]:-1};
+  const stack=[G_START];
+  let maxDepth=0;
+  const depthMap={[G_START]:0};
+
+  while(stack.length>0){
+    const node=stack[stack.length-1];
+    stack.pop();
+    stp++;
+    if(visited.has(node)){
+      steps.push({type:'graph',ns:nodeStates({...Object.fromEntries([...visited].map(v=>[v,'visited'])),[G_END]:'end-n',[G_START]:'start-n'}),es:{},queue:null,stack:[...stack],phase:'backtrack',
+        desc:`Node ${GN[node].lbl} already visited, skip (backtrack).`,cl:7,stats:{cmp,stp,dep:depthMap[node]||0,pas:0}});
+      continue;
+    }
+    visited.add(node);
+    maxDepth=Math.max(maxDepth,depthMap[node]||0);
+    const s=nodeStates({...Object.fromEntries([...visited].map(v=>[v,'visited'])),[node]:'current',[G_END]:'end-n',[G_START]:'start-n'});
+    stack.forEach(n=>{if(s[n]==='unvisited')s[n]='stacked';});
+    steps.push({type:'graph',ns:s,es:{},queue:null,stack:[...stack],phase:'visit',
+      desc:`Visiting ${GN[node].lbl}(${node}). Depth=${depthMap[node]||0}. Stack size: ${stack.length}`,cl:8,stats:{cmp,stp,dep:depthMap[node]||0,pas:0}});
+
+    if(node===G_END){
+      const path=[];let cur=G_END;
+      while(cur!==-1&&cur!==undefined){path.push(cur);cur=parent[cur];}
+      path.reverse();
+      const es={};
+      for(let i=0;i<path.length-1;i++) es[`${path[i]}-${path[i+1]}`]='path-e';
+      const ps=nodeStates({...Object.fromEntries([...visited].map(v=>[v,'visited']))});
+      path.forEach(n=>ps[n]='path-n'); ps[G_START]='start-n'; ps[G_END]='end-n';
+      steps.push({type:'graph',ns:ps,es,queue:null,stack:[],phase:'path',
+        desc:`✓ FOUND path: ${path.map(n=>GN[n].lbl).join(' → ')} (Note: DFS path may NOT be shortest!)`,cl:9,stats:{cmp,stp,dep:path.length-1,pas:0}});
+      return steps;
+    }
+    for(const nb of [...GADJ[node]].reverse()){
+      cmp++;
+      if(!visited.has(nb)){
+        if(parent[nb]===undefined) parent[nb]=node;
+        depthMap[nb]=(depthMap[node]||0)+1;
+        stack.push(nb);
+        const s2=nodeStates({...Object.fromEntries([...visited].map(v=>[v,'visited'])),[node]:'current',[G_END]:'end-n',[G_START]:'start-n'});
+        stack.forEach(n=>{if(s2[n]==='unvisited')s2[n]='stacked';});
+        steps.push({type:'graph',ns:s2,es:{},queue:null,stack:[...stack],phase:'compare',
+          desc:`Push ${GN[nb].lbl}(${nb}) onto stack. Stack: [${stack.map(i=>GN[i].lbl).join(',')}]`,cl:13,stats:{cmp,stp,dep:depthMap[nb],pas:0}});
+      }
+    }
+  }
+  steps.push({type:'graph',ns:nodeStates({}),es:{},queue:null,stack:[],phase:'miss',
+    desc:`✗ Path NOT FOUND.`,cl:16,stats:{cmp,stp,dep:0,pas:0}});
+  return steps;
+}
+
+/* --- A* --- */
+function genAStar() {
+  const steps=[];
+  const key=([r,c])=>`${r},${c}`;
+  const heur=([r,c])=>Math.abs(r-AE[0])+Math.abs(c-AE[1]);
+  const gScore={};const fScore={};const parent={};
+  const openSet=new Set([key(AS)]);
+  const closedSet=new Set();
+  let cmp=0,stp=0;
+
+  for(let r=0;r<AROWS;r++)for(let c=0;c<ACOLS;c++){gScore[`${r},${c}`]=Infinity;fScore[`${r},${c}`]=Infinity;}
+  gScore[key(AS)]=0; fScore[key(AS)]=heur(AS);
+
+  function buildCells(currCell, pathSet) {
+    const cells=[];
+    for(let r=0;r<AROWS;r++){
+      const row=[];
+      for(let c=0;c<ACOLS;c++){
+        const k=`${r},${c}`;
+        let state='empty';
+        if(AWALLS.has(k)) state='wall';
+        else if(r===AS[0]&&c===AS[1]) state='start-c';
+        else if(r===AE[0]&&c===AE[1]) state='end-c';
+        else if(pathSet&&pathSet.has(k)) state='path-c';
+        else if(currCell&&r===currCell[0]&&c===currCell[1]) state='curr-c';
+        else if(closedSet.has(k)) state='closed-s';
+        else if(openSet.has(k)) state='open-s';
+        const g=gScore[k]===Infinity?'∞':gScore[k];
+        const hv=heur([r,c]);
+        const f=gScore[k]===Infinity?'∞':gScore[k]+hv;
+        row.push({state,g,h:hv,f,k});
+      }
+      cells.push(row);
+    }
+    return cells;
+  }
+
+  steps.push({type:'grid',cells:buildCells(null,null),phase:'init',
+    desc:`A* initialized. Start=(0,0), Goal=(6,6). Manhattan heuristic h=(|Δr|+|Δc|). Open set: {(0,0)}`,cl:0,stats:{cmp:0,stp:0,dep:0,pas:0}});
+
+  let itr=0;
+  while(openSet.size>0){
+    // find min fScore in open
+    let curr=null,minF=Infinity;
+    for(const k of openSet){
+      if(fScore[k]<minF){minF=fScore[k];curr=k.split(',').map(Number);}
+    }
+    if(!curr) break;
+    itr++;
+
+    if(curr[0]===AE[0]&&curr[1]===AE[1]){
+      // path found
+      openSet.delete(key(curr)); closedSet.add(key(curr));
+      const path=[];let c=key(curr);
+      while(c){path.push(c);c=parent[c];}
+      const pathSet=new Set(path);
+      steps.push({type:'grid',cells:buildCells(null,pathSet),phase:'path',
+        desc:`✓ PATH FOUND! ${path.length-1} steps. g=${gScore[key(curr)]}. Optimal path highlighted in purple.`,cl:8,stats:{cmp,stp:itr,dep:path.length-1,pas:0}});
+      return steps;
+    }
+
+    openSet.delete(key(curr));
+    closedSet.add(key(curr));
+    cmp++;stp++;
+
+    steps.push({type:'grid',cells:buildCells(curr,null),phase:'visit',
+      desc:`Expanding (${curr[0]},${curr[1]}): g=${gScore[key(curr)]}, h=${heur(curr)}, f=${fScore[key(curr)]}`,cl:6,stats:{cmp,stp:itr,dep:gScore[key(curr)],pas:0}});
+
+    const dirs=[[0,1],[0,-1],[1,0],[-1,0]];
+    for(const [dr,dc] of dirs){
+      const nr=curr[0]+dr,nc=curr[1]+dc,nk=`${nr},${nc}`;
+      if(nr<0||nr>=AROWS||nc<0||nc>=ACOLS) continue;
+      if(AWALLS.has(nk)||closedSet.has(nk)) continue;
+      const tentG=gScore[key(curr)]+1;
+      cmp++;
+      steps.push({type:'grid',cells:buildCells(curr,null),phase:'compare',
+        desc:`Neighbor (${nr},${nc}): tentG=${tentG} vs current g=${gScore[nk]===Infinity?'∞':gScore[nk]}. ${tentG<gScore[nk]?'✓ Better path!':''}`,cl:11,stats:{cmp,stp:itr,dep:tentG,pas:0}});
+      if(tentG<gScore[nk]){
+        parent[nk]=key(curr); gScore[nk]=tentG; fScore[nk]=tentG+heur([nr,nc]);
+        openSet.add(nk);
+      }
+    }
+  }
+  steps.push({type:'grid',cells:buildCells(null,null),phase:'miss',desc:`✗ No path found!`,cl:18,stats:{cmp,stp:itr,dep:0,pas:0}});
+  return steps;
+}
+
+/* ═══════════════════════════════════════════════════════
+   VISUALIZATION RENDERERS
+═══════════════════════════════════════════════════════ */
+function renderBars(step) {
+  const chart=document.getElementById('bars');
+  const {arr,roles={}}=step;
+  const maxV=Math.max(...arr);
+  chart.innerHTML=arr.map((v,i)=>{
+    const role=roles[i]||'default';
+    const cls=role==='default'?'bar':`bar ${role}`;
+    const pct=Math.max(4,(v/maxV)*93);
+    return `<div class="${cls}" style="height:${pct}%"></div>`;
+  }).join('');
+}
+
+function renderGraph(step) {
+  const svg=document.getElementById('graph-svg');
+  const {ns={},es={},queue,stack}=step;
+
+  // Edges
+  let edgeHTML=GEDGES.map(([a,b])=>{
+    const k1=`${a}-${b}`,k2=`${b}-${a}`;
+    const ec=es[k1]||es[k2]||'';
+    const cls='g-edge'+(ec?' '+ec:'');
+    return `<line class="${cls}" x1="${GN[a].x}" y1="${GN[a].y}" x2="${GN[b].x}" y2="${GN[b].y}"/>`;
+  }).join('');
+
+  // Nodes
+  let nodeHTML=GN.map(n=>{
+    const state=ns[n.id]||'unvisited';
+    return `<g class="g-node ${state}" transform="translate(${n.x},${n.y})">
+      <circle/>
+      <text>${n.lbl}</text>
+    </g>`;
+  }).join('');
+
+  // start/end labels
+  const slabel=`<text x="${GN[G_START].x}" y="${GN[G_START].y+38}" text-anchor="middle" fill="#10b981" font-family="var(--font-logo)" font-size="12">START</text>`;
+  const elabel=`<text x="${GN[G_END].x}" y="${GN[G_END].y+38}" text-anchor="middle" fill="#f43f5e" font-family="var(--font-logo)" font-size="12">GOAL</text>`;
+
+  svg.innerHTML=edgeHTML+nodeHTML+slabel+elabel;
+
+  // Queue/Stack display
+  const qsLabel=document.getElementById('qs-label');
+  const qsItems=document.getElementById('qs-items');
+  if(queue!==null){
+    qsLabel.textContent='QUEUE (FIFO)';
+    qsItems.innerHTML=(queue||[]).map(n=>`<span class="qs-item">${GN[n].lbl}</span>`).join('');
+  } else if(stack!==null) {
+    qsLabel.textContent='STACK (LIFO)';
+    qsItems.innerHTML=[...(stack||[])].reverse().map(n=>`<span class="qs-item stk">${GN[n].lbl}</span>`).join('');
+  } else {
+    qsLabel.textContent=''; qsItems.innerHTML='';
+  }
+}
+
+function renderGrid(step) {
+  const wrap=document.getElementById('grid-wrap');
+  const {cells}=step;
+  const vizEl=document.getElementById('viz');
+  const avail=Math.min(vizEl.clientHeight-30,vizEl.clientWidth-30);
+  const sz=Math.floor(avail/Math.max(AROWS,ACOLS))-2;
+  const cs=Math.max(40,Math.min(68,sz));
+  wrap.style.gridTemplateColumns=`repeat(${ACOLS},${cs}px)`;
+  wrap.style.gridTemplateRows=`repeat(${AROWS},${cs}px)`;
+  wrap.style.gap='2px';
+
+  let html='';
+  for(let r=0;r<AROWS;r++){
+    for(let c=0;c<ACOLS;c++){
+      const cell=cells[r][c];
+      const lbl=(r===AS[0]&&c===AS[1])?'S':(r===AE[0]&&c===AE[1])?'G':'';
+      const isWall=AWALLS.has(`${r},${c}`);
+      const fval=cell.f==='∞'||cell.f>99?'∞':cell.f;
+      const scoreHtml=isWall||lbl?'':`<span class="cf" style="font-size:${cs>50?11:9}px">${fval}</span><span class="cgh">g:${cell.g==='∞'?'∞':cell.g} h:${cell.h}</span>`;
+      const lblHtml=lbl?`<span style="font-family:var(--font-logo);font-size:${cs>50?20:15}px;color:${lbl==='S'?'#10b981':'#f43f5e'}">${lbl}</span>`:'';
+      html+=`<div class="gcell ${cell.state}" style="width:${cs}px;height:${cs}px;">${lblHtml||scoreHtml}</div>`;
+    }
+  }
+  wrap.innerHTML=html;
+}
+
+/* ═══════════════════════════════════════════════════════
+   STEP RENDERING
+═══════════════════════════════════════════════════════ */
+function renderStep(idx) {
+  if(!ST.steps.length) return;
+  idx=Math.max(0,Math.min(idx,ST.steps.length-1));
+  ST.idx=idx;
+  const step=ST.steps[idx];
+
+  // Show/hide viz sections
+  const algoData=ALGOS[ST.algo];
+  document.getElementById('bars').style.display=algoData.type==='array'?'flex':'none';
+  document.getElementById('graph-svg').style.display=algoData.type==='graph'?'block':'none';
+  const gArea=document.getElementById('grid-area');
+  gArea.style.display=algoData.type==='grid'?'flex':'none';
+  document.getElementById('qs-display').style.display=algoData.type==='graph'?'flex':'none';
+  document.getElementById('tgt-badge').style.display=algoData.type==='array'?'block':'none';
+  document.getElementById('tgt-btn').style.display=algoData.type==='array'?'block':'none';
+
+  // Render viz
+  if(algoData.type==='array') renderBars(step);
+  else if(algoData.type==='graph') renderGraph(step);
+  else renderGrid(step);
+
+  // Phase badge
+  const badge=document.getElementById('pbadge');
+  badge.className='pbadge '+step.phase;
+  badge.textContent=step.phase.toUpperCase();
+
+  // Step text
+  document.getElementById('step-txt').textContent=step.desc;
+
+  // Stats
+  const s=step.stats;
+  document.getElementById('s-cmp').textContent=s.cmp;
+  document.getElementById('s-stp').textContent=s.stp;
+  document.getElementById('s-dep').textContent=s.dep;
+  document.getElementById('s-pas').textContent=s.pas;
+
+  // Progress
+  const pct=ST.steps.length>1?(idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${idx+1} / ${ST.steps.length}`;
+
+  // Code highlight
+  renderCode(ALGOS[ST.algo].code, step.cl);
+
+  // Formula
+  const fEl=document.getElementById('formula');
+  if(step.formula){
+    fEl.style.display='block';
+    fEl.textContent=step.formula;
+  } else {
+    fEl.style.display='none';
+  }
+
+  // Sounds
+  if(step.phase==='found'){triggerCA();playSound('found');}
+  else if(step.phase==='miss'){triggerCA();playSound('miss');}
+  else if(step.phase==='compare') playSound('compare');
+  else if(step.phase==='visit') playSound('visit');
+  else if(step.phase==='backtrack') playSound('backtrack');
+  else if(step.phase==='path'){triggerCA();playSound('path');}
+  else if(step.phase==='recurse') playSound('mid');
+}
+
+/* ═══════════════════════════════════════════════════════
+   RIGHT PANEL
+═══════════════════════════════════════════════════════ */
+function updateRightPanel(algoKey) {
+  const A=ALGOS[algoKey];
+
+  // Complexity
+  const cx=document.getElementById('cx-body');
+  cx.innerHTML=`<tr>
+    <td class="cx-best">${A.complexity.best}</td>
+    <td class="cx-avg">${A.complexity.avg}</td>
+    <td class="cx-worst">${A.complexity.worst}</td>
+    <td class="cx-spc">${A.complexity.space}</td>
+    <td class="cx-note">${A.complexity.note}</td>
+  </tr>`;
+
+  // Legend
+  document.getElementById('legend').innerHTML=A.legend.map(l=>
+    `<div class="leg-item"><div class="leg-dot" style="background:${l.color};border:1px solid rgba(255,255,255,0.1)"></div>${l.label}</div>`
+  ).join('');
+
+  // Use when
+  const uw=document.getElementById('use-when');
+  const useItems=A.use.map(t=>`<div class="use-item good"><span class="bu">+</span>${t}</div>`).join('');
+  const avoidItems=A.avoid.map(t=>`<div class="use-item bad"><span class="bu">−</span>${t}</div>`).join('');
+  uw.innerHTML=useItems+avoidItems;
+
+  // Real world
+  document.getElementById('real-world').innerHTML=A.realWorld;
+
+  // Code (rendered with step later)
+  renderCode(A.code, -1);
+}
+
+/* ═══════════════════════════════════════════════════════
+   CONTROLS
+═══════════════════════════════════════════════════════ */
+function generateSteps() {
+  const A=ALGOS[ST.algo];
+  if(A.type==='array') {
+    switch(ST.algo){
+      case 'linear': ST.steps=genLinear(ST.arr,ST.target); break;
+      case 'binary': ST.steps=genBinary(ST.arr,ST.target); break;
+      case 'jump':   ST.steps=genJump(ST.arr,ST.target); break;
+      case 'exponential': ST.steps=genExponential(ST.arr,ST.target); break;
+      case 'interpolation': ST.steps=genInterpolation(ST.arr,ST.target); break;
+    }
+  } else if(A.type==='graph'){
+    if(ST.algo==='bfs') ST.steps=genBFS();
+    else ST.steps=genDFS();
+  } else {
+    ST.steps=genAStar();
+  }
+  ST.idx=0;
+}
+
+function selectAlgo(key) {
+  ST.algo=key;
+  document.querySelectorAll('.atab').forEach(el=>{
+    el.classList.toggle('active',el.dataset.key===key);
+  });
+  const A=ALGOS[key];
+  const isArr=A.type==='array';
+  document.getElementById('shuf-btn').style.opacity=isArr?'1':'0.3';
+  document.getElementById('sort-btn').style.opacity=isArr?'1':'0.3';
+  document.getElementById('rev-btn').style.opacity=isArr?'1':'0.3';
+  document.getElementById('sz-sl').style.opacity=isArr?'1':'0.3';
+  updateRightPanel(key);
+  if(isArr) {
+    document.getElementById('s-n').textContent=ST.arr.length;
+    const existing=ST.arr.filter(v=>v===ST.target);
+    if(!existing.length){
+      const idx2=Math.floor(Math.random()*ST.arr.length);
+      ST.target=ST.arr[idx2];
+    }
+    document.getElementById('tgt-badge').textContent=`TARGET: ${ST.target}`;
+  }
+  if(ST.playing) pause();
+  generateSteps();
+  renderStep(0);
+  playSound('click');
+}
+
+function next() {
+  if(ST.idx<ST.steps.length-1){ST.idx++;renderStep(ST.idx);}
+  else if(ST.playing) pause();
+}
+
+function prev() {
+  if(ST.idx>0){ST.idx--;renderStep(ST.idx);}
+}
+
+function togglePlay() {
+  if(ST.playing) pause(); else play();
+  playSound('click');
+}
+
+function play() {
+  if(ST.idx>=ST.steps.length-1) doReset();
+  ST.playing=true;
+  document.getElementById('play-btn').textContent='⏸ PAUSE';
+  document.getElementById('play-btn').classList.add('playing');
+  ST.playTimer=setInterval(()=>{
+    if(ST.idx>=ST.steps.length-1){pause();return;}
+    ST.idx++; renderStep(ST.idx);
+  },ST.speed);
+}
+
+function pause() {
+  ST.playing=false;
+  clearInterval(ST.playTimer);
+  document.getElementById('play-btn').textContent='▶ PLAY';
+  document.getElementById('play-btn').classList.remove('playing');
+}
+
+function doReset() {
+  pause(); ST.idx=0; renderStep(0); playSound('click');
+}
+
+function doShuffle() {
+  if(ALGOS[ST.algo].type!=='array') return;
+  pause();
+  ST.arr=genArr(ST.size);
+  const idx2=Math.floor(Math.random()*ST.arr.length);
+  ST.target=ST.arr[idx2];
+  if(Math.random()<0.3){
+    ST.target=10+Math.floor(Math.random()*84);
+  }
+  document.getElementById('tgt-badge').textContent=`TARGET: ${ST.target}`;
+  generateSteps(); renderStep(0); playSound('shuffle');
+}
+
+function doSort() {
+  if(ALGOS[ST.algo].type!=='array') return;
+  pause(); ST.arr.sort((a,b)=>a-b); generateSteps(); renderStep(0); playSound('click');
+}
+
+function doReverse() {
+  if(ALGOS[ST.algo].type!=='array') return;
+  pause(); ST.arr.sort((a,b)=>b-a); generateSteps(); renderStep(0); playSound('click');
+}
+
+function changeSize(v) {
+  ST.size=parseInt(v);
+  document.getElementById('sz-val').textContent=v;
+  document.getElementById('s-n').textContent=v;
+  if(ALGOS[ST.algo].type!=='array') return;
+  pause();
+  ST.arr=genArr(ST.size);
+  const idx2=Math.floor(Math.random()*ST.arr.length);
+  ST.target=ST.arr[idx2];
+  document.getElementById('tgt-badge').textContent=`TARGET: ${ST.target}`;
+  generateSteps(); renderStep(0);
+}
+
+function changeSpeed(v) {
+  const map={1:820,2:650,3:500,4:380,5:280,6:200,7:150,8:110,9:75,10:40};
+  ST.speed=map[v]||280;
+  if(ST.playing){clearInterval(ST.playTimer);ST.playTimer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;renderStep(ST.idx);},ST.speed);}
+}
+
+function newTarget() {
+  if(ALGOS[ST.algo].type!=='array') return;
+  playSound('click');
+  if(Math.random()<0.6){
+    const idx2=Math.floor(Math.random()*ST.arr.length);
+    ST.target=ST.arr[idx2];
+  } else {
+    ST.target=10+Math.floor(Math.random()*84);
+  }
+  document.getElementById('tgt-badge').textContent=`TARGET: ${ST.target}`;
+  pause(); generateSteps(); renderStep(0);
+}
+
+function toggleMute() {
+  ST.muted=!ST.muted;
+  document.getElementById('snd-btn').textContent=ST.muted?'🔇':'🔊';
+  if(!ST.muted) playSound('click');
+}
+
+/* ═══════════════════════════════════════════════════════
+   KEYBOARD
+═══════════════════════════════════════════════════════ */
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none') return;
+  switch(e.key){
+    case 'ArrowRight': next(); break;
+    case 'ArrowLeft': prev(); break;
+    case ' ': e.preventDefault(); togglePlay(); break;
+    case 'r': case 'R': doReset(); break;
+    case 's': case 'S': doShuffle(); break;
+    case 'm': case 'M': toggleMute(); break;
+    case '1': selectAlgo('linear'); break;
+    case '2': selectAlgo('binary'); break;
+    case '3': selectAlgo('jump'); break;
+    case '4': selectAlgo('exponential'); break;
+    case '5': selectAlgo('interpolation'); break;
+    case '6': selectAlgo('bfs'); break;
+    case '7': selectAlgo('dfs'); break;
+    case '8': selectAlgo('astar'); break;
+  }
+});
+
+/* ═══════════════════════════════════════════════════════
+   ALGO TABS
+═══════════════════════════════════════════════════════ */
+function buildTabs() {
+  const container=document.getElementById('algo-tabs');
+  const order=['linear','binary','jump','exponential','interpolation','bfs','dfs','astar'];
+  container.innerHTML=order.map((k,i)=>{
+    const A=ALGOS[k];
+    return `<button class="atab${k===ST.algo?' active':''}" data-key="${k}" onclick="selectAlgo('${k}')">${i+1}. ${A.label}</button>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════
+   BOOT SEQUENCE
+═══════════════════════════════════════════════════════ */
+function boot() {
+  const terminal=document.getElementById('boot-terminal');
+  const fillBar=document.getElementById('boot-fill');
+  const bootLines=[
+    {text:'SEARCH.EXE v1.0 — INITIALIZING...', status:'', delay:200},
+    {text:'CPU: x86_64 @ 8.00 MHz', status:'OK', delay:180},
+    {text:'RAM: 640K EXTENDED MEMORY', status:'OK', delay:160},
+    {text:'CRT PHOSPHOR MONITOR: AMBER', status:'READY', delay:200},
+    {text:'AUDIO SUBSYSTEM: WaveShaper DSP', status:'OK', delay:160},
+    {text:'LOADING: LINEAR_SEARCH.MOD', status:'OK', delay:120},
+    {text:'LOADING: BINARY_SEARCH.MOD', status:'OK', delay:120},
+    {text:'LOADING: JUMP_SEARCH.MOD', status:'OK', delay:120},
+    {text:'LOADING: EXPONENTIAL.MOD', status:'OK', delay:120},
+    {text:'LOADING: INTERPOLATION.MOD', status:'OK', delay:120},
+    {text:'LOADING: BFS_GRAPH.MOD', status:'OK', delay:120},
+    {text:'LOADING: DFS_GRAPH.MOD', status:'OK', delay:120},
+    {text:'LOADING: ASTAR_PATHFINDER.MOD', status:'OK', delay:150},
+    {text:'STEP GENERATOR: CALIBRATING...', status:'DONE', delay:200},
+    {text:'VISUALIZER ENGINE: MOUNTING...', status:'DONE', delay:220},
+    {text:'ALL SYSTEMS NOMINAL. STARTING...', status:'', delay:300},
+  ];
+
+  let lineIdx=0;
+  let progress=0;
+
+  function addLine(){
+    if(lineIdx>=bootLines.length){
+      setTimeout(startApp,400);
+      return;
+    }
+    const bl=bootLines[lineIdx];
+    const div=document.createElement('div');
+    div.className='bl';
+    const statusCls=bl.status==='OK'||bl.status==='DONE'||bl.status==='READY'?'bl-ok':bl.status===''?'':'bl-warn';
+    div.innerHTML=`<span>${bl.text}</span>${bl.status?`<span class="${statusCls}">[${bl.status}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;
+    terminal.appendChild(div);
+    requestAnimationFrame(()=>div.classList.add('show'));
+    progress=Math.round((lineIdx/bootLines.length)*100);
+    fillBar.style.width=progress+'%';
+    lineIdx++;
+    setTimeout(addLine,bl.delay);
+  }
+  addLine();
+}
+
+function startApp() {
+  // Init state
+  ST.arr=genArr(14);
+  const tIdx=Math.floor(Math.random()*ST.arr.length);
+  ST.target=ST.arr[tIdx];
+
+  // Build UI
+  buildTabs();
+  updateRightPanel('linear');
+  document.getElementById('tgt-badge').textContent=`TARGET: ${ST.target}`;
+  document.getElementById('s-n').textContent=ST.size;
+
+  // Generate initial steps
+  generateSteps();
+
+  // Show app
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+
+  // Render first step
+  renderStep(0);
+}
+
+// START
+boot();
+</script>
+</body>
+</html>

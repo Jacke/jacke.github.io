@@ -11,7 +11,22 @@ import { bestHand } from './core/hands.js';
 import type { Message, ActionMessage } from './protocol/messages.js';
 import { BroadcastTransport } from './transports/broadcast.js';
 import { PeerJSTransport, type Role } from './transports/peerjs.js';
+import { WebSocketTransport } from './transports/websocket.js';
+import { clientConfig } from './config.js';
 import { decideAction, monteCarloEquity, thinkDelayMs, type Difficulty } from './bot/bot.js';
+import { opponentModel } from './bot/opponent-model.js';
+import {
+  STRUCTURES,
+  createTournament,
+  currentBlinds,
+  onHandComplete as tournamentOnHandComplete,
+  eliminate as tournamentEliminate,
+  icmEquity,
+  defaultPayouts,
+  aliveSeats,
+  type TournamentState,
+  type BlindStructure,
+} from './core/tournament.js';
 
 import { IDS, $, maybe$, getParam, hideOverlay, setConnStatus, showOverlay, showScreen } from './ui/dom.js';
 import {
@@ -24,6 +39,8 @@ import { loadSettings, applySettings, saveSettings, type Settings } from './ui/s
 import { recordHandStart, recordAction, recordHandEnd, saveMatch, loadMatch, clearMatch, hasMatch } from './ui/match-recorder.js';
 import { rulesHtml } from './ui/rules-content.js';
 import { flyChip, breakdownHtml, setChipStyle } from './ui/chips.js';
+import { makeCardEl } from './ui/cards-view.js';
+import { setLang, getLang, t, applyI18n, type Lang } from './ui/i18n.js';
 import { setBgAnimation } from './ui/bg-animation.js';
 import { renderHandMeter, renderPotOdds, updatePresetButtons } from './ui/gameplay-ux.js';
 import {
@@ -34,13 +51,53 @@ import {
   buyIn, commitMatch, loadBank, loadHistory, formatMatchSummary, clearHistory, resetBank, saveBank,
   computeStats, sparklineSvg,
 } from './ui/bank.js';
-import { createSession, saveSession, loadSession, clearSession, sessionSummary, type GameSession } from './ui/session.js';
+import {
+  createSession, saveSession, loadSession, clearSession, sessionSummary,
+  saveSessionById, listSessions, removeSession,
+  setActiveSessionId, getActiveSessionId,
+  type GameSession,
+} from './ui/session.js';
+import { matchToHHF, downloadHHF } from './history/hhf.js';
+import { matchHistoryToCsv, lifetimeSummaryToCsv, downloadCsv } from './ui/stats-export.js';
+import {
+  createBjState, startHand as bjStartHand,
+  hitStep as bjHitStep, standStep as bjStandStep,
+  doubleStep as bjDoubleStep, splitStep as bjSplitStep,
+  surrenderStep as bjSurrenderStep,
+  dealerShouldDraw as bjDealerShouldDraw,
+  dealerDrawOne as bjDealerDrawOne,
+  finalizeHand as bjFinalizeHand,
+  takeInsurance as bjTakeInsurance, declineInsurance as bjDeclineInsurance,
+  readyNextHand as bjReadyNextHand, legalBjActions,
+} from './blackjack/engine.js';
+import type { BjGameState } from './blackjack/types.js';
+import { renderBlackjack, flipDealerHole, flashOutcomeBanner } from './ui/blackjack-view.js';
+import {
+  sfxCardDeal as bjSfxDeal, sfxCardFlip as bjSfxFlip,
+  sfxChipDrop as bjSfxChip, sfxWin as bjSfxWin, sfxLose as bjSfxLose,
+} from './ui/sfx.js';
+import {
+  initRouter, on as onRoute, onFallback as onRouteFallback,
+  navigateTo, currentRoute,
+} from './ui/router.js';
+import {
+  initChatPanel, showChatPanel, setChatMode, appendChatMessage,
+  clearChatHistory, appendChatSystem,
+} from './ui/chat-panel.js';
+import {
+  startLogSession, appendLogEntry, endLogSession,
+  listSessions as listLogSessions, clearLog as clearMatchLog,
+  relativeTime, type GameKind, type LoggedSession, type LogEntry,
+} from './ui/match-log.js';
 
 // ═══════════════════════════════════════════════════════════════════════
 // App state
 // ═══════════════════════════════════════════════════════════════════════
 
 type Mode = 'pvp' | 'bot';
+// `GameKind` is re-exported from './ui/match-log.js' (see import above) —
+// single source of truth for the 'poker' | 'blackjack' union. Both app.ts
+// and the log storage share the type so there's no drift.
 
 interface App {
   state: GameState;
@@ -56,7 +113,8 @@ interface App {
   oppName: string;
   bc: BroadcastTransport | null;
   peer: PeerJSTransport | null;
-  activeTransport: 'bc' | 'webrtc' | null;
+  ws: WebSocketTransport | null;
+  activeTransport: 'bc' | 'webrtc' | 'ws' | null;
   myReady: boolean;
   oppReady: boolean;
   myNextReady: boolean;
@@ -70,6 +128,46 @@ interface App {
   sessionId: string | null;
   /** Current game config (variant, betting structure, etc.) */
   gameConfig: GameConfig;
+  /** Tournament state when running in tournament mode; null in cash mode. */
+  tournament: TournamentState | null;
+  /**
+   * Multi-table bag — snapshots of every non-active table.
+   * The currently-active table lives in the top-level `state` / `tournament`
+   * / `botDifficulties` / etc. fields; on switch we serialize the active
+   * table into this map, then deserialize the target table out.
+   */
+  tables: Map<string, TableSlot>;
+  /** Which game we're currently running. Poker and blackjack are mutually exclusive. */
+  gameKind: GameKind;
+  /** Blackjack engine state, non-null only when gameKind === 'blackjack'. */
+  blackjack: BjGameState | null;
+  /**
+   * Active entry in the persistent match-log storage. Set when a new
+   * match/session starts (bot or PvP), entries are appended throughout
+   * the session, cleared when the session ends.
+   */
+  logSessionId: string | null;
+  /**
+   * Shared deterministic shoe seed for blackjack P2P. Host generates on
+   * session start and broadcasts via `bj-start`; guest adopts on receive.
+   * null outside BJ P2P mode.
+   */
+  bjP2PSeed: number | null;
+}
+
+/** A snapshot of one inactive table. */
+interface TableSlot {
+  id: string;
+  state: GameState;
+  tournament: TournamentState | null;
+  botDifficulty: Difficulty;
+  botDifficulties: Difficulty[];
+  gameConfig: GameConfig;
+  numPlayers: number;
+  matchStartChips: number;
+  matchHandCount: number;
+  /** Short label shown on the tab strip. */
+  label: string;
 }
 
 const app: App = {
@@ -84,6 +182,7 @@ const app: App = {
   oppName: 'Opponent',
   bc: null,
   peer: null,
+  ws: null,
   activeTransport: null,
   myReady: false,
   oppReady: false,
@@ -94,6 +193,12 @@ const app: App = {
   matchHandCount: 0,
   sessionId: null,
   gameConfig: DEFAULT_CONFIG,
+  tournament: null,
+  tables: new Map<string, TableSlot>(),
+  gameKind: 'poker',
+  blackjack: null,
+  logSessionId: null,
+  bjP2PSeed: null,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -102,15 +207,32 @@ const app: App = {
 
 function send(msg: Message): void {
   if (app.mode === 'bot') return;
+  // Server-assisted matches run on the WebSocket transport exclusively.
+  if (app.activeTransport === 'ws' && app.ws && app.ws.status() === 'open') {
+    try { app.ws.send(msg); } catch (e) { console.error('[poker] ws send error', e); }
+    return;
+  }
+  // Prefer the active transport if one has won. Otherwise, fire through
+  // whichever is available — BC first (cheapest, always works same-browser),
+  // then PeerJS. This avoids the chicken-and-egg where activeTransport only
+  // gets set on *received* messages but we need to send before receiving.
   if (app.activeTransport === 'bc' && app.bc) {
     try { app.bc.send(msg); } catch (e) { console.error('[poker] bc send error', e); }
     return;
   }
-  if (app.peer && app.peer.status() === 'open') {
+  if (app.activeTransport === 'webrtc' && app.peer && app.peer.status() === 'open') {
     try { app.peer.send(msg); } catch (e) { console.error('[poker] webrtc send error', e); }
     return;
   }
-  console.warn('[poker] send with no active transport', msg);
+  // No active transport yet — fan out on whatever channel is alive.
+  let sent = false;
+  if (app.bc) {
+    try { app.bc.send(msg); sent = true; } catch (e) { console.error('[poker] bc send error', e); }
+  }
+  if (app.peer && app.peer.status() === 'open') {
+    try { app.peer.send(msg); sent = true; } catch (e) { console.error('[poker] webrtc send error', e); }
+  }
+  if (!sent) console.warn('[poker] send with no active transport', msg);
 }
 
 function startTransports(roomId: string): void {
@@ -119,6 +241,10 @@ function startTransports(roomId: string): void {
     if (app.activeTransport === 'webrtc') return;
     app.activeTransport = 'bc';
     setConnStatus('connected', 'Connected');
+    // Announce ourselves back — the BC transport already echoes a hello on
+    // its own 'open' but this is belt-and-suspenders so the app-level handler
+    // fires on both sides regardless of ordering.
+    try { app.bc?.send({ type: 'hello', name: app.myName }); } catch { /* ignore */ }
   });
   app.bc.on('message', (msg) => {
     if (app.activeTransport === 'webrtc') return;
@@ -162,27 +288,112 @@ function startTransports(roomId: string): void {
   app.peer.on('error', () => {});
 }
 
+/**
+ * Server-assisted matchmaking: open a WebSocket to the iamjacke poker
+ * server, authenticate with the persistent Ed25519 identity, enter the
+ * queue, and hand off to the normal PvP game flow once matched. Unlike
+ * P2P mode there's no invite link — the server pairs two players from
+ * the global queue and assigns a room.
+ */
+function startMatchmakerFlow(displayName: string): void {
+  if (app.ws) return;
+  const ws = new WebSocketTransport({
+    game: 'poker',
+    seats: 2,
+    displayName,
+    onMatched: ({ roomId, seat }) => {
+      app.roomId = roomId;
+      app.role = seat === 0 ? 'host' : 'guest';
+      app.state.myIndex = seat;
+      app.numPlayers = 2;
+      app.state = createGameState(2, seat, [
+        seat === 0 ? displayName : 'Opponent',
+        seat === 0 ? 'Opponent' : displayName,
+      ]);
+      app.sessionId = mintPvpSession(roomId, { role: app.role, myIndex: seat, myName: displayName });
+      window.history.pushState({}, '', `/poker/?r=${roomId}&session=${app.sessionId}`);
+    },
+  });
+  app.ws = ws;
+  app.mode = 'pvp';
+  app.myName = displayName;
+  showScreen(IDS.screenWaiting);
+  setConnStatus('connecting', 'Finding an opponent…');
+
+  ws.on('status', (s, label) => {
+    const uiState = s === 'open' ? 'connected' : s === 'error' ? 'error' : 'connecting';
+    setConnStatus(uiState as 'connecting' | 'connected' | 'error', label ?? '');
+  });
+  ws.on('open', () => {
+    app.activeTransport = 'ws';
+    setConnStatus('connected', 'Connected');
+    // Let the other side know our name — same pattern as BC/PeerJS.
+    try { ws.send({ type: 'hello', name: displayName }); } catch { /* ignore */ }
+  });
+  ws.on('message', (msg) => {
+    if (app.activeTransport !== 'ws') app.activeTransport = 'ws';
+    handleMessage(msg);
+  });
+  ws.on('close', () => {
+    if (!maybe$(IDS.screenLanding)?.classList.contains('active')) {
+      showOverlay(IDS.overlayDisconnected);
+    }
+  });
+  ws.on('error', (err) => {
+    console.warn('[poker] matchmaker error', err);
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Incoming message dispatch
 // ═══════════════════════════════════════════════════════════════════════
 
 function handleMessage(msg: Message): void {
   switch (msg.type) {
-    case 'hello':
-      app.oppName = msg.name || 'Opponent';
-      app.state.names[1] = app.oppName;
+    case 'hello': {
+      // Only accept a hello as coming from the OTHER seat — never overwrite
+      // our own name entry. The opponent lives at (1 - myIndex) in HU.
+      const oppIdx = (1 - app.state.myIndex + app.state.numPlayers) % app.state.numPlayers;
+      const incoming = (msg.name || '').trim();
+      if (incoming) {
+        app.oppName = incoming;
+        app.state.names[oppIdx] = incoming;
+      }
       $(IDS.readyOppName).textContent = app.oppName;
       $(IDS.oppNameLabel).textContent = app.oppName;
       setConnStatus('connected', 'Connected');
+
+      // Transition to ready screen the first time we hear from the peer,
+      // then always (re-)populate the ready UI so name edits mid-screen
+      // reflect immediately on both sides.
       if (
         maybe$(IDS.screenWaiting)?.classList.contains('active') ||
         maybe$(IDS.screenLanding)?.classList.contains('active')
       ) {
         showScreen(IDS.screenReady);
-        $(IDS.readyYouName).textContent = app.myName;
-        $(IDS.readyOppName).textContent = app.oppName;
+      }
+      // Keep our OWN name slot coherent with app.myName too.
+      app.state.names[app.state.myIndex] = app.myName;
+      $(IDS.readyYouName).textContent = app.myName;
+      $(IDS.readyOppName).textContent = app.oppName;
+      if (maybe$(IDS.screenReady)?.classList.contains('active')) setupReadyScreen();
+      // Persist opponent name into the PvP session so a reload remembers it.
+      if (app.mode === 'pvp' && app.sessionId) {
+        updatePvpSession(app.roomId, app.sessionId, {
+          myName: app.myName,
+          oppName: app.oppName,
+        });
+      }
+      // BJ P2P — opportunistically broadcast our shoe seed on every hello
+      // so whoever joined second also gets it.
+      if (app.gameKind === 'blackjack' && app.bjP2PSeed !== null && app.blackjack) {
+        try {
+          send({ type: 'bj-start', seed: app.bjP2PSeed, startingChips: app.blackjack.chips });
+        } catch { /* ignore */ }
+        appendChatSystem(`${app.oppName || 'Opponent'} connected`);
       }
       break;
+    }
 
     case 'ready':
       app.oppReady = true;
@@ -208,6 +419,50 @@ function handleMessage(msg: Message): void {
       app.oppNextReady = true;
       if (app.myNextReady) doStartNextHand();
       break;
+
+    case 'chat':
+      // Incoming chat from opponent — append to panel + persist in log.
+      appendChatMessage(msg, { mine: false });
+      if (app.logSessionId) {
+        appendLogEntry(app.gameKind, app.logSessionId, {
+          kind: 'chat', ts: msg.ts, from: msg.from, text: msg.text,
+        });
+      }
+      break;
+
+    case 'bj-start':
+      // Guest path: adopt the host's seed so both shoes are identical.
+      // We rebuild our engine state from scratch — if we already had one
+      // with a different seed, overwrite so future deal sync works.
+      if (app.gameKind === 'blackjack') {
+        const hadLocal = app.blackjack;
+        if (!hadLocal || app.bjP2PSeed !== msg.seed) {
+          app.blackjack = createBjState({
+            numDecks: 6,
+            standOnSoft17: true,
+            startingChips: hadLocal?.chips ?? msg.startingChips,
+            seed: msg.seed,
+          });
+          app.bjP2PSeed = msg.seed;
+          renderBlackjack(app.blackjack);
+          appendChatSystem(`Synchronized shoe seed with ${app.oppName || 'opponent'}`);
+        }
+      }
+      break;
+
+    case 'bj-bet':
+    case 'bj-deal':
+    case 'bj-action':
+    case 'bj-insurance':
+      // Forward log entry — the shared-deal sync loop is future work.
+      // For now we just note the opponent's action in the journal so the
+      // history shows both sides' play patterns.
+      if (app.logSessionId) {
+        appendLogEntry(app.gameKind, app.logSessionId, {
+          kind: 'system', ts: Date.now(), text: `opponent ${msg.type}`,
+        });
+      }
+      break;
   }
 }
 
@@ -218,6 +473,18 @@ function handleMessage(msg: Message): void {
 function maybeStartGame(): void {
   if (!app.myReady || !app.oppReady) return;
   hideOverlay(IDS.overlayName);
+  // PvP: start a persistent journal entry for this session so chat and
+  // hands get logged end-to-end. Also reveal the chat panel.
+  if (app.mode === 'pvp' && !app.logSessionId) {
+    app.logSessionId = startLogSession('poker', {
+      mode: 'pvp',
+      label: `vs ${app.oppName || 'Opponent'}`,
+    });
+    clearChatHistory();
+    appendChatSystem(`Connected — say hi to ${app.oppName || 'your opponent'} 👋`);
+  }
+  showChatPanel(true);
+  setChatMode('pvp');
   setTimeout(() => {
     app.myNextReady = false;
     app.oppNextReady = false;
@@ -236,7 +503,7 @@ function hostStartHand(): void {
   send({
     type: 'deal',
     deck,
-    button: app.state.buttonIndex as 0 | 1,
+    button: app.state.buttonIndex,
     handNum: app.state.handNum + 1,
   });
   runDealHand(deck);
@@ -244,12 +511,19 @@ function hostStartHand(): void {
 
 function runDealHand(deck: Card[]): void {
   showScreen(IDS.screenGame);
+  // Tournament mode: push the current level's blinds into the engine state
+  // before dealing, so the escalation actually takes effect on this hand.
+  if (app.tournament) {
+    const lvl = currentBlinds(app.tournament);
+    app.state.blinds = { sb: lvl.sb, bb: lvl.bb, ante: lvl.ante };
+  }
   const events = dealHand(app.state, deck);
   recordHandStart(deck, app.state.buttonIndex, app.state.handNum);
   logEvents(events);
   renderTable(app.state);
   updateActionUI(app.state);
   refreshPlayerUX();
+  renderTournamentHUD();
 
   // Kick bot if it's first to act.
   scheduleBotIfNeeded();
@@ -306,7 +580,8 @@ function applyRaisePreset(preset: string): void {
 }
 
 /** Cheap preflop equity approximation so we don't spin up MC preflop. */
-function preflopRoughEquity(hole: readonly [string, string]): number {
+function preflopRoughEquity(hole: readonly string[]): number {
+  if (hole.length < 2) return 40;
   const VALS: Record<string, number> = {
     '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'T':10,'J':11,'Q':12,'K':13,'A':14,
   };
@@ -328,10 +603,14 @@ function preflopRoughEquity(hole: readonly [string, string]): number {
 function logEvents(events: ReadonlyArray<EngineEvent>): void {
   for (const e of events) {
     switch (e.kind) {
-      case 'hand-start':
+      case 'hand-start': {
         logHandDivider(e.handNum);
         sfxCardDeal();
+        const seats: number[] = [];
+        for (let i = 0; i < app.state.numPlayers; i++) seats.push(i);
+        opponentModel.newHand(seats);
         break;
+      }
       case 'blinds-posted': {
         const sbName = nameOf(e.sb.player);
         const bbName = nameOf(e.bb.player);
@@ -342,6 +621,12 @@ function logEvents(events: ReadonlyArray<EngineEvent>): void {
         break;
       }
       case 'action': {
+        // Feed opponent model — uses current state.phase (action applied but
+        // street hasn't advanced yet since logEvents runs between
+        // applyAction and nextStreet).
+        opponentModel.record(e.player, e.action.kind, app.state.phase);
+        // Discard is not a betting action — skip the betting log/sfx paths.
+        if (e.action.kind === 'discard') break;
         logAction({
           player: e.player,
           playerName: nameOf(e.player),
@@ -411,6 +696,7 @@ function getVariantLabel(variant: GameVariant): string {
     pineapple: 'Pineapple',
     crazypineapple: 'Crazy Pineapple',
     irish: 'Irish',
+    joker: 'Joker Hold\'em',
   };
   return labels[variant] || 'Hold\'em';
 }
@@ -429,7 +715,7 @@ function doLocalAction(action: ActionMessage['action'], amount?: number): void {
   updateActionUI(app.state);
   send({
     type: 'action',
-    player: app.state.myIndex as 0 | 1,
+    player: app.state.myIndex,
     action,
     ...(amount !== undefined ? { amount } : {}),
   });
@@ -582,6 +868,55 @@ function finalizeHand(reason: 'fold' | 'showdown'): void {
   }
 
   recordHandEnd(reason, winnerIdxs);
+  opponentModel.endHand();
+
+  // Persistent journal — record a one-line hand summary.
+  if (app.logSessionId) {
+    const winnerName = winnerIdxs.length === 1 && winnerIdxs[0] !== undefined
+      ? nameOf(winnerIdxs[0])
+      : 'Split';
+    const potSize = app.state.handContribs.reduce((a, b) => a + b, 0);
+    const heroDelta = winnerIdxs.includes(app.state.myIndex)
+      ? Math.round(potSize / winnerIdxs.length) - (app.state.handContribs[app.state.myIndex] ?? 0)
+      : -(app.state.handContribs[app.state.myIndex] ?? 0);
+    appendLogEntry('poker', app.logSessionId, {
+      kind: 'hand',
+      ts: Date.now(),
+      summary: `Hand #${app.state.handNum} · ${winnerName} wins $${potSize} (${reason})`,
+      delta: heroDelta,
+    });
+  }
+
+  // Tournament: advance blind level & track busts.
+  if (app.tournament) {
+    // Apply winners' chip deltas before detecting eliminations. The engine
+    // has already committed everything into state.chips[] via the award path,
+    // so any seat now showing 0 chips is a bust.
+    for (let i = 0; i < app.state.numPlayers; i++) {
+      if ((app.state.chips[i] ?? 0) === 0) tournamentEliminate(app.tournament, i);
+    }
+    const after = tournamentOnHandComplete(app.tournament);
+    const alive = aliveSeats(app.state.chips);
+    addLog({
+      icon: 'info',
+      text: `Blinds $${after.sb}/$${after.bb}${after.ante ? ` · ante $${after.ante}` : ''} · ${alive.length} alive`,
+      category: 'system',
+    });
+
+    // ICM: log the human's current equity in the prize pool.
+    const prizePool = app.tournament.structure.startingStack * app.state.numPlayers;
+    const paid = Math.min(app.state.numPlayers, Math.max(1, Math.ceil(app.state.numPlayers / 2)));
+    const payouts = defaultPayouts(prizePool, paid);
+    const equity = icmEquity(app.state.chips, payouts);
+    const myEq = Math.round(equity[app.state.myIndex] ?? 0);
+    addLog({
+      icon: 'chip',
+      text: `ICM equity: $${myEq} (chip share ${Math.round(((app.state.chips[0] ?? 0) / prizePool) * 100)}%)`,
+      category: 'system',
+    });
+
+    renderTournamentHUD();
+  }
 
   const title = winnerIdxs.includes(app.state.myIndex) && winnerIdxs.length === 1
     ? 'You win!'
@@ -590,15 +925,36 @@ function finalizeHand(reason: 'fold' | 'showdown'): void {
       : 'Split pot';
 
   const lines: string[] = [];
-  if (reason === 'showdown') {
-    for (let i = 0; i < app.state.numPlayers; i++) {
-      const h = hands[i];
-      if (!h) continue;
-      lines.push(`${nameOf(i)}: ${h.name}`);
-    }
-  } else {
-    lines.push(`${title} — opponents folded`);
+  if (reason === 'fold') {
+    lines.push(`Won uncontested — everyone else folded.`);
   }
+
+  // Compute per-player chip deltas for the showdown board.
+  const deltas: number[] = new Array(app.state.numPlayers).fill(0);
+  for (let i = 0; i < app.state.numPlayers; i++) {
+    deltas[i] = (app.state.chips[i] ?? 0) - (app.state.handContribs[i] ?? 0) -
+      ((app.state.chips[i] ?? 0) - (app.state.chips[i] ?? 0)); // placeholder
+  }
+  // More accurate: delta = current chips - (chips before hand).
+  // We don't store pre-hand chips, so approximate via handContribs:
+  // For winners: they get their contribution back + others' contributions.
+  // For losers: they lose their contribution.
+  for (let i = 0; i < app.state.numPlayers; i++) {
+    const contrib = app.state.handContribs[i] ?? 0;
+    if (winnerIdxs.includes(i)) {
+      // Winner gains: total pot minus their own contribution, divided among co-winners.
+      const totalPot = app.state.handContribs.reduce((a, b) => a + b, 0);
+      deltas[i] = Math.round((totalPot - contrib * winnerIdxs.length) / winnerIdxs.length);
+    } else {
+      deltas[i] = -contrib;
+    }
+  }
+
+  // Paint the showdown board with all hands, winner ribbon, best-card glow.
+  const subtitle = reason === 'fold'
+    ? 'UNCONTESTED'
+    : `HAND #${app.state.handNum} · SHOWDOWN`;
+  renderShowdownBoard(reason, hands, winnerIdxs, deltas, subtitle);
 
   // Track hand count for the bank.
   app.matchHandCount++;
@@ -616,7 +972,7 @@ function finalizeHand(reason: 'fold' | 'showdown'): void {
 
   // Persist current session snapshot (for resume).
   if (app.mode === 'bot' && app.sessionId && !app.state.gameOver) {
-    saveSession({
+    const snap: GameSession = {
       id: app.sessionId,
       mode: 'bot',
       difficulty: app.botDifficulty,
@@ -626,9 +982,27 @@ function finalizeHand(reason: 'fold' | 'showdown'): void {
       state: app.state,
       createdAt: 0, // re-set on save
       updatedAt: 0,
-    });
+    };
+    saveSession(snap);
+    saveSessionById(snap);
+    snapshotActiveTable();
+    renderTabStrip();
   } else if (app.state.gameOver) {
+    // Drop this table from the multi-bag; if it was the only one the legacy
+    // clearSession() also wipes the single-session key.
+    if (app.sessionId) {
+      app.tables.delete(app.sessionId);
+      removeSession(app.sessionId);
+    }
     clearSession();
+    // Close the persistent journal entry with the final bank delta.
+    if (app.logSessionId) {
+      const heroChips = app.state.chips[app.state.myIndex] ?? 0;
+      const delta = heroChips - app.matchStartChips;
+      endLogSession('poker', app.logSessionId, delta);
+      app.logSessionId = null;
+    }
+    renderTabStrip();
   }
 
   showShowdownResult(title, lines.join('\n'), app.state.gameOver);
@@ -684,6 +1058,104 @@ function showShowdownResult(title: string, body: string, isGameOver: boolean): v
   setTimeout(() => showOverlay(IDS.overlayShowdown), 800);
 }
 
+/**
+ * Build a rich showdown body with every player's cards + hand + winner ribbon.
+ * reason: 'fold' — only survivor is shown as winner, folded players greyed out.
+ * reason: 'showdown' — every non-folded player shows their best 5-card hand,
+ *                     with winner highlighted and best-5 cards glowing.
+ */
+function renderShowdownBoard(
+  reason: 'fold' | 'showdown',
+  hands: Array<ReturnType<typeof bestHand> | null>,
+  winnerIdxs: number[],
+  deltas: number[],
+  subtitle: string,
+): void {
+  // Community cards row
+  const commEl = maybe$('showdown-community');
+  if (commEl) {
+    commEl.innerHTML = '';
+    app.state.community.forEach((c, i) => {
+      const el = makeCardElDirect(c, true, i * 80);
+      commEl.appendChild(el);
+    });
+    // Pad with placeholders if community incomplete (fold before flop)
+    for (let i = app.state.community.length; i < 5; i++) {
+      const ph = document.createElement('div');
+      ph.className = 'card-placeholder';
+      commEl.appendChild(ph);
+    }
+  }
+
+  const subEl = maybe$('showdown-subtitle');
+  if (subEl) subEl.textContent = subtitle;
+
+  // Per-player rows
+  const playersEl = maybe$('showdown-players');
+  if (!playersEl) return;
+  playersEl.innerHTML = '';
+
+  for (let i = 0; i < app.state.numPlayers; i++) {
+    const row = document.createElement('div');
+    row.className = 'sd-player';
+    if (app.state.folded[i]) row.classList.add('folded');
+    if (winnerIdxs.includes(i)) row.classList.add('winner');
+
+    // Cards
+    const cardsEl = document.createElement('div');
+    cardsEl.className = 'sd-player-cards';
+    const hole = app.state.holeCards[i];
+    if (hole) {
+      const winHand = hands[i];
+      const bestCards = winHand && winnerIdxs.includes(i) ? new Set(winHand.cards) : new Set<string>();
+      for (const card of hole) {
+        const cEl = makeCardElDirect(card, true, 0);
+        if (bestCards.has(card)) cEl.classList.add('best');
+        cardsEl.appendChild(cEl);
+      }
+    }
+
+    // Info
+    const infoEl = document.createElement('div');
+    infoEl.className = 'sd-player-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'sd-player-name';
+    nameEl.textContent = nameOf(i);
+    const handEl = document.createElement('div');
+    handEl.className = 'sd-player-hand';
+    if (app.state.folded[i]) {
+      handEl.textContent = reason === 'fold' ? 'fold' : 'folded';
+    } else if (hands[i]) {
+      handEl.textContent = hands[i]!.name;
+    } else {
+      handEl.textContent = '—';
+    }
+    infoEl.appendChild(nameEl);
+    infoEl.appendChild(handEl);
+
+    // Delta
+    const deltaEl = document.createElement('div');
+    const d = deltas[i] ?? 0;
+    deltaEl.className = 'sd-player-delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : 'zero');
+    deltaEl.textContent = d === 0 ? '—' : (d > 0 ? '+' : '') + `$${d}`;
+
+    row.appendChild(cardsEl);
+    row.appendChild(infoEl);
+    row.appendChild(deltaEl);
+    playersEl.appendChild(row);
+  }
+}
+
+function makeCardElDirect(card: string, faceUp: boolean, delay: number): HTMLElement {
+  // Thin wrapper that just calls the card-view module without triggering
+  // the flying-deck animation (showdown cards shouldn't fly from the deck).
+  const el = makeCardEl(card, faceUp, delay);
+  // Strip the animation so it just appears.
+  el.style.animationDelay = '';
+  el.classList.remove('dealt');
+  return el;
+}
+
 function doStartNextHand(): void {
   hideOverlay(IDS.overlayShowdown);
   app.myReady = false;
@@ -725,15 +1197,21 @@ function buildSoloPicker(): void {
     tile.className = 'count-tile';
     tile.dataset['count'] = String(n);
     const silhouettes = PLAYER_SILHOUETTE.repeat(n);
+    const label = n === 1 ? t('landing.headsup') : t('landing.opps');
     tile.innerHTML = `
       <div class="count-silhouettes">${silhouettes}</div>
       <div class="count-num">${n}</div>
-      <div class="count-text">${n === 1 ? 'heads-up' : 'opponents'}</div>
+      <div class="count-text">${label}</div>
     `;
     tile.addEventListener('click', () => {
       const diff = (row.dataset['diff'] as Difficulty | undefined) ?? 'medium';
-      // Pass current game config when starting
-      startBotGame(diff, n, app.gameConfig);
+      const mode = row.dataset['mode'] ?? 'cash';
+      if (mode === 'tournament') {
+        const structure = row.dataset['structure'] ?? 'standard';
+        startTournamentGame(diff, n, structure, app.gameConfig);
+      } else {
+        startBotGame(diff, n, app.gameConfig);
+      }
     });
     row.appendChild(tile);
   }
@@ -747,6 +1225,33 @@ function buildSoloPicker(): void {
       document.querySelectorAll('.diff-tab').forEach(t => t.classList.remove('selected'));
       tab.classList.add('selected');
       row.dataset['diff'] = diff;
+    });
+  });
+
+  // Wire mode toggle (cash vs tournament) — cash mode shows buy-in, tournament
+  // mode shows structure picker and hides buy-in (tournament has fixed stacks).
+  row.dataset['mode'] = 'cash';
+  row.dataset['structure'] = 'standard';
+  const buyinRow = document.querySelector<HTMLElement>('.buyin-row');
+  const tourneyRow = maybe$('tourney-structure-row');
+  document.querySelectorAll<HTMLElement>('.mode-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const m = tab.dataset['mode'];
+      if (!m) return;
+      document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('selected'));
+      tab.classList.add('selected');
+      row.dataset['mode'] = m;
+      if (buyinRow) buyinRow.style.display = m === 'tournament' ? 'none' : '';
+      if (tourneyRow) tourneyRow.style.display = m === 'tournament' ? '' : 'none';
+    });
+  });
+  document.querySelectorAll<HTMLElement>('.tourney-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const s = tab.dataset['structure'];
+      if (!s) return;
+      document.querySelectorAll('.tourney-tab').forEach(t => t.classList.remove('selected'));
+      tab.classList.add('selected');
+      row.dataset['structure'] = s;
     });
   });
 
@@ -783,8 +1288,216 @@ function buildSoloPicker(): void {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Multi-table — tab strip, snapshot/restore, add/close table
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Short label shown on the tab strip — compact enough for 3-4 tables. */
+function buildTableLabel(): string {
+  const bots = Math.max(0, app.state.numPlayers - 1);
+  if (app.tournament) {
+    return `${app.tournament.structure.name[0]} · ${bots}B`;
+  }
+  return `${app.botDifficulty[0]!.toUpperCase()} · ${bots}B`;
+}
+
+/** Freeze the currently-active table into app.tables + persist to storage. */
+function snapshotActiveTable(): void {
+  if (!app.sessionId) return;
+  if (app.mode !== 'bot') return; // multi-table only supports bot mode (for now)
+  const slot: TableSlot = {
+    id: app.sessionId,
+    state: app.state,
+    tournament: app.tournament,
+    botDifficulty: app.botDifficulty,
+    botDifficulties: app.botDifficulties.slice(),
+    gameConfig: { ...app.gameConfig },
+    numPlayers: app.numPlayers,
+    matchStartChips: app.matchStartChips,
+    matchHandCount: app.matchHandCount,
+    label: buildTableLabel(),
+  };
+  app.tables.set(app.sessionId, slot);
+  // Also mirror to localStorage for cross-reload resume.
+  const session: GameSession = {
+    id: app.sessionId,
+    mode: 'bot',
+    difficulty: app.botDifficulty,
+    numPlayers: app.numPlayers,
+    matchStartChips: app.matchStartChips,
+    matchHandCount: app.matchHandCount,
+    state: app.state,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  saveSessionById(session);
+}
+
+/** Restore a saved table slot into the active app fields. Returns true on success. */
+function restoreTable(id: string): boolean {
+  const slot = app.tables.get(id);
+  if (!slot) return false;
+  if (app.botTimer) { clearTimeout(app.botTimer); app.botTimer = null; }
+  app.state = slot.state;
+  app.tournament = slot.tournament;
+  app.botDifficulty = slot.botDifficulty;
+  app.botDifficulties = slot.botDifficulties.slice();
+  app.gameConfig = { ...slot.gameConfig };
+  app.numPlayers = slot.numPlayers;
+  app.matchStartChips = slot.matchStartChips;
+  app.matchHandCount = slot.matchHandCount;
+  app.sessionId = slot.id;
+  setActiveSessionId(slot.id);
+  renderTabStrip();
+  renderTable(app.state);
+  updateActionUI(app.state);
+  refreshPlayerUX();
+  renderTournamentHUD();
+  scheduleBotIfNeeded();
+  return true;
+}
+
+/** Render the tab strip at the top of the game screen. */
+function renderTabStrip(): void {
+  const strip = maybe$('table-tabs');
+  if (!strip) return;
+  // Snapshot active table so its label stays in sync without overwriting the
+  // live state (shallow — same references, fine for display purposes).
+  if (app.sessionId && app.mode === 'bot') {
+    const existing = app.tables.get(app.sessionId);
+    const slot: TableSlot = existing ?? {
+      id: app.sessionId,
+      state: app.state,
+      tournament: app.tournament,
+      botDifficulty: app.botDifficulty,
+      botDifficulties: app.botDifficulties.slice(),
+      gameConfig: { ...app.gameConfig },
+      numPlayers: app.numPlayers,
+      matchStartChips: app.matchStartChips,
+      matchHandCount: app.matchHandCount,
+      label: buildTableLabel(),
+    };
+    slot.label = buildTableLabel();
+    app.tables.set(app.sessionId, slot);
+  }
+
+  strip.innerHTML = '';
+  // Only show the strip if there's actually more than one table, or we're
+  // in bot mode and the user might add one.
+  if (app.mode !== 'bot') {
+    strip.style.display = 'none';
+    return;
+  }
+  strip.style.display = '';
+  for (const [id, slot] of app.tables) {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'table-tab' + (id === app.sessionId ? ' active' : '');
+    tab.dataset['tableId'] = id;
+    const handNum = slot.state.handNum;
+    tab.innerHTML = `<span class="tt-label">${slot.label}</span><span class="tt-hand">#${handNum}</span>`;
+    tab.addEventListener('click', () => {
+      if (id === app.sessionId) return;
+      snapshotActiveTable();
+      restoreTable(id);
+    });
+    if (app.tables.size > 1) {
+      const close = document.createElement('span');
+      close.className = 'tt-close';
+      close.textContent = '×';
+      close.title = 'Close this table';
+      close.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        closeTable(id);
+      });
+      tab.appendChild(close);
+    }
+    strip.appendChild(tab);
+  }
+  // "+" button to go back to the landing and add a new table.
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'table-tab table-tab-add';
+  addBtn.textContent = '+';
+  addBtn.title = 'Open a new table';
+  addBtn.addEventListener('click', () => {
+    snapshotActiveTable();
+    showScreen(IDS.screenLanding);
+  });
+  strip.appendChild(addBtn);
+}
+
+/** Remove a table. If it was active, switch to another surviving table. */
+function closeTable(id: string): void {
+  const wasActive = id === app.sessionId;
+  app.tables.delete(id);
+  removeSession(id);
+  if (!wasActive) {
+    renderTabStrip();
+    return;
+  }
+  // Switching active table — pick any survivor.
+  const next = app.tables.keys().next().value;
+  if (next) {
+    restoreTable(next);
+    return;
+  }
+  // No tables left → back to landing.
+  app.sessionId = null;
+  setActiveSessionId(null);
+  showScreen(IDS.screenLanding);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tournament HUD — fixed banner at top of the game screen showing level,
+// blinds, ante, alive count, ETA to next level, and the human seat's live
+// ICM equity against the prize pool.
+// ═══════════════════════════════════════════════════════════════════════
+
+function renderTournamentHUD(): void {
+  const hud = maybe$('tourney-hud');
+  if (!hud) return;
+  const t = app.tournament;
+  if (!t || app.mode !== 'bot') {
+    hud.style.display = 'none';
+    return;
+  }
+  hud.style.display = '';
+
+  const level = currentBlinds(t);
+  const levelEl = maybe$('th-level');
+  if (levelEl) levelEl.textContent = `L${level.level}`;
+  const blindsEl = maybe$('th-blinds');
+  if (blindsEl) blindsEl.textContent = `${level.sb}/${level.bb}`;
+  const anteEl = maybe$('th-ante');
+  if (anteEl) anteEl.textContent = level.ante > 0 ? String(level.ante) : '—';
+  const alive = aliveSeats(app.state.chips);
+  const aliveEl = maybe$('th-alive');
+  if (aliveEl) aliveEl.textContent = `${alive.length}/${app.state.numPlayers}`;
+  const nextEl = maybe$('th-next');
+  if (nextEl) {
+    const remaining = Math.max(0, level.handsPerLevel - t.handsAtLevel);
+    nextEl.textContent = remaining > 0 ? `${remaining}h` : 'now';
+  }
+
+  // ICM equity for the human seat (index 0).
+  const equityEl = maybe$('th-equity');
+  if (equityEl) {
+    const prizePool = t.structure.startingStack * app.state.numPlayers;
+    const paid = Math.min(app.state.numPlayers, Math.max(1, Math.ceil(app.state.numPlayers / 2)));
+    const payouts = defaultPayouts(prizePool, paid);
+    const eq = icmEquity(app.state.chips, payouts);
+    const mine = Math.round(eq[app.state.myIndex] ?? 0);
+    equityEl.textContent = `$${mine}`;
+  }
+}
+
 export function startBotGame(difficulty: Difficulty, numOpponents: number, config?: Partial<GameConfig>): void {
+  // If there's an active bot-mode table, snapshot it before we replace it.
+  if (app.mode === 'bot' && app.sessionId) snapshotActiveTable();
   const total = Math.max(2, Math.min(6, numOpponents + 1));
+  opponentModel.reset();
+  app.tournament = null;
   app.mode = 'bot';
   app.botDifficulty = difficulty;
   app.numPlayers = total;
@@ -837,6 +1550,11 @@ export function startBotGame(difficulty: Difficulty, numOpponents: number, confi
   });
   app.sessionId = session.id;
   saveSession(session);
+  saveSessionById(session);
+  setActiveSessionId(session.id);
+  snapshotActiveTable();
+  renderTabStrip();
+  renderTournamentHUD(); // hides banner when cash (app.tournament === null)
 
   // History recap first — small, filter-friendly
   const history = loadHistory();
@@ -854,7 +1572,697 @@ export function startBotGame(difficulty: Difficulty, numOpponents: number, confi
   });
   logMatchDivider(`${diffLabel} · ${total - 1} ${total - 1 === 1 ? 'bot' : 'bots'} · Buy-in $${humanChips}`);
 
+  // Persistent journal entry for this match.
+  app.logSessionId = startLogSession('poker', {
+    mode: 'bot',
+    label: `${diffLabel} · ${total - 1} bot${total - 1 > 1 ? 's' : ''} · $${humanChips}`,
+  });
+
+  // Chat panel — visible during solo matches too, but read-only with a
+  // helpful placeholder. Users see the journal and can always chat by
+  // inviting a friend from the lobby.
+  clearChatHistory();
+  showChatPanel(true);
+  setChatMode('bot');
+  appendChatSystem(`Solo match started — journal is live. Invite a friend from the lobby to unlock chat.`);
+
   hostStartHand();
+}
+
+/**
+ * Start a tournament against bots. Uses a named structure ("turbo",
+ * "standard", "deepstack"), seats the human at 0 with the structure's
+ * starting stack, and runs escalating blinds via the tournament module.
+ *
+ * Unlike cash games, no bank withdrawal — the tournament has its own
+ * isolated chip world until it ends. The bank is credited/debited on
+ * match completion based on finish position and the ICM-derived payout.
+ */
+export function startTournamentGame(
+  difficulty: Difficulty,
+  numOpponents: number,
+  structureKey: string,
+  config?: Partial<GameConfig>,
+): void {
+  if (app.mode === 'bot' && app.sessionId) snapshotActiveTable();
+  const total = Math.max(2, Math.min(6, numOpponents + 1));
+  const structure: BlindStructure = STRUCTURES[structureKey] ?? STRUCTURES['standard']!;
+  opponentModel.reset();
+  app.mode = 'bot';
+  app.botDifficulty = difficulty;
+  app.numPlayers = total;
+  app.role = 'host';
+  app.myName = 'You';
+  app.gameConfig = { ...DEFAULT_CONFIG, ...config };
+
+  // Tournament has its own chip economy: every seat starts with the
+  // structure's starting stack, regardless of the persistent bank.
+  app.matchStartChips = structure.startingStack;
+  app.matchHandCount = 0;
+
+  const names = ['You'];
+  const difficulties: Difficulty[] = [difficulty];
+  for (let i = 1; i < total; i++) {
+    names.push(`Bot ${i}`);
+    difficulties.push(difficulty);
+  }
+  app.state = createGameState(total, 0, names, undefined, app.gameConfig);
+  for (let i = 0; i < total; i++) app.state.chips[i] = structure.startingStack;
+  app.botDifficulties = difficulties;
+  app.myReady = true;
+  app.oppReady = true;
+
+  // Spin up tournament state + apply initial level's blinds.
+  app.tournament = createTournament(structure);
+  const lvl = currentBlinds(app.tournament);
+  app.state.blinds = { sb: lvl.sb, bb: lvl.bb, ante: lvl.ante };
+
+  const diffLabel = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  setConnStatus(
+    'connected',
+    `${structure.name} · ${diffLabel} · ${total - 1} bot${total - 1 > 1 ? 's' : ''}`,
+  );
+  clearLog();
+
+  addLog({
+    icon: 'info',
+    text: `${structure.name} tournament · ${total} seats · starting stack $${structure.startingStack}`,
+    category: 'system',
+  });
+  addLog({
+    icon: 'info',
+    text: `Level 1 blinds $${lvl.sb}/$${lvl.bb}${lvl.ante ? ` · ante $${lvl.ante}` : ''} · ${lvl.handsPerLevel} hands/level`,
+    category: 'system',
+  });
+
+  // Show projected prize pool & payouts (informational only — real payout
+  // happens at tournament end from surviving seats).
+  const prizePool = structure.startingStack * total;
+  const paid = Math.min(total, Math.max(1, Math.ceil(total / 2)));
+  const payouts = defaultPayouts(prizePool, paid);
+  addLog({
+    icon: 'chip',
+    text: `Prize pool $${prizePool} · pays top ${paid}: ${payouts.map(p => `$${p}`).join(' / ')}`,
+    category: 'system',
+  });
+  logMatchDivider(
+    `${structure.name} · ${diffLabel} · ${total - 1} ${total - 1 === 1 ? 'bot' : 'bots'}`,
+  );
+
+  // Register a new session ID so multi-table + resume both work.
+  const session = createSession({
+    mode: 'bot',
+    difficulty,
+    numPlayers: total,
+    matchStartChips: structure.startingStack,
+    state: app.state,
+  });
+  app.sessionId = session.id;
+  saveSession(session);
+  saveSessionById(session);
+  setActiveSessionId(session.id);
+  snapshotActiveTable();
+  renderTabStrip();
+  renderTournamentHUD();
+
+  // Tournament journal + chat panel in read-only mode.
+  app.logSessionId = startLogSession('poker', {
+    mode: 'bot',
+    label: `${structure.name} tournament · ${diffLabel} · ${total - 1} bots`,
+  });
+  clearChatHistory();
+  showChatPanel(true);
+  setChatMode('bot');
+  appendChatSystem(`${structure.name} tournament started · $${structure.startingStack} stacks`);
+
+  hostStartHand();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Blackjack — fully separate from poker. Lives in its own app.blackjack
+// slot + #screen-blackjack. Sessions, chips, and hand state never leak
+// between the two game kinds.
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Persistent blackjack bankroll — stored under its own key so the poker
+ * bank is untouched. Realistic casino UX: if you walk up to a blackjack
+ * table with no chips, the house reloads you to $1000.
+ */
+const BJ_BANK_KEY = 'iamjacke-blackjack-bank';
+
+function loadBjBank(): number {
+  try {
+    const raw = localStorage.getItem(BJ_BANK_KEY);
+    if (!raw) return 1000;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 1000;
+  } catch {
+    return 1000;
+  }
+}
+
+function saveBjBank(chips: number): void {
+  try { localStorage.setItem(BJ_BANK_KEY, String(chips)); } catch { /* ignore */ }
+}
+
+// Timing constants for the animated blackjack sequence. All values in ms.
+const BJ_DEAL_STEP = 180;     // stagger between the 4 opening cards
+const BJ_DEALER_STEP = 480;   // pause between each dealer hit
+const BJ_HOLE_FLIP_MS = 620;  // hole card reveal duration
+const BJ_SETTLE_DELAY = 420;  // pause after final dealer card before settling
+const BJ_OUTCOME_MS = 1800;   // outcome banner hang time
+const BJ_CHIP_FLY_MS = 500;   // chip fly travel time
+
+function wait(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+/** True while a staged animation is running — blocks re-entry on double-clicks. */
+let bjBusy = false;
+
+/**
+ * Start a blackjack P2P session from a room code. Called by `init()` when
+ * the URL has `?r=... &game=blackjack`. Each peer runs its own engine —
+ * the shared state is the chat + presence + journal. This is a
+ * deliberately-simple "side-by-side duel" model where the real benefit
+ * of multiplayer is the chat, not simultaneous dealer play (that's a
+ * bigger feature we'll layer on later via bj-deal messages).
+ */
+export function startBjP2PSession(roomId: string): void {
+  app.gameKind = 'blackjack';
+  app.mode = 'pvp';
+  app.role = 'host'; // transport resolves this; onRoleChange flips us to guest if host slot is taken
+  app.roomId = roomId;
+
+  const persistedName = loadPlayerName() || '';
+  app.myName = persistedName || 'Player';
+  app.oppName = 'Opponent';
+
+  // Each peer runs its own blackjack engine. Host picks the seed; guest
+  // receives it via the first `bj-start` hello and rebuilds the same
+  // deterministic shoe so any future sync can align.
+  const chips = loadBjBank();
+  const seed = Math.floor(Math.random() * 2 ** 31);
+  app.blackjack = createBjState({
+    numDecks: 6,
+    standOnSoft17: true,
+    startingChips: chips,
+    seed,
+  });
+  bjBusy = false;
+
+  // Persistent journal entry for this session.
+  app.logSessionId = startLogSession('blackjack', {
+    mode: 'pvp',
+    label: `Room ${roomId}`,
+  });
+  appendLogEntry('blackjack', app.logSessionId, {
+    kind: 'system',
+    ts: Date.now(),
+    text: `P2P room ${roomId} opened`,
+  });
+
+  // Start transports — same signed PeerJS/BroadcastChannel as poker PvP.
+  startTransports(roomId);
+
+  // Render the blackjack table + reveal chat panel.
+  renderBlackjack(app.blackjack);
+  showChatPanel(true);
+  setChatMode('pvp');
+  clearChatHistory();
+  appendChatSystem(`Room ${roomId} — share the URL with a friend to play together.`);
+  const shareUrl = `${window.location.origin}${window.location.pathname}?r=${encodeURIComponent(roomId)}&game=blackjack#/blackjack`;
+  appendChatSystem(`Share link: ${shareUrl}`);
+  try {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl).catch(() => { /* user dismissed */ });
+    }
+  } catch { /* no clipboard */ }
+  showScreen(IDS.screenBlackjack);
+
+  // Defer the bj-start broadcast until the transport actually opens.
+  // handleMessage receives it on the other side and adopts our seed.
+  // We do this opportunistically on every hello exchange — see below.
+  app.bjP2PSeed = seed;
+}
+
+/**
+ * Public entry point for starting a blackjack session. Delegates to the
+ * router so the URL reflects the game kind. Calling this when already on
+ * #/blackjack is a no-op (the table is already live).
+ */
+export function startBlackjackGame(): void {
+  if (currentRoute() === '/blackjack') {
+    // Already on the blackjack screen — re-initialize in place.
+    mountBlackjackScreen();
+    return;
+  }
+  navigateTo('#/blackjack');
+}
+
+/**
+ * Idempotent initializer for the blackjack screen. Called by the router
+ * when the URL resolves to '#/blackjack'. Safe to call on direct page
+ * load or after browser back/forward navigation.
+ */
+function mountBlackjackScreen(): void {
+  // Tear down any live poker timer.
+  if (app.botTimer) { clearTimeout(app.botTimer); app.botTimer = null; }
+
+  app.gameKind = 'blackjack';
+  app.mode = 'bot';
+  const chips = loadBjBank();
+  // If a session already exists (e.g. user hit back/forward), keep it.
+  if (!app.blackjack) {
+    app.blackjack = createBjState({
+      numDecks: 6,
+      standOnSoft17: true,
+      startingChips: chips,
+    });
+  }
+  bjBusy = false;
+
+  // Start a journal entry for this solo blackjack session if we don't
+  // already have one. Entries accumulate as the player deals hands.
+  if (!app.logSessionId) {
+    app.logSessionId = startLogSession('blackjack', {
+      mode: 'bot',
+      label: `Solo · $${chips}`,
+    });
+  }
+  // Chat panel visible as journal during solo play.
+  clearChatHistory();
+  showChatPanel(true);
+  setChatMode('bot');
+  appendChatSystem('Solo blackjack — journal is live. Multiplayer chat unlocks via "INVITE FRIEND".');
+
+  renderBlackjack(app.blackjack);
+  showScreen(IDS.screenBlackjack);
+}
+
+function bjPersistAndRender(): void {
+  if (!app.blackjack) return;
+  saveBjBank(app.blackjack.chips);
+  renderBlackjack(app.blackjack);
+}
+
+/** DEAL — chip fly → engine deal → render → auto-settle path if BJ. */
+async function bjOnDeal(): Promise<void> {
+  if (!app.blackjack || bjBusy) return;
+  const state = app.blackjack;
+
+  const betInput = maybe$('bj-bet-input') as HTMLInputElement | null;
+  const bet = Math.max(1, Math.floor(Number(betInput?.value ?? 50)));
+  if (state.phase === 'settled') {
+    bjReadyNextHand(state);
+    renderBlackjack(state); // wipes old winner's DOM via diff
+  }
+  if (bet > state.chips) {
+    alert(`Not enough chips — you have $${state.chips}`);
+    return;
+  }
+
+  bjBusy = true;
+  try {
+    // Chip fly: bankroll label → betting circle.
+    const chipsEl = maybe$('bj-chips');
+    const circleEl = maybe$('bj-betting-circle');
+    const chipCount = Math.min(5, 1 + Math.floor(Math.log10(bet + 1)));
+    flyChip(chipsEl, circleEl, { amount: bet, count: chipCount });
+    bjSfxChip();
+    await wait(BJ_CHIP_FLY_MS);
+
+    // Engine deals all 4 cards synchronously.
+    try {
+      bjStartHand(state, bet);
+    } catch (e) {
+      console.error('[bj] startHand failed', e);
+      return;
+    }
+    renderBlackjack(state);
+
+    // SFX for each dealt card, staggered.
+    for (let i = 0; i < 4; i++) setTimeout(bjSfxDeal, i * BJ_DEAL_STEP);
+    await wait(BJ_DEAL_STEP * 4 + 100);
+
+    saveBjBank(state.chips);
+
+    // Auto-settled paths (player natural BJ, dealer peek BJ).
+    if (state.phase === 'settled') {
+      flipDealerHole(state);
+      bjSfxFlip();
+      await wait(BJ_HOLE_FLIP_MS);
+      renderBlackjack(state);
+      await bjRunOutcome(state);
+    }
+  } finally {
+    bjBusy = false;
+    bjPersistAndRender();
+  }
+}
+
+async function bjOnHit(): Promise<void> {
+  if (!app.blackjack || bjBusy) return;
+  if (app.blackjack.phase !== 'player') return;
+  if (!legalBjActions(app.blackjack).hit) return;
+  bjBusy = true;
+  try {
+    const result = bjHitStep(app.blackjack);
+    renderBlackjack(app.blackjack);
+    bjSfxDeal();
+    await wait(260);
+    if (result === 'dealer') {
+      await bjRunDealerSequence();
+    }
+  } catch (e) {
+    console.error('[bj] hit failed', e);
+  } finally {
+    bjBusy = false;
+    bjPersistAndRender();
+  }
+}
+
+async function bjOnStand(): Promise<void> {
+  if (!app.blackjack || bjBusy) return;
+  if (app.blackjack.phase !== 'player') return;
+  if (!legalBjActions(app.blackjack).stand) return;
+  bjBusy = true;
+  try {
+    const result = bjStandStep(app.blackjack);
+    renderBlackjack(app.blackjack);
+    if (result === 'dealer') {
+      await bjRunDealerSequence();
+    }
+  } catch (e) {
+    console.error('[bj] stand failed', e);
+  } finally {
+    bjBusy = false;
+    bjPersistAndRender();
+  }
+}
+
+async function bjOnDouble(): Promise<void> {
+  if (!app.blackjack || bjBusy) return;
+  if (app.blackjack.phase !== 'player') return;
+  if (!legalBjActions(app.blackjack).double) return;
+  bjBusy = true;
+  try {
+    // Chip fly for the matching bet.
+    const activeHand = app.blackjack.hands[app.blackjack.activeHandIdx]!;
+    const extra = activeHand.bet;
+    flyChip(maybe$('bj-chips'), maybe$('bj-betting-circle'), {
+      amount: extra,
+      count: Math.min(5, 1 + Math.floor(Math.log10(extra + 1))),
+    });
+    bjSfxChip();
+    await wait(BJ_CHIP_FLY_MS);
+
+    const result = bjDoubleStep(app.blackjack);
+    renderBlackjack(app.blackjack);
+    bjSfxDeal();
+    await wait(320);
+    if (result === 'dealer') {
+      await bjRunDealerSequence();
+    }
+  } catch (e) {
+    console.error('[bj] double failed', e);
+  } finally {
+    bjBusy = false;
+    bjPersistAndRender();
+  }
+}
+
+async function bjOnSplit(): Promise<void> {
+  if (!app.blackjack || bjBusy) return;
+  if (app.blackjack.phase !== 'player') return;
+  if (!legalBjActions(app.blackjack).split) return;
+  bjBusy = true;
+  try {
+    const activeHand = app.blackjack.hands[app.blackjack.activeHandIdx]!;
+    const extra = activeHand.bet;
+    flyChip(maybe$('bj-chips'), maybe$('bj-betting-circle'), {
+      amount: extra,
+      count: Math.min(5, 1 + Math.floor(Math.log10(extra + 1))),
+    });
+    bjSfxChip();
+    await wait(380);
+
+    const result = bjSplitStep(app.blackjack);
+    renderBlackjack(app.blackjack);
+    setTimeout(bjSfxDeal, 120);
+    setTimeout(bjSfxDeal, 280);
+    await wait(420);
+    if (result === 'dealer') {
+      await bjRunDealerSequence();
+    }
+  } catch (e) {
+    console.error('[bj] split failed', e);
+  } finally {
+    bjBusy = false;
+    bjPersistAndRender();
+  }
+}
+
+async function bjOnSurrender(): Promise<void> {
+  if (!app.blackjack || bjBusy) return;
+  if (app.blackjack.phase !== 'player') return;
+  if (!legalBjActions(app.blackjack).surrender) return;
+  bjBusy = true;
+  try {
+    const result = bjSurrenderStep(app.blackjack);
+    renderBlackjack(app.blackjack);
+    // Fade the bet chip stack out for the surrender half-return.
+    maybe$('bj-betting-circle-chips')?.classList.add('fading-loss');
+    await wait(360);
+    if (result === 'dealer') {
+      await bjRunDealerSequence();
+    }
+  } catch (e) {
+    console.error('[bj] surrender failed', e);
+  } finally {
+    bjBusy = false;
+    bjPersistAndRender();
+  }
+}
+
+async function bjOnInsurance(accept: boolean): Promise<void> {
+  if (!app.blackjack || bjBusy) return;
+  bjBusy = true;
+  try {
+    const state = app.blackjack;
+    if (accept) {
+      flyChip(maybe$('bj-chips'), maybe$('bj-betting-circle'), {
+        amount: Math.floor(state.currentBet / 2),
+        count: 2,
+      });
+      bjSfxChip();
+      await wait(BJ_CHIP_FLY_MS);
+      bjTakeInsurance(state);
+    } else {
+      bjDeclineInsurance(state);
+    }
+    renderBlackjack(state);
+    // If dealer had BJ, settlement already happened synchronously inside
+    // the insurance flow — animate the hole flip + banner now.
+    if (state.phase === 'settled') {
+      flipDealerHole(state);
+      bjSfxFlip();
+      await wait(BJ_HOLE_FLIP_MS);
+      renderBlackjack(state);
+      await bjRunOutcome(state);
+    }
+  } catch (e) {
+    console.error('[bj] insurance failed', e);
+  } finally {
+    bjBusy = false;
+    bjPersistAndRender();
+  }
+}
+
+/**
+ * The heart of the rework — an animated dealer turn.
+ * 1. Flip the hole card (CSS flip, ~600ms).
+ * 2. Loop: check dealerShouldDraw → draw one card → render (diff appends) → wait.
+ * 3. Pause, finalize, render, run outcome flash.
+ */
+async function bjRunDealerSequence(): Promise<void> {
+  if (!app.blackjack) return;
+  const state = app.blackjack;
+
+  flipDealerHole(state);
+  bjSfxFlip();
+  await wait(BJ_HOLE_FLIP_MS);
+  renderBlackjack(state); // dealer total label updates now that hole is visible
+
+  while (bjDealerShouldDraw(state)) {
+    bjDealerDrawOne(state);
+    renderBlackjack(state);
+    bjSfxDeal();
+    await wait(BJ_DEALER_STEP);
+  }
+
+  await wait(BJ_SETTLE_DELAY);
+  bjFinalizeHand(state);
+  renderBlackjack(state);
+  await bjRunOutcome(state);
+}
+
+/** Flash the outcome banner + payout fly-chips + aggregate sfx. */
+async function bjRunOutcome(state: BjGameState): Promise<void> {
+  flashOutcomeBanner(state);
+
+  // Aggregate sfx — prioritize win over loss.
+  const anyWin = state.hands.some(h => h.outcome === 'win' || h.outcome === 'blackjack');
+  const anyLoss = state.hands.some(h => h.outcome === 'loss');
+  if (anyWin) bjSfxWin();
+  else if (anyLoss) bjSfxLose();
+
+  // Per-hand payout / bet fade.
+  for (let i = 0; i < state.hands.length; i++) {
+    const h = state.hands[i]!;
+    if (h.outcome === 'win' || h.outcome === 'blackjack' || h.outcome === 'push') {
+      const payout = h.outcome === 'blackjack'
+        ? h.bet + Math.floor(h.bet * 1.5)
+        : h.outcome === 'win'
+          ? h.bet * 2
+          : h.bet;
+      const count = Math.min(5, 1 + Math.floor(Math.log10(payout + 1)));
+      setTimeout(
+        () => flyChip(
+          maybe$('bj-betting-circle'),
+          maybe$('bj-chips'),
+          { amount: payout, count, reverse: true },
+        ),
+        380 + i * 140,
+      );
+    } else if (h.outcome === 'loss') {
+      maybe$('bj-betting-circle-chips')?.classList.add('fading-loss');
+    }
+  }
+
+  await wait(BJ_OUTCOME_MS);
+  saveBjBank(state.chips);
+}
+
+function bjExitToLanding(): void {
+  if (app.blackjack) saveBjBank(app.blackjack.chips);
+  app.blackjack = null;
+  app.gameKind = 'poker';
+  bjBusy = false;
+  navigateTo('#/');
+}
+
+/**
+ * Landing screen — default route handler. Called by the router when the
+ * URL is '#/' or '#/poker'. Tears down any blackjack session but leaves
+ * poker state alone (so the session-resume button still works).
+ */
+function mountLandingScreen(): void {
+  if (app.gameKind === 'blackjack' && app.blackjack) {
+    saveBjBank(app.blackjack.chips);
+  }
+  app.gameKind = 'poker';
+  app.blackjack = null;
+  if (app.botTimer) { clearTimeout(app.botTimer); app.botTimer = null; }
+  showChatPanel(false);
+  showScreen(IDS.screenLanding);
+}
+
+function bjShowHelp(lang: 'en' | 'ru'): void {
+  const overlay = maybe$('bj-help-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  const bodyEn = maybe$('bj-help-body-en');
+  const bodyRu = maybe$('bj-help-body-ru');
+  if (bodyEn) bodyEn.style.display = lang === 'en' ? '' : 'none';
+  if (bodyRu) bodyRu.style.display = lang === 'ru' ? '' : 'none';
+  document.querySelectorAll<HTMLElement>('.bj-help-lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset['bjLang'] === lang);
+  });
+}
+
+function bjHideHelp(): void {
+  const overlay = maybe$('bj-help-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+/** Wire blackjack event listeners once on init. */
+function wireBlackjackHandlers(): void {
+  maybe$('bj-btn-deal')?.addEventListener('click', () => { void bjOnDeal(); });
+  maybe$('bj-btn-hit')?.addEventListener('click', () => { void bjOnHit(); });
+  maybe$('bj-btn-stand')?.addEventListener('click', () => { void bjOnStand(); });
+  maybe$('bj-btn-double')?.addEventListener('click', () => { void bjOnDouble(); });
+  maybe$('bj-btn-split')?.addEventListener('click', () => { void bjOnSplit(); });
+  maybe$('bj-btn-surrender')?.addEventListener('click', () => { void bjOnSurrender(); });
+  maybe$('bj-btn-insurance-yes')?.addEventListener('click', () => { void bjOnInsurance(true); });
+  maybe$('bj-btn-insurance-no')?.addEventListener('click', () => { void bjOnInsurance(false); });
+  maybe$('bj-btn-exit')?.addEventListener('click', bjExitToLanding);
+  // Help overlay
+  maybe$('bj-btn-help')?.addEventListener('click', () => {
+    bjShowHelp(getLang() as 'en' | 'ru');
+  });
+  maybe$('bj-help-close')?.addEventListener('click', bjHideHelp);
+  document.querySelectorAll<HTMLElement>('.bj-help-lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lang = btn.dataset['bjLang'];
+      if (lang === 'en' || lang === 'ru') bjShowHelp(lang);
+    });
+  });
+  // Click outside modal to close
+  maybe$('bj-help-overlay')?.addEventListener('click', (ev) => {
+    if ((ev.target as HTMLElement).id === 'bj-help-overlay') bjHideHelp();
+  });
+
+  // Bet chip presets
+  document.querySelectorAll<HTMLElement>('[data-bj-bet]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = maybe$('bj-bet-input') as HTMLInputElement | null;
+      if (!input || !app.blackjack) return;
+      const delta = Number(btn.dataset['bjBet'] ?? 0);
+      const cur = Math.max(0, Number(input.value) || 0);
+      const next = Math.max(1, Math.min(app.blackjack.chips, cur + delta));
+      input.value = String(next);
+      renderBlackjack(app.blackjack);
+    });
+  });
+  maybe$('bj-btn-clear-bet')?.addEventListener('click', () => {
+    const input = maybe$('bj-bet-input') as HTMLInputElement | null;
+    if (input) input.value = '0';
+    if (app.blackjack) renderBlackjack(app.blackjack);
+  });
+  maybe$('bj-bet-input')?.addEventListener('input', () => {
+    if (app.blackjack) renderBlackjack(app.blackjack);
+  });
+
+  // Keyboard shortcuts — H/S/D/P/R only while blackjack is active and
+  // the player has the turn. Ignores key presses while focused in any
+  // input (otherwise typing the bet would trigger Hit).
+  document.addEventListener('keydown', (ev) => {
+    if (app.gameKind !== 'blackjack' || !app.blackjack) return;
+    const target = document.activeElement as HTMLElement | null;
+    if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+    // Insurance phase accepts Y/N.
+    if (app.blackjack.phase === 'insurance') {
+      if (ev.key === 'y' || ev.key === 'Y') { ev.preventDefault(); void bjOnInsurance(true); }
+      else if (ev.key === 'n' || ev.key === 'N') { ev.preventDefault(); void bjOnInsurance(false); }
+      return;
+    }
+    // Deal / next hand accepts Space or Enter when idle/settled.
+    if (app.blackjack.phase === 'idle' || app.blackjack.phase === 'settled') {
+      if (ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); void bjOnDeal(); }
+      return;
+    }
+    // Player turn: H/S/D/P/R.
+    if (app.blackjack.phase !== 'player') return;
+    const legal = legalBjActions(app.blackjack);
+    const k = ev.key.toLowerCase();
+    if (k === 'h' && legal.hit)             { ev.preventDefault(); void bjOnHit(); }
+    else if (k === 's' && legal.stand)      { ev.preventDefault(); void bjOnStand(); }
+    else if (k === 'd' && legal.double)     { ev.preventDefault(); void bjOnDouble(); }
+    else if (k === 'p' && legal.split)      { ev.preventDefault(); void bjOnSplit(); }
+    else if (k === 'r' && legal.surrender)  { ev.preventDefault(); void bjOnSurrender(); }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -868,6 +2276,11 @@ export function init(): void {
   setChipStyle(settings.chipStyle as 'classic' | 'minimal' | 'retro' | 'neon');
   setBgAnimation(settings.bgAnim as 'static' | 'particles' | 'aurora' | 'starfield');
   setSoundEnabled(settings.sound);
+  setLang(settings.lang as Lang);
+  // Restore persisted player name — prefills the ready-screen input + is
+  // used as the outgoing hello name instead of default "Host"/"Guest".
+  const savedName = loadPlayerName();
+  if (savedName) app.myName = savedName;
   wireSettings(settings);
 
   // Unlock audio on first gesture (browser requirement).
@@ -885,6 +2298,8 @@ export function init(): void {
   attachLogScrollWatcher();
   attachChipBreakdownListener();
   refreshBankWidget();
+  // First-paint translations for any [data-i18n] element already in DOM.
+  applyI18n();
 
   // Show replay button only if a saved match exists
   const replayBtn = maybe$('btn-replay-last');
@@ -903,30 +2318,230 @@ export function init(): void {
   }
 
   const r = getParam('r');
-  if (!r) {
-    showScreen(IDS.screenLanding);
+  const gameParam = getParam('game');
+
+  // Blackjack PvP is detected by `?r=... &game=blackjack`. It uses the
+  // existing signed transports (PeerJS + BroadcastChannel) for chat +
+  // opponent presence, but each peer runs its own blackjack engine. The
+  // match log captures hands + chat end-to-end.
+  if (r && gameParam === 'blackjack') {
+    startBjP2PSession(r);
     return;
   }
 
-  // Guest mode
-  app.roomId = r;
-  app.role = 'guest';
-  app.state = createGameState(2, 1, [app.myName, app.oppName]);
-  app.myName = 'Guest';
+  if (!r) {
+    // Hash-based router decides which screen to show first. Defaults to
+    // the landing; #/blackjack jumps straight to the blackjack table.
+    onRoute('#/', mountLandingScreen);
+    onRoute('#/poker', mountLandingScreen);
+    onRoute('#/blackjack', mountBlackjackScreen);
+    onRouteFallback(() => navigateTo('#/', { replace: true }));
+    initRouter();
+    return;
+  }
+
+  // PvP — the URL may carry a `session` token. If it does, this client has
+  // been to this room before and wants to reclaim its original seat.
+  const sessionToken = getParam('session');
+  const pvpSession = sessionToken
+    ? loadPvpSession(r, sessionToken)
+    : null;
+
+  // Seed name from the saved player-name localStorage — never the default
+  // 'Host'/'Guest' — AND write it into the right seat index.
+  const persistedName = loadPlayerName() || '';
+
+  if (pvpSession) {
+    // Resume path — rehydrate myIndex + role from the saved session snapshot.
+    app.roomId = r;
+    app.role = pvpSession.role;
+    const myIdx = pvpSession.myIndex;
+    app.myName = pvpSession.myName || persistedName || (app.role === 'host' ? 'Host' : 'Guest');
+    app.state = createGameState(2, myIdx as 0 | 1, [
+      myIdx === 0 ? app.myName : (pvpSession.oppName || 'Opponent'),
+      myIdx === 1 ? app.myName : (pvpSession.oppName || 'Opponent'),
+    ]);
+    app.oppName = pvpSession.oppName || 'Opponent';
+    app.sessionId = sessionToken;
+  } else {
+    // Fresh join — 2-tab scenario: the first tab is host (no URL param),
+    // the second tab opens the ?r= URL and is guest by default.
+    app.roomId = r;
+    app.role = 'guest';
+    app.myName = persistedName || 'Guest';
+    app.oppName = 'Opponent';
+    app.state = createGameState(2, 1, [app.oppName, app.myName]);
+    // Mint a new session token for this player.
+    app.sessionId = mintPvpSession(r, { role: 'guest', myIndex: 1, myName: app.myName });
+  }
   app.numPlayers = 2;
+
   $(IDS.yourNameLabel).textContent = app.myName;
   $(IDS.readyYouName).textContent = app.myName;
   $(IDS.roomCodeDisplay).textContent = r;
+  // Share link includes only ?r= (no session token) so friends get a fresh
+  // guest token when they click. The CURRENT tab keeps its own token in the URL.
   ($(IDS.shareLinkInput) as HTMLInputElement).value = `${window.location.origin}/poker/?r=${r}`;
+  // Inject the session token into our own URL so a reload restores us.
+  if (app.sessionId) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('session', app.sessionId);
+    window.history.replaceState({}, '', url.toString());
+  }
 
   showScreen(IDS.screenWaiting);
   setConnStatus('connecting', 'Joining…');
   startTransports(r);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Match log viewer — always-accessible modal with one row per session and
+// expandable per-session details (hands + chat + system events).
+// ═══════════════════════════════════════════════════════════════════════
+
+function showMatchLog(kind: GameKind): void {
+  const overlay = maybe$('match-log-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  renderMatchLogBody(kind);
+  document.querySelectorAll<HTMLElement>('.match-log-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset['mlogKind'] === kind);
+  });
+}
+
+function hideMatchLog(): void {
+  const overlay = maybe$('match-log-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function renderMatchLogBody(kind: GameKind): void {
+  const body = maybe$('match-log-body');
+  if (!body) return;
+  const sessions = listLogSessions(kind);
+  if (sessions.length === 0) {
+    body.innerHTML = `<div class="mlog-empty">No ${kind} sessions logged yet.<br>Play a match to start building your journal.</div>`;
+    return;
+  }
+  body.innerHTML = '';
+  for (const session of sessions) {
+    body.appendChild(renderSessionCard(session));
+  }
+}
+
+function renderSessionCard(session: LoggedSession): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'mlog-session';
+  const delta = session.finalDelta;
+  const deltaClass = delta === null || delta === 0 ? '' : delta > 0 ? 'pos' : 'neg';
+  const deltaText = delta === null ? '—' : delta > 0 ? `+$${delta}` : `−$${Math.abs(delta)}`;
+  wrap.innerHTML = `
+    <div class="mlog-session-header">
+      <div>
+        <div class="mlog-session-label">${escapeHtml(session.label)}</div>
+      </div>
+      <div class="mlog-session-meta">
+        <span class="mlog-session-mode">${session.mode.toUpperCase()}</span>
+        <span class="mlog-session-delta ${deltaClass}">${deltaText}</span>
+        <span class="mlog-session-time">${relativeTime(session.startedAt)}</span>
+      </div>
+    </div>
+    <div class="mlog-session-entries"></div>
+  `;
+  const header = wrap.querySelector<HTMLElement>('.mlog-session-header')!;
+  const entries = wrap.querySelector<HTMLElement>('.mlog-session-entries')!;
+  header.addEventListener('click', () => {
+    wrap.classList.toggle('expanded');
+    if (wrap.classList.contains('expanded') && entries.children.length === 0) {
+      populateEntries(entries, session.entries);
+    }
+  });
+  return wrap;
+}
+
+function populateEntries(container: HTMLElement, entries: LogEntry[]): void {
+  for (const entry of entries) {
+    const row = document.createElement('div');
+    row.className = 'mlog-entry ' + entry.kind;
+    const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let bodyHtml = '';
+    if (entry.kind === 'chat') {
+      bodyHtml = `<span class="mlog-chat-from">${escapeHtml(entry.from)}:</span>${escapeHtml(entry.text)}`;
+    } else if (entry.kind === 'hand') {
+      bodyHtml = escapeHtml(entry.summary);
+    } else {
+      bodyHtml = escapeHtml(entry.text);
+    }
+    row.innerHTML = `<span class="mlog-entry-ts">${time}</span><span class="mlog-entry-body">${bodyHtml}</span>`;
+    container.appendChild(row);
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function attachEventListeners(): void {
   // Two-step solo picker: difficulty tabs + count tiles
   buildSoloPicker();
+
+  // Chat panel — always visible during any game session (bot or PvP).
+  // In P2P mode: messages go through the signed transport to the opponent.
+  // In bot mode: the input is disabled with a helpful system message, but
+  // the panel stays visible so the journal is always reachable.
+  initChatPanel({
+    onSend: (text) => {
+      if (app.mode !== 'pvp') {
+        appendChatSystem('Chat requires a multiplayer session. Use "INVITE FRIEND" from the lobby.');
+        return false;
+      }
+      const msg = {
+        type: 'chat' as const,
+        from: app.myName || 'You',
+        text,
+        ts: Date.now(),
+      };
+      try { send(msg); } catch { return false; }
+      appendChatMessage(msg, { mine: true });
+      if (app.logSessionId) {
+        appendLogEntry(app.gameKind, app.logSessionId, {
+          kind: 'chat', ts: msg.ts, from: msg.from, text: msg.text,
+        });
+      }
+      return true;
+    },
+  });
+
+  // Match log viewer — triggered by the journal button in header-chrome.
+  maybe$('btn-match-log')?.addEventListener('click', () => showMatchLog('poker'));
+  maybe$('match-log-close')?.addEventListener('click', hideMatchLog);
+  document.querySelectorAll<HTMLElement>('.match-log-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const kind = btn.dataset['mlogKind'] as GameKind | undefined;
+      if (!kind) return;
+      showMatchLog(kind);
+    });
+  });
+  maybe$('match-log-overlay')?.addEventListener('click', (ev) => {
+    if ((ev.target as HTMLElement).id === 'match-log-overlay') hideMatchLog();
+  });
+
+  // Blackjack entry — route change so the URL reflects the game kind.
+  maybe$('btn-blackjack')?.addEventListener('click', () => navigateTo('#/blackjack'));
+  // Blackjack P2P — generate a room code, jump to the waiting flow.
+  maybe$('btn-blackjack-pvp')?.addEventListener('click', () => {
+    const code = 'BJ' + Math.random().toString(36).slice(2, 7).toUpperCase();
+    const url = new URL(window.location.href);
+    url.searchParams.set('r', code);
+    url.searchParams.set('game', 'blackjack');
+    url.hash = '#/blackjack';
+    window.location.href = url.toString();
+  });
+  wireBlackjackHandlers();
 
   // Variant selector
   const variantBtn = maybe$('btn-variant');
@@ -974,20 +2589,42 @@ function attachEventListeners(): void {
     });
   }
 
+  // FIND MATCH — server-assisted matchmaker. Hides itself if disabled
+  // via `localStorage.setItem('iamjacke-matchmaking-disabled', '1')`.
+  const findBtn = maybe$(IDS.btnFindMatch);
+  if (findBtn) {
+    if (!clientConfig.matchmakingEnabled) {
+      findBtn.style.display = 'none';
+    } else {
+      findBtn.addEventListener('click', () => {
+        if (app.ws || app.bc || app.peer) return;
+        const persistedName = loadPlayerName() || 'You';
+        startMatchmakerFlow(persistedName);
+      });
+    }
+  }
+
   // Create PvP game
   maybe$(IDS.btnCreateGame)?.addEventListener('click', () => {
     if (app.bc || app.peer) return;
     const newRoomId = genRoomId();
-    window.history.pushState({}, '', '/poker/?r=' + newRoomId);
     app.mode = 'pvp';
     app.roomId = newRoomId;
     app.role = 'host';
+    // Use the persisted player name as the seat label, not default 'Host'.
+    const persistedName = loadPlayerName();
+    app.myName = persistedName || 'Host';
+    app.oppName = 'Opponent';
     app.state = createGameState(2, 0, [app.myName, app.oppName]);
-    app.myName = 'Host';
     app.numPlayers = 2;
+    // Mint a per-player session token for resume.
+    app.sessionId = mintPvpSession(newRoomId, { role: 'host', myIndex: 0, myName: app.myName });
+    // Push a URL with both r= and session= so a reload re-seats this player.
+    window.history.pushState({}, '', `/poker/?r=${newRoomId}&session=${app.sessionId}`);
     $(IDS.yourNameLabel).textContent = app.myName;
     $(IDS.readyYouName).textContent = app.myName;
     $(IDS.roomCodeDisplay).textContent = newRoomId;
+    // The share link has ONLY the room code — friend gets their own token.
     ($(IDS.shareLinkInput) as HTMLInputElement).value = `${window.location.origin}/poker/?r=${newRoomId}`;
     showScreen(IDS.screenWaiting);
     setConnStatus('connecting', 'Starting…');
@@ -1007,6 +2644,47 @@ function attachEventListeners(): void {
       document.execCommand('copy');
     });
   });
+
+  // Language toggle — on ready screen (.lang-btn pills) AND header chrome (#btn-lang).
+  const langButtons = document.querySelectorAll<HTMLElement>('.lang-btn');
+  const langCodeEl = maybe$('lang-code');
+  const syncLangUI = () => {
+    const cur = getLang();
+    langButtons.forEach(b => b.classList.toggle('active', b.dataset['lang'] === cur));
+    if (langCodeEl) langCodeEl.textContent = cur.toUpperCase();
+  };
+  const applyLangChange = (lang: Lang) => {
+    const current = loadSettings();
+    const next: Settings = { ...current, lang };
+    saveSettings(next);
+    applySettings(next);
+    setLang(lang);
+    syncLangUI();
+    // Re-render every piece of UI whose strings come from JS, not data-i18n.
+    buildSoloPicker();
+    if (maybe$(IDS.screenReady)?.classList.contains('active')) setupReadyScreen();
+    // Repopulate rules content in both side panel + modal.
+    const html = rulesHtml();
+    const sideBody = document.querySelector('.rules-aside-body');
+    const modalBody = maybe$('rules-modal-body');
+    if (sideBody) sideBody.innerHTML = html;
+    if (modalBody) modalBody.innerHTML = html;
+    // Action-button texts below slider use t() too — rerun updateActionUI
+    // to refresh 'Call $X', 'Check', 'Waiting for ...' prompts.
+    updateActionUI(app.state);
+  };
+  langButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lang = btn.dataset['lang'] as Lang | undefined;
+      if (lang) applyLangChange(lang);
+    });
+  });
+  // Header chrome language button — round-robin toggle.
+  maybe$('btn-lang')?.addEventListener('click', () => {
+    const next: Lang = getLang() === 'en' ? 'ru' : 'en';
+    applyLangChange(next);
+  });
+  syncLangUI();
 
   // Ready button (PvP)
   maybe$(IDS.readyBtn)?.addEventListener('click', () => {
@@ -1169,8 +2847,15 @@ function attachEventListeners(): void {
     });
   }
 
-  // Rules: side panel during game, modal on landing.
+  // Rules: context-sensitive.
+  //   - On blackjack screen → open the bilingual blackjack help overlay.
+  //   - During a live poker game → toggle the side-panel rules aside.
+  //   - On the landing → show the full poker rules modal.
   maybe$('btn-rules')?.addEventListener('click', () => {
+    if (app.gameKind === 'blackjack') {
+      bjShowHelp(getLang() as 'en' | 'ru');
+      return;
+    }
     const gameActive = maybe$(IDS.screenGame)?.classList.contains('active');
     if (gameActive) {
       const side = maybe$('side-stack');
@@ -1255,6 +2940,35 @@ function attachEventListeners(): void {
     clearMatch();
     const btn = maybe$('btn-replay-last');
     if (btn) btn.style.display = 'none';
+  });
+
+  // Export last match as PokerStars HHF text
+  maybe$('btn-export-hhf')?.addEventListener('click', () => {
+    const m = loadMatch();
+    if (!m) {
+      alert('No completed match to export yet. Play a bot game to game-over first.');
+      return;
+    }
+    const text = matchToHHF(m);
+    downloadHHF(text, 'iamjacke-poker');
+  });
+
+  // Export lifetime match history as CSV (one row per match)
+  maybe$('btn-export-csv')?.addEventListener('click', () => {
+    const history = loadHistory();
+    if (history.length === 0) {
+      alert('No lifetime stats yet. Finish at least one match first.');
+      return;
+    }
+    const csv = matchHistoryToCsv(history);
+    downloadCsv(csv, 'iamjacke-stats');
+  });
+
+  // Export lifetime summary as a key-value CSV digest
+  maybe$('btn-export-summary')?.addEventListener('click', () => {
+    const history = loadHistory();
+    const csv = lifetimeSummaryToCsv(history);
+    downloadCsv(csv, 'iamjacke-summary');
   });
 
   // Reset bank / clear match history
@@ -1349,6 +3063,132 @@ function renderStatsModal(): void {
             </div>`;
         }).join('');
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Player name persistence
+// ═══════════════════════════════════════════════════════════════════════
+
+const PLAYER_NAME_KEY = 'iamjacke-poker-player-name';
+
+function loadPlayerName(): string {
+  try { return localStorage.getItem(PLAYER_NAME_KEY) ?? ''; }
+  catch { return ''; }
+}
+
+function savePlayerName(name: string): void {
+  try {
+    if (name) localStorage.setItem(PLAYER_NAME_KEY, name);
+    else localStorage.removeItem(PLAYER_NAME_KEY);
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PvP session resume via URL token
+// ═══════════════════════════════════════════════════════════════════════
+
+interface PvpSessionSnapshot {
+  role: Role;
+  myIndex: number;
+  myName: string;
+  oppName?: string;
+  createdAt: number;
+}
+
+function pvpSessionKey(roomId: string, token: string): string {
+  return `iamjacke-poker-pvp:${roomId}:${token}`;
+}
+
+function mintPvpSession(roomId: string, data: Omit<PvpSessionSnapshot, 'createdAt'>): string {
+  const token = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? (crypto as { randomUUID: () => string }).randomUUID().slice(0, 12)
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const snap: PvpSessionSnapshot = { ...data, createdAt: Date.now() };
+  try { localStorage.setItem(pvpSessionKey(roomId, token), JSON.stringify(snap)); }
+  catch { /* ignore */ }
+  return token;
+}
+
+function loadPvpSession(roomId: string, token: string): PvpSessionSnapshot | null {
+  try {
+    const raw = localStorage.getItem(pvpSessionKey(roomId, token));
+    if (!raw) return null;
+    return JSON.parse(raw) as PvpSessionSnapshot;
+  } catch { return null; }
+}
+
+function updatePvpSession(roomId: string, token: string, patch: Partial<PvpSessionSnapshot>): void {
+  const existing = loadPvpSession(roomId, token);
+  if (!existing) return;
+  try {
+    localStorage.setItem(pvpSessionKey(roomId, token), JSON.stringify({ ...existing, ...patch }));
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Ready screen setup — variant card, name input, lang toggle
+// ═══════════════════════════════════════════════════════════════════════
+
+function setupReadyScreen(): void {
+  const nameInput = maybe$('ready-name-input') as HTMLInputElement | null;
+  if (nameInput) {
+    nameInput.value = app.myName || loadPlayerName() || '';
+    nameInput.placeholder = t('ready.yourName');
+    nameInput.addEventListener('input', () => {
+      const v = nameInput.value.trim().slice(0, 18);
+      app.myName = v || (app.role === 'host' ? 'Host' : 'Guest');
+      savePlayerName(v);
+      if (app.state) {
+        app.state.names[app.state.myIndex] = app.myName;
+      }
+      const yourLabel = maybe$(IDS.readyYouName);
+      if (yourLabel) yourLabel.textContent = app.myName;
+      // Re-announce to peer so they update their oppName label instantly.
+      try { send({ type: 'hello', name: app.myName }); } catch { /* ignore */ }
+      // Persist the updated name into the pvp session snapshot.
+      if (app.mode === 'pvp' && app.sessionId) {
+        updatePvpSession(app.roomId, app.sessionId, {
+          myName: app.myName,
+          oppName: app.oppName,
+        });
+      }
+    });
+  }
+
+  // Populate variant card from current state/config.
+  const config = app.state.config ?? { variant: 'holdem', holeCards: 2 };
+  const variant = (config.variant ?? 'holdem') as string;
+  const variantNameMap: Record<string, string> = {
+    holdem: 'ready.variantHoldem',
+    omaha: 'ready.variantOmaha',
+    shortdeck: 'ready.variantShortDeck',
+    pineapple: 'ready.variantPineapple',
+    crazypineapple: 'ready.variantCrazyPineapple',
+    irish: 'ready.variantIrish',
+  };
+  const nameKey = variantNameMap[variant] ?? 'ready.variantHoldem';
+  const nameEl = maybe$('ready-variant-name');
+  if (nameEl) nameEl.textContent = t(nameKey);
+  const holeEl = maybe$('ready-holecards');
+  if (holeEl) holeEl.textContent = String(config.holeCards ?? 2);
+  const blindsEl = maybe$('ready-blinds');
+  if (blindsEl) blindsEl.textContent = '10 / 20';
+  const buyinEl = maybe$('ready-buyin');
+  if (buyinEl) buyinEl.textContent = `$${app.matchStartChips || 1000}`;
+  const playersEl = maybe$('ready-playercount');
+  if (playersEl) playersEl.textContent = String(app.state.numPlayers);
+
+  // Variant blurb
+  const descMap: Record<string, string> = {
+    holdem: '',
+    omaha: 'Must use exactly 2 hole cards + 3 from the board.',
+    shortdeck: '36-card deck · A-6-7-8-9 is the lowest straight',
+    pineapple: '3 hole cards · discard 1 before the flop',
+    crazypineapple: '3 hole cards · discard 1 after the flop',
+    irish: '4 hole cards · discard 2 before the turn',
+  };
+  const descEl = maybe$('ready-variant-desc');
+  if (descEl) descEl.textContent = descMap[variant] ?? '';
 }
 
 function refreshBankDisplay(): void {
@@ -1545,72 +3385,175 @@ function showEquityResult(headline: string, detail: string): void {
 // ═══════════════════════════════════════════════════════════════════════
 
 import type { Match } from './ui/match-recorder.js';
+import { buildTimeline, snapshotAt, totalFrames, type Timeline } from './history/replay-engine.js';
+
+// Replay session lives at module scope so the control bar's handlers can
+// reach into it. Only ever one active replay at a time.
+interface ReplaySession {
+  timeline: Timeline;
+  current: number;
+  playing: boolean;
+  playTimer: ReturnType<typeof setTimeout> | null;
+}
+let replaySession: ReplaySession | null = null;
 
 function startReplay(match: Match): void {
-  // Disable bot mode + start a replay state; step through actions at fixed pace.
+  if (app.botTimer) { clearTimeout(app.botTimer); app.botTimer = null; }
   app.mode = 'bot'; // prevents any networking path
-  app.botTimer && clearTimeout(app.botTimer);
-  app.botTimer = null;
-  const s = createGameState(match.numPlayers, 0, match.names);
-  app.state = s;
+  app.tournament = null;
+  const timeline = buildTimeline(match);
+  replaySession = { timeline, current: 0, playing: false, playTimer: null };
+
+  // Seed the app with an initial state sized for the match so the seats
+  // render immediately; snapshotAt below rehydrates the real values.
+  app.state = createGameState(match.numPlayers, 0, match.names);
   app.numPlayers = match.numPlayers;
   setConnStatus('connected', 'Replay');
   clearLog();
   showScreen(IDS.screenGame);
+  ensureReplayControls();
+  renderReplayFrame();
+  addLog({
+    icon: 'info',
+    text: `Replay loaded — ${match.hands.length} hand${match.hands.length === 1 ? '' : 's'}, ${totalFrames(timeline)} frames`,
+    category: 'system',
+  });
+}
 
-  let handIdx = 0;
-  let actionIdx = 0;
-  let inHand = false;
+function renderReplayFrame(): void {
+  if (!replaySession) return;
+  const { timeline, current } = replaySession;
+  const frame = timeline.frames[current]!;
+  // Showdown + end-of-hand frames reveal all cards.
+  const revealAll = frame.kind === 'end';
+  app.state = snapshotAt(timeline, current);
+  renderTable(app.state, revealAll);
+  updateActionUI(app.state);
+  updateReplayControls();
+}
 
-  const step = () => {
-    if (!inHand) {
-      if (handIdx >= match.hands.length) {
-        addLog({ icon: 'trophy', text: 'Replay complete', emphasis: true });
-        return;
-      }
-      const hand = match.hands[handIdx]!;
-      s.buttonIndex = hand.button;
-      const events = dealHand(s, hand.deck);
-      logEvents(events);
-      renderTable(s);
-      inHand = true;
-      actionIdx = 0;
-      setTimeout(step, 700);
+function stopReplayPlayback(): void {
+  if (!replaySession) return;
+  replaySession.playing = false;
+  if (replaySession.playTimer) {
+    clearTimeout(replaySession.playTimer);
+    replaySession.playTimer = null;
+  }
+}
+
+function scheduleReplayStep(): void {
+  if (!replaySession || !replaySession.playing) return;
+  replaySession.playTimer = setTimeout(() => {
+    if (!replaySession || !replaySession.playing) return;
+    if (replaySession.current >= totalFrames(replaySession.timeline) - 1) {
+      stopReplayPlayback();
+      updateReplayControls();
       return;
     }
-    const hand = match.hands[handIdx]!;
-    if (actionIdx >= hand.actions.length) {
-      // End of hand — run to showdown if still in action
-      if (s.phase !== 'showdown' && s.phase !== 'idle') {
-        const events = finishToShowdown(s);
-        logEvents(events);
+    replaySession.current++;
+    renderReplayFrame();
+    scheduleReplayStep();
+  }, 650);
+}
+
+function ensureReplayControls(): void {
+  if (maybe$('replay-controls')) return;
+  const bar = document.createElement('div');
+  bar.id = 'replay-controls';
+  bar.className = 'replay-controls';
+  bar.innerHTML = `
+    <button type="button" class="rc-btn" data-rc="first" title="First">⏮</button>
+    <button type="button" class="rc-btn" data-rc="prev"  title="Step back">◀</button>
+    <button type="button" class="rc-btn rc-play" data-rc="play" title="Play">▶</button>
+    <button type="button" class="rc-btn" data-rc="next"  title="Step forward">▶|</button>
+    <button type="button" class="rc-btn" data-rc="last"  title="Last">⏭</button>
+    <input type="range" class="rc-seek" data-rc="seek" min="0" max="0" value="0">
+    <span class="rc-pos" data-rc="pos">0 / 0</span>
+    <span class="rc-label" data-rc="label"></span>
+    <button type="button" class="rc-btn rc-exit" data-rc="exit" title="Exit replay">✕</button>
+  `;
+  // Attach to the game screen.
+  const screen = document.getElementById(IDS.screenGame);
+  if (screen) screen.appendChild(bar);
+  bar.addEventListener('click', (ev) => {
+    const target = ev.target as HTMLElement;
+    const action = target.dataset['rc'];
+    if (!action || !replaySession) return;
+    switch (action) {
+      case 'first':
+        stopReplayPlayback();
+        replaySession.current = 0;
+        renderReplayFrame();
+        break;
+      case 'prev':
+        stopReplayPlayback();
+        replaySession.current = Math.max(0, replaySession.current - 1);
+        renderReplayFrame();
+        break;
+      case 'play':
+        if (replaySession.playing) {
+          stopReplayPlayback();
+        } else {
+          replaySession.playing = true;
+          if (replaySession.current >= totalFrames(replaySession.timeline) - 1) {
+            replaySession.current = 0;
+          }
+          renderReplayFrame();
+          scheduleReplayStep();
+        }
+        updateReplayControls();
+        break;
+      case 'next': {
+        stopReplayPlayback();
+        const max = totalFrames(replaySession.timeline) - 1;
+        replaySession.current = Math.min(max, replaySession.current + 1);
+        renderReplayFrame();
+        break;
       }
-      renderTable(s, true);
-      handIdx++;
-      inHand = false;
-      if (handIdx < match.hands.length) {
-        setTimeout(() => { startNextHand(s); step(); }, 1500);
-      } else {
-        addLog({ icon: 'trophy', text: 'Replay complete', emphasis: true });
-      }
-      return;
+      case 'last':
+        stopReplayPlayback();
+        replaySession.current = totalFrames(replaySession.timeline) - 1;
+        renderReplayFrame();
+        break;
+      case 'exit':
+        exitReplay();
+        break;
     }
-    const rec = hand.actions[actionIdx++]!;
-    const action = rec.kind === 'raise'
-      ? { kind: 'raise' as const, amount: rec.amount ?? 0 }
-      : { kind: rec.kind };
-    try {
-      const result = applyAction(s, rec.player, action);
-      logEvents(result.events);
-      renderTable(s);
-      if (result.roundClosed && !result.handEnded) {
-        const events = nextStreet(s);
-        logEvents(events);
-      }
-    } catch (e) {
-      console.error('[replay] action failed', e);
-    }
-    setTimeout(step, 600);
-  };
-  step();
+  });
+  const seek = bar.querySelector<HTMLInputElement>('[data-rc="seek"]');
+  seek?.addEventListener('input', () => {
+    if (!replaySession) return;
+    stopReplayPlayback();
+    replaySession.current = Number(seek.value);
+    renderReplayFrame();
+  });
+}
+
+function updateReplayControls(): void {
+  if (!replaySession) return;
+  const bar = maybe$('replay-controls');
+  if (!bar) return;
+  const total = totalFrames(replaySession.timeline);
+  const cur = replaySession.current;
+  const seek = bar.querySelector<HTMLInputElement>('[data-rc="seek"]');
+  if (seek) {
+    seek.max = String(total - 1);
+    seek.value = String(cur);
+  }
+  const pos = bar.querySelector<HTMLElement>('[data-rc="pos"]');
+  if (pos) pos.textContent = `${cur + 1} / ${total}`;
+  const labelEl = bar.querySelector<HTMLElement>('[data-rc="label"]');
+  const frame = replaySession.timeline.frames[cur];
+  if (labelEl && frame) labelEl.textContent = frame.label;
+  const playBtn = bar.querySelector<HTMLElement>('[data-rc="play"]');
+  if (playBtn) playBtn.textContent = replaySession.playing ? '⏸' : '▶';
+}
+
+function exitReplay(): void {
+  stopReplayPlayback();
+  const bar = maybe$('replay-controls');
+  if (bar) bar.remove();
+  replaySession = null;
+  setConnStatus('connecting', '');
+  showScreen(IDS.screenLanding);
 }

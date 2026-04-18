@@ -86,10 +86,11 @@ export function callAmount(state: Pick<GameState, 'actingPlayer' | 'bets' | 'sta
  * Rule: min raise = current top bet + max(BB, last raise size).
  */
 export function minRaiseAmount(
-  state: Pick<GameState, 'bets' | 'lastRaiseSize'>,
+  state: Pick<GameState, 'bets' | 'lastRaiseSize' | 'blinds'>,
 ): number {
   const top = maxBet(state);
-  const lastRaise = Math.max(BB_AMOUNT, state.lastRaiseSize);
+  const bbFloor = state.blinds?.bb ?? BB_AMOUNT;
+  const lastRaise = Math.max(bbFloor, state.lastRaiseSize);
   return top + lastRaise;
 }
 
@@ -121,7 +122,7 @@ export function flBetSize(phase: string): number {
 
 /** Check if a player can raise (respects betting structure) */
 export function canRaise(
-  state: Pick<GameState, 'bets' | 'stacks' | 'phase' | 'config'>,
+  state: Pick<GameState, 'bets' | 'stacks' | 'phase' | 'config' | 'actingPlayer' | 'pot'>,
 ): boolean {
   const config = state.config;
   const stack = state.stacks[state.actingPlayer]!;
@@ -150,7 +151,7 @@ export function canRaise(
 
 /** Get max raise amount respecting betting structure */
 export function maxRaise(
-  state: Pick<GameState, 'actingPlayer' | 'bets' | 'stacks' | 'pot' | 'config'>,
+  state: Pick<GameState, 'actingPlayer' | 'bets' | 'stacks' | 'pot' | 'config' | 'phase'>,
 ): number {
   const config = state.config;
   const stack = state.stacks[state.actingPlayer]!;
@@ -174,16 +175,17 @@ export function maxRaise(
 
 /** Get min raise amount respecting betting structure */
 export function minRaise(
-  state: Pick<GameState, 'bets' | 'lastRaiseSize' | 'config' | 'phase'>,
+  state: Pick<GameState, 'bets' | 'lastRaiseSize' | 'config' | 'phase' | 'blinds'>,
 ): number {
   const config = state.config;
   const top = maxBet(state);
-  
+
   if (config.betting === 'fl') {
     return top + flBetSize(state.phase);
   }
-  
-  const lastRaise = Math.max(BB_AMOUNT, state.lastRaiseSize);
+
+  const bbFloor = state.blinds?.bb ?? BB_AMOUNT;
+  const lastRaise = Math.max(bbFloor, state.lastRaiseSize);
   return top + lastRaise;
 }
 

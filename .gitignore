@@ -297,3 +297,41 @@ dist
 .pnp.*
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#Node
+
+# v86 emulator binaries (large files, download via npm)
+static/v86/libv86.js
+static/v86/v86.wasm
+static/v86/seabios.bin
+static/v86/vgabios.bin
+
+# Private planning documents
+MENTORSHIP.md
+CLAUDE.md
+
+# poker-src — TypeScript sources live here, only the built bundle
+# static/poker/poker.js is shipped via Hugo.
+poker-src/node_modules/
+poker-src/dist/
+poker-src/.vitest/
+poker-src/coverage/
+
+# Poker server build/runtime artifacts
+poker-server/node_modules/
+poker-server/dist/
+poker-server/data/
+poker-server/.env
+
+# Hugo dev build output
+.hugo-public/
+
+# Large binaries / disk images (never commit)
+*.img
+*.iso
+*.bin
+save-state.html
+slow_burn.html
+WINXP.md
+xp-*.img
+
+# Claude local settings
+.claude/

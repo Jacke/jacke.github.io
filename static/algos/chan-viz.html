@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHAN.VIZ v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;
+  --green:#4ade80;--red:#f43f5e;--purple:#a855f7;
+  --blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;
+  --font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.5) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.85)contrast(1.1);}96%{filter:brightness(1)contrast(1.03);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scanline{position:fixed;inset:0;pointer-events:none;z-index:8999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8998;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8997;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim 0.3s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,0.25),inset 3px 0 0 rgba(30,80,255,0.25);}100%{opacity:0;}}
+
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber),0 0 80px rgba(255,178,41,0.28);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-family:var(--font-ui);font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity 0.1s;}
+.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,0.1);border:1px solid rgba(255,178,41,0.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width 0.08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,0.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor 0.7s step-end infinite;vertical-align:middle;margin-left:4px;}
+
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn 0.5s ease;}
+
+/* HEADER */
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,0.18);background:rgba(0,0,0,0.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#scenario-tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}
+#scenario-tabs::-webkit-scrollbar{display:none;}
+.stab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,0.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all 0.12s;flex-shrink:0;}
+.stab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,0.05);}
+.stab.active{border-color:var(--amber);background:rgba(255,178,41,0.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,0.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,0.12);}
+#viz-wrap{flex:1;position:relative;background:var(--bg);overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+
+/* OP BAR */
+#op-bar{display:flex;align-items:center;gap:7px;padding:4px 12px;border-top:1px solid rgba(255,178,41,0.1);background:rgba(0,0,0,0.38);flex-shrink:0;flex-wrap:wrap;}
+.obtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,0.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all 0.1s;}
+.obtn:hover{background:rgba(255,178,41,0.08);}
+.obtn.run{border-color:rgba(96,165,250,0.5);color:#93c5fd;}
+.obtn.demo{border-color:rgba(168,85,247,0.5);color:#d8b4fe;}
+.op-sep{width:1px;height:18px;background:rgba(255,178,41,0.12);}
+
+/* STEP DESC */
+#prog-wrap{height:2px;background:rgba(255,178,41,0.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,0.2),var(--amber));transition:width 0.1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,0.09);background:rgba(0,0,0,0.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.send{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,0.07);}
+.pbadge.recv{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,0.07);}
+.pbadge.block{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,0.07);}
+.pbadge.unblock{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,0.07);}
+.pbadge.close{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,0.07);}
+.pbadge.select{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,0.07);}
+.pbadge.deadlock{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,0.12);}
+.pbadge.panic{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,0.18);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,0.65);flex:1;line-height:1.4;}
+
+/* STATS */
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,0.09);background:rgba(0,0,0,0.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+
+/* CONTROLS */
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,0.13);background:rgba(0,0,0,0.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,0.35);background:transparent;color:var(--amber);cursor:pointer;transition:all 0.1s;}
+.cbtn:hover{background:rgba(255,178,41,0.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,0.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,0.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,0.35);border-top:1px solid rgba(255,178,41,0.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,0.28);}
+.kbk{border:1px solid rgba(255,178,41,0.18);padding:0 3px;font-size:7px;}
+
+/* RIGHT */
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,0.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,0.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,178,41,0.07);}
+#code-scroll{overflow-y:auto;max-height:195px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,0.09);}
+.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,0.4),1px 0 1px rgba(50,80,255,0.4);pointer-events:none;}
+.cline.active .cc{position:relative;}
+.ln{color:rgba(255,178,41,0.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,0.48);}
+.info-block strong{color:rgba(255,178,41,0.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,0.07);border:1px solid rgba(255,178,41,0.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scanline"></div>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+
+<div id="boot">
+  <div id="boot-logo">CHAN.VIZ</div>
+  <div id="boot-tagline">GO CHANNEL VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+
+<div id="crt-wrap">
+<div id="main">
+  <div id="header">
+    <div id="logo">CHAN.VIZ</div>
+    <div id="scenario-tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="op-bar">
+        <button class="obtn run" onclick="startSim()">▶ SIMULATE</button>
+        <button class="obtn demo" onclick="loadScenario(curScene)">↺ RELOAD</button>
+        <div class="op-sep"></div>
+        <span id="legend-inline"></span>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a scenario and press SIMULATE.</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">STEP</span><span class="sv" id="s-tick">0</span></div>
+        <div class="si"><span class="sl">SENT</span><span class="sv" id="s-sent">0</span></div>
+        <div class="si"><span class="sl">RECVD</span><span class="sv" id="s-recv">0</span></div>
+        <div class="si"><span class="sl">BLOCKED</span><span class="sv" id="s-blk">0</span></div>
+        <div class="si"><span class="sl">BUF USED</span><span class="sv" id="s-buf">0</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–6</span> Scenario</span>
+        <span class="kbh"><span class="kbk">ENTER</span> Run</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec">
+        <div class="phdr">▸ GO SOURCE CODE</div>
+        <div id="code-scroll"></div>
+      </div>
+      <div id="r-scroll">
+        <div class="psec">
+          <div class="phdr">▸ CHANNEL AXIOMS</div>
+          <div id="axioms" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ RULES & GOTCHAS</div>
+          <div id="gotchas" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ INTERVIEW FACTS</div>
+          <div id="facts" class="info-block"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ══════ NOISE ══════ */
+(()=>{
+  const c=document.getElementById('noise'),ctx=c.getContext('2d');
+  const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);
+  const d=()=>{const id=ctx.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?140:0;}ctx.putImageData(id,0,0);requestAnimationFrame(d);};d();
+})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(0.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*15);},4000+Math.random()*5000);}sGlitch();
+
+/* ══════ AUDIO ══════ */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){
+  if(muted||!AC)return;
+  try{
+    const g=AC.createGain(),ws=AC.createWaveShaper();
+    const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}
+    ws.curve=cv;ws.connect(AC.destination);g.connect(ws);
+    const o=AC.createOscillator();o.connect(g);
+    const p={send:[440,.07],recv:[330,.06],block:[160,.12],unblock:[520,.08],close:[280,.10],select:[500,.06],deadlock:[120,.18],panic:[90,.2],click:[360,.04]};
+    const[f,d]=p[type]||[360,.05];
+    o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';
+    g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);
+    o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);
+  }catch(e){}
+}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ══════ SYNTAX ══════ */
+function hlGo(l){
+  let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');
+  s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+  s=s.replace(/\b(func|for|if|else|return|var|const|go|defer|select|case|default|chan|make|close|len|cap|nil|true|false|range|switch|break|continue)\b/g,'<span class="kw">$1</span>');
+  s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+  s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');
+  return s;
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ══════ CANVAS ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){
+  const wrap=document.getElementById('viz-wrap');
+  CW=canvas.width=wrap.clientWidth;
+  CH=canvas.height=wrap.clientHeight;
+  if(ST.steps.length)renderFrame(ST.steps[ST.idx]);
+}
+
+/* ══════ DRAW HELPERS ══════ */
+const GOROUTINE_R=26;
+const GCOLOR={idle:'rgba(255,178,41,0.35)',running:'#4ade80',blocked:'#f43f5e',done:'rgba(255,178,41,0.15)',select:'#22d3ee'};
+const GSTROKE={idle:'rgba(255,178,41,0.4)',running:'#4ade80',blocked:'#f43f5e',done:'rgba(255,178,41,0.15)',select:'#22d3ee'};
+
+function drawGoroutine(g,glow=false){
+  const{x,y,state,label}=g;
+  const col=GSTROKE[state]||GSTROKE.idle;
+  const fill=GCOLOR[state]||GCOLOR.idle;
+  ctx.save();
+  if(glow||state==='running'||state==='select'){ctx.shadowColor=col;ctx.shadowBlur=16;}
+  ctx.beginPath();ctx.arc(x,y,GOROUTINE_R,0,Math.PI*2);
+  ctx.fillStyle=fill+'22';if(state==='blocked')ctx.fillStyle='rgba(244,63,94,0.12)';
+  if(state==='running')ctx.fillStyle='rgba(74,222,128,0.12)';
+  ctx.fill();
+  ctx.strokeStyle=col;ctx.lineWidth=state==='running'?2:1.5;ctx.stroke();
+  ctx.font=`18px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(label||'G',x,y+1);
+  if(g.status){
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.4)';
+    ctx.textBaseline='top';ctx.fillText(g.status.slice(0,8),x,y+GOROUTINE_R+3);
+  }
+  ctx.restore();
+}
+
+function drawChannel(ch){
+  const{x,y,w,h,buf,filled,closed,label,color}=ch;
+  const col=color||'rgba(255,178,41,0.4)';
+  const isUnbuf=buf===0;
+
+  ctx.save();
+  if(closed){ctx.globalAlpha=0.5;}
+  // outer box
+  ctx.strokeStyle=closed?'rgba(168,85,247,0.5)':col;
+  ctx.lineWidth=1.5;
+  ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(x,y,w,h);
+
+  // label
+  ctx.font=`14px 'VT323'`;ctx.fillStyle=closed?'rgba(168,85,247,0.7)':col;
+  ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText((closed?'[closed] ':'')+label,x+w/2,y-4);
+
+  // buffer slots
+  if(!isUnbuf){
+    const slotW=Math.max(16,Math.floor((w-12)/buf));
+    const startX=x+6;
+    for(let i=0;i<buf;i++){
+      const sx=startX+i*(slotW+3);
+      const isF=i<filled;
+      ctx.fillStyle=isF?'rgba(74,222,128,0.25)':'rgba(255,178,41,0.05)';
+      ctx.fillRect(sx,y+6,slotW,h-12);
+      ctx.strokeStyle=isF?'rgba(74,222,128,0.5)':'rgba(255,178,41,0.15)';
+      ctx.lineWidth=1;ctx.strokeRect(sx,y+6,slotW,h-12);
+      if(isF&&ch.vals&&ch.vals[i]!==undefined){
+        ctx.font=`12px 'IBM Plex Mono'`;ctx.fillStyle='#86efac';
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(String(ch.vals[i]).slice(0,3),sx+slotW/2,y+h/2);
+      }
+    }
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';
+    ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(`buf:${filled}/${buf}`,x+w/2,y+h+12);
+  }else{
+    // unbuffered: hourglass symbol
+    ctx.font=`18px 'VT323'`;ctx.fillStyle='rgba(255,178,41,0.25)';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⌛',x+w/2,y+h/2);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';
+    ctx.textBaseline='bottom';ctx.fillText('unbuf',x+w/2,y+h+12);
+  }
+
+  // closed X
+  if(closed){
+    ctx.font=`16px 'VT323'`;ctx.fillStyle='rgba(168,85,247,0.7)';
+    ctx.textAlign='right';ctx.textBaseline='top';ctx.fillText('✕',x+w-4,y+3);
+  }
+  ctx.restore();
+}
+
+function drawArrow(x1,y1,x2,y2,color,label,dashed=false){
+  ctx.save();
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.fillStyle=color;
+  if(dashed)ctx.setLineDash([5,4]);
+  ctx.shadowColor=color;ctx.shadowBlur=6;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  // arrowhead
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-10*Math.cos(ang-0.4),y2-10*Math.sin(ang-0.4));
+  ctx.lineTo(x2-10*Math.cos(ang+0.4),y2-10*Math.sin(ang+0.4));
+  ctx.closePath();ctx.fill();
+  if(label){
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    ctx.font=`10px 'IBM Plex Mono'`;ctx.shadowBlur=0;
+    ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(label,mx,my-4);
+  }
+  ctx.restore();
+}
+
+function drawBlockedWaiter(g,ch,side){
+  // draw chain link from goroutine to channel
+  const ex=side==='send'?ch.x:ch.x+ch.w;
+  const ey=ch.y+ch.h/2;
+  ctx.save();
+  ctx.strokeStyle='rgba(244,63,94,0.4)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
+  ctx.beginPath();ctx.moveTo(g.x+GOROUTINE_R,g.y);ctx.lineTo(ex,ey);ctx.stroke();
+  ctx.setLineDash([]);
+  // chain icon between them
+  const mx=(g.x+GOROUTINE_R+ex)/2,my=(g.y+ey)/2;
+  ctx.font=`14px 'VT323'`;ctx.fillStyle='rgba(244,63,94,0.55)';
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⛓',mx,my);
+  ctx.restore();
+}
+
+/* ══════ FRAME RENDER ══════ */
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+
+  const{goroutines,channels,arrows,activeG,highlight,deadlock}=step;
+
+  // Deadlock overlay
+  if(deadlock){
+    ctx.save();
+    ctx.fillStyle='rgba(244,63,94,0.04)';ctx.fillRect(0,0,CW,CH);
+    ctx.font=`64px 'VT323'`;ctx.fillStyle='rgba(244,63,94,0.18)';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('DEADLOCK',CW/2,CH/2);
+    ctx.restore();
+  }
+
+  // Draw channels
+  (channels||[]).forEach(ch=>drawChannel(ch));
+
+  // Blocked waiters (chain lines)
+  (goroutines||[]).forEach(g=>{
+    if(g.state==='blocked'&&g.waitChan){
+      const ch=(channels||[]).find(c=>c.id===g.waitChan);
+      if(ch)drawBlockedWaiter(g,ch,g.waitSide||'recv');
+    }
+  });
+
+  // Arrows (send/recv in flight)
+  (arrows||[]).forEach(a=>drawArrow(a.x1,a.y1,a.x2,a.y2,a.color,a.label,a.dashed));
+
+  // Goroutines
+  (goroutines||[]).forEach(g=>drawGoroutine(g,g.id===activeG));
+
+  // select highlight boxes
+  if(highlight){
+    ctx.save();ctx.strokeStyle='rgba(34,211,238,0.6)';ctx.lineWidth=2;
+    ctx.setLineDash([4,4]);
+    highlight.forEach(r=>ctx.strokeRect(r.x,r.y,r.w,r.h));
+    ctx.setLineDash([]);ctx.restore();
+  }
+}
+
+/* ══════ SCENARIOS ══════ */
+// Each scenario returns array of steps
+// step: {phase,desc,cl,goroutines,channels,arrows,activeG,deadlock,sent,recv,blocked,bufUsed,highlight}
+
+function mkG(id,x,y,state='idle',label,status){return{id,x,y,state,label:label||id,status};}
+function mkCh(id,x,y,w,h,buf,filled,vals,label,color,closed){return{id,x,y,w,h,buf:buf||0,filled:filled||0,vals:vals||[],label:label||id,color,closed:closed||false};}
+
+const SCENARIOS={
+
+/* ─── 1. UNBUFFERED ─── */
+unbuf:{
+  label:'UNBUF CHAN',
+  code:[
+    'func main() {',
+    '    ch := make(chan int) // unbuffered',
+    '',
+    '    go func() {         // goroutine G1',
+    '        ch <- 42        // SEND: blocks until recv',
+    '    }()',
+    '',
+    '    v := <-ch           // RECV: unblocks G1',
+    '    fmt.Println(v)      // 42',
+    '}',
+  ],
+  build(){
+    const steps=[];
+    let sent=0,recv=0,blocked=0;
+    const CX=CW/2,CY=CH/2;
+    const ch=()=>mkCh('ch',CX-50,CY-20,100,40,0,0,[],'ch (unbuf)','rgba(255,178,41,0.45)');
+    const gMain=()=>mkG('main',CX-160,CY+70,'idle','main');
+    const g1=()=>mkG('G1',CX+160,CY-60,'idle','G1');
+
+    const snap=(phase,desc,cl,gStates={},chMod={},arrows=[],activeG=null,dl=false)=>{
+      const gs=[{...gMain(),...(gStates.main||{})},{...g1(),...(gStates.G1||{})}];
+      const chs=[{...ch(),...chMod}];
+      steps.push({phase,desc,cl,goroutines:gs,channels:chs,arrows,activeG,deadlock:dl,sent,recv,blocked,bufUsed:0});
+    };
+
+    snap('init',`make(chan int): unbuffered channel created. Capacity=0. Send BLOCKS until receiver is ready.`,1);
+    snap('init',`go func(){ch <- 42}() spawned as G1. G1 is now runnable.`,3,{G1:{state:'running'}},{},{},`G1`);
+    blocked++;
+    snap('send',`G1: ch <- 42 — no receiver yet. G1 BLOCKS. Goroutine parked, waiting for rendezvous.`,4,
+      {G1:{state:'blocked',status:'ch<-42',waitChan:'ch',waitSide:'send'}},{},{},`G1`);
+    snap('recv',`main: v := <-ch — finds blocked sender G1. Rendezvous! Data transferred directly G1 → main.`,7,
+      {G1:{state:'blocked',status:'ch<-42',waitChan:'ch',waitSide:'send'},main:{state:'running'}},{},
+      [{x1:CX+160-GOROUTINE_R,y1:CY-60,x2:CX-110,y2:CY,'color':'#4ade80',label:'42'}]);
+    sent++;recv++;blocked--;
+    snap('unblock',`Transfer complete: G1 unblocked, main received 42. Both goroutines continue.`,8,
+      {G1:{state:'running',status:'done'},main:{state:'running',status:'v=42'}},{},{},null);
+    snap('init',`Key axiom: unbuffered channel synchronizes sender & receiver. Rendezvous semantics.`,9);
+    return steps;
+  },
+},
+
+/* ─── 2. BUFFERED ─── */
+buffered:{
+  label:'BUF CHAN',
+  code:[
+    'func main() {',
+    '    ch := make(chan int, 3) // cap=3',
+    '',
+    '    ch <- 1  // send (no block, buf empty)',
+    '    ch <- 2  // send (no block)',
+    '    ch <- 3  // send (no block)',
+    '    // ch <- 4 would BLOCK (buf full)',
+    '',
+    '    fmt.Println(<-ch) // recv: 1 (FIFO)',
+    '    fmt.Println(<-ch) // recv: 2',
+    '    fmt.Println(<-ch) // recv: 3',
+    '}',
+  ],
+  build(){
+    const steps=[];
+    let sent=0,recv=0,blocked=0,bufUsed=0;
+    const CX=CW/2,CY=CH/2;
+    const gMain=(state='running',status='')=>mkG('main',CX,CY+90,'running','main',status);
+    const ch=(f,v)=>mkCh('ch',CX-120,CY-50,240,56,3,f,v,'ch (cap=3)','rgba(96,165,250,0.5)');
+
+    const snap=(phase,desc,cl,filled,vals,activeG,dl=false,extra={})=>{
+      steps.push({phase,desc,cl,
+        goroutines:[{...gMain(),...extra}],channels:[ch(filled,vals)],
+        arrows:[],activeG,deadlock:dl,sent,recv,blocked,bufUsed:filled});
+    };
+
+    snap('init','make(chan int, 3): buffered channel, capacity=3. Sends do NOT block until buffer full.',1,0,[]);
+    sent++;snap('send','ch <- 1: buffer has room. Send immediate, goroutine continues. buf=[1,_,_]',3,1,[1]);
+    sent++;snap('send','ch <- 2: buf=[1,2,_]. Still room. Non-blocking.',4,2,[1,2]);
+    sent++;snap('send','ch <- 3: buf=[1,2,3]. Buffer FULL now. A 4th send would block.',5,3,[1,2,3]);
+    blocked++;
+    snap('block','ch <- 4 (hypothetical): WOULD BLOCK — buffer full. Goroutine parks until space available.',6,3,[1,2,3],null,false,{status:'WOULD BLOCK'});
+    blocked--;
+    snap('recv','v := <-ch: dequeue 1 (FIFO). buf=[2,3,_]. Buffered = async until full.',8,2,[2,3]);recv++;
+    snap('recv','<-ch: dequeue 2. buf=[3,_,_].',9,1,[3]);recv++;
+    snap('recv','<-ch: dequeue 3. buf=[_,_,_]. Channel empty.',10,0,[]);recv++;
+    snap('init','Buffered channel decouples sender/receiver. Acts as async queue of fixed capacity.',11,0,[]);
+    return steps;
+  },
+},
+
+/* ─── 3. CLOSE ─── */
+close:{
+  label:'CLOSE',
+  code:[
+    'func producer(ch chan<- int) {',
+    '    for i := 0; i < 3; i++ {',
+    '        ch <- i',
+    '    }',
+    '    close(ch)  // signal "done"',
+    '}',
+    '',
+    'func main() {',
+    '    ch := make(chan int, 3)',
+    '    go producer(ch)',
+    '    for v := range ch {  // range reads until closed',
+    '        fmt.Println(v)',
+    '    }',
+    '    // send on closed chan: PANIC',
+    '}',
+  ],
+  build(){
+    const steps=[];
+    let sent=0,recv=0,blocked=0,bufUsed=0;
+    const CX=CW/2,CY=CH/2;
+    const gMain=(state='running',status='')=>mkG('main',CX+150,CY+80,state,'main',status);
+    const gProd=(state='running',status='')=>mkG('prod',CX-150,CY-70,state,'prod',status);
+    const ch=(f,v,closed=false)=>mkCh('ch',CX-90,CY-30,180,50,3,f,v,'ch (cap=3)','rgba(96,165,250,0.45)',closed);
+
+    const snap=(phase,desc,cl,filled,vals,closed=false,gS={},arrows=[])=>{
+      const gs=[{...gProd(),...(gS.prod||{})},{...gMain(),...(gS.main||{})}];
+      steps.push({phase,desc,cl,goroutines:gs,channels:[ch(filled,vals,closed)],arrows,sent,recv,blocked,bufUsed:filled});
+    };
+
+    snap('init','Producer goroutine will send 3 values then close. main ranges over channel.',1,0,[]);
+    sent++;snap('send','prod: ch <- 0. buf=[0,_,_].',3,1,[0]);
+    sent++;snap('send','prod: ch <- 1. buf=[0,1,_].',3,2,[0,1]);
+    sent++;snap('send','prod: ch <- 2. buf=[0,1,2]. Buffer full.',3,3,[0,1,2]);
+    snap('close','prod: close(ch). Channel marked closed. No more sends allowed. Receivers drain buffer first.',4,3,[0,1,2],true,{prod:{state:'done',status:'closed'}});
+    recv++;snap('recv','main: range ch → recv 0. buf=[1,2,_]. Closed but still has data.',10,2,[1,2],true,{main:{state:'running',status:'v=0'}});
+    recv++;snap('recv','main: range ch → recv 1. buf=[2,_,_].',10,1,[2],true,{main:{state:'running',status:'v=1'}});
+    recv++;snap('recv','main: range ch → recv 2. buf=[_,_,_]. Buffer drained.',10,0,[],true,{main:{state:'running',status:'v=2'}});
+    snap('close','main: range ch → channel closed AND empty → loop exits. v,ok := <-ch gives ok=false.',12,0,[],true,{main:{state:'done',status:'range done'}});
+    snap('panic','⚠ send on closed chan: PANIC! Never send to a closed channel. Only sender should close.',13,0,[],true,{prod:{state:'blocked',status:'PANIC!'}},[]);
+    return steps;
+  },
+},
+
+/* ─── 4. SELECT ─── */
+select:{
+  label:'SELECT',
+  code:[
+    'func main() {',
+    '    ch1 := make(chan string, 1)',
+    '    ch2 := make(chan string, 1)',
+    '',
+    '    go func() { ch1 <- "one" }()',
+    '    go func() { ch2 <- "two" }()',
+    '',
+    '    for i := 0; i < 2; i++ {',
+    '        select {',
+    '        case v := <-ch1:',
+    '            fmt.Println("ch1:", v)',
+    '        case v := <-ch2:',
+    '            fmt.Println("ch2:", v)',
+    '        }',
+    '    }',
+    '}',
+  ],
+  build(){
+    const steps=[];
+    let sent=0,recv=0,blocked=0,bufUsed=0;
+    const CX=CW/2,CY=CH/2;
+    const gMain=(state='running',status='',sel=false)=>mkG('main',CX,CY+70,sel?'select':state,'main',status);
+    const ch1=(f,v,closed=false)=>mkCh('ch1',CX-180,CY-60,110,44,1,f,v,'ch1','rgba(96,165,250,0.5)',closed);
+    const ch2=(f,v,closed=false)=>mkCh('ch2',CX+70,CY-60,110,44,1,f,v,'ch2','rgba(74,222,128,0.5)',closed);
+    const g1=(state='idle',status='')=>mkG('G1',CX-155,CY+60,state,'G1',status);
+    const g2=(state='idle',status='')=>mkG('G2',CX+155,CY+60,state,'G2',status);
+
+    const snap=(phase,desc,cl,c1f,c1v,c2f,c2v,gS={},selHL=false,arrows=[])=>{
+      const gs=[{...gMain(),...(gS.main||{})},{...g1(),...(gS.G1||{})},{...g2(),...(gS.G2||{})}];
+      const chs=[ch1(c1f,c1v),ch2(c2f,c2v)];
+      const hl=selHL?[{x:CX-60,y:CY+48,w:120,h:34}]:[];
+      steps.push({phase,desc,cl,goroutines:gs,channels:chs,arrows,highlight:hl,sent,recv,blocked,bufUsed:c1f+c2f});
+    };
+
+    snap('init','Two buffered channels ch1 and ch2. Two goroutines will send one value each.',1,0,[],0,[]);
+    sent++;snap('send','G1: ch1 <- "one". ch1 buf=[one].',4,1,['one'],0,[],{G1:{state:'running',status:'sent'}});
+    sent++;snap('send','G2: ch2 <- "two". ch2 buf=[two].',4,1,['one'],1,['two'],{G2:{state:'running',status:'sent'}});
+
+    snap('select','main: select {} — evaluates ALL cases simultaneously. Both channels ready.',8,1,['one'],1,['two'],{main:{state:'select',status:'select...'}},true);
+    recv++;snap('recv','select picks ch1 (random if multiple ready). v="one". fmt.Println("ch1: one")',9,0,[],1,['two'],{main:{state:'running',status:'v="one"'}},false,
+      [{x1:CX-70,y1:CY-38,x2:CX-10,y2:CY+44,color:'#93c5fd',label:'"one"'}]);
+
+    snap('select','Loop iteration 2. select {} — ch2 is ready.',11,0,[],1,['two'],{main:{state:'select',status:'select...'}},true);
+    recv++;snap('recv','select picks ch2. v="two". fmt.Println("ch2: two")',12,0,[],0,[],{main:{state:'running',status:'v="two"'}},false,
+      [{x1:CX+125,y1:CY-38,x2:CX+10,y2:CY+44,color:'#86efac',label:'"two"'}]);
+
+    snap('init','select: first-class multiplexing. If multiple cases ready → chosen RANDOMLY (fair). default case = non-blocking.',14,0,[],0,[]);
+    return steps;
+  },
+},
+
+/* ─── 5. DEADLOCK ─── */
+deadlock:{
+  label:'DEADLOCK',
+  code:[
+    '// Classic deadlock: two goroutines',
+    '// wait on each other',
+    'func main() {',
+    '    ch1 := make(chan int)',
+    '    ch2 := make(chan int)',
+    '',
+    '    go func() {',
+    '        v := <-ch1   // waits for main',
+    '        ch2 <- v     // main waits here',
+    '    }()',
+    '',
+    '    ch2 <- 1         // G1 not ready yet',
+    '    v := <-ch1       // G1 stuck on ch2',
+    '    fmt.Println(v)',
+    '    // fatal error: all goroutines asleep',
+    '}',
+  ],
+  build(){
+    const steps=[];
+    let sent=0,recv=0,blocked=0,bufUsed=0;
+    const CX=CW/2,CY=CH/2;
+    const gMain=(state='running',status='',waitChan='',waitSide='')=>({...mkG('main',CX,CY+90,state,'main',status),waitChan,waitSide});
+    const gG1=(state='idle',status='',waitChan='',waitSide='')=>({...mkG('G1',CX+150,CY-60,state,'G1',status),waitChan,waitSide});
+    const ch1=(f=0)=>mkCh('ch1',CX-180,CY-30,120,44,0,f,[],'ch1 (unbuf)','rgba(255,178,41,0.4)');
+    const ch2=(f=0)=>mkCh('ch2',CX+60,CY-30,120,44,0,f,[],'ch2 (unbuf)','rgba(96,165,250,0.4)');
+
+    const snap=(phase,desc,cl,gS={},chs,dl=false)=>{
+      const gs=[{...gMain(),...(gS.main||{})},{...gG1(),...(gS.G1||{})}];
+      steps.push({phase,desc,cl,goroutines:gs,channels:chs||[ch1(),ch2()],arrows:[],deadlock:dl,sent,recv,blocked,bufUsed:0});
+    };
+
+    snap('init','Classic deadlock setup: two unbuffered channels, two goroutines.',1);
+    snap('init','G1 spawned. G1 will: recv from ch1, then send to ch2.',3,{G1:{state:'running'}});
+    blocked++;
+    snap('block','G1: v := <-ch1 — nobody sending on ch1 yet. G1 BLOCKS.',4,{G1:{state:'blocked',status:'<-ch1',waitChan:'ch1',waitSide:'recv'}});
+
+    blocked++;
+    snap('block','main: ch2 <- 1 — G1 is not reading ch2 (it\'s blocked on ch1). main BLOCKS.',6,
+      {main:{state:'blocked',status:'ch2<-1',waitChan:'ch2',waitSide:'send'},G1:{state:'blocked',status:'<-ch1',waitChan:'ch1',waitSide:'recv'}});
+
+    snap('deadlock','🔴 DEADLOCK! main waits for G1 to recv ch2. G1 waits for main to send ch1. Circular wait.',7,
+      {main:{state:'blocked',status:'ch2<-1',waitChan:'ch2',waitSide:'send'},G1:{state:'blocked',status:'<-ch1',waitChan:'ch1',waitSide:'recv'}},
+      undefined,true);
+
+    snap('deadlock','Go runtime detects: all goroutines asleep. fatal error: all goroutines are asleep - deadlock!',8,
+      {main:{state:'blocked',status:'FATAL'},G1:{state:'blocked',status:'FATAL'}},undefined,true);
+
+    snap('init','Fix: reorder ops, use buffered channel, or use select with default. Never create circular waits.',9,
+      {main:{state:'idle',status:'(fix)'},G1:{state:'idle',status:'(fix)'}});
+    return steps;
+  },
+},
+
+/* ─── 6. FAN-OUT ─── */
+fanout:{
+  label:'FAN-OUT',
+  code:[
+    'func worker(id int, jobs <-chan int,',
+    '            results chan<- int) {',
+    '    for j := range jobs {',
+    '        results <- j * j  // process',
+    '    }',
+    '}',
+    '',
+    'func main() {',
+    '    jobs    := make(chan int, 5)',
+    '    results := make(chan int, 5)',
+    '    for w := 0; w < 3; w++ {  // 3 workers',
+    '        go worker(w, jobs, results)',
+    '    }',
+    '    for j := 1; j <= 5; j++ { jobs <- j }',
+    '    close(jobs)',
+    '    for r := 0; r < 5; r++ {',
+    '        fmt.Println(<-results)',
+    '    }',
+    '}',
+  ],
+  build(){
+    const steps=[];
+    let sent=0,recv=0,blocked=0,bufUsed=0;
+    const CX=CW/2,CY=CH/2;
+
+    const WY=CY-50;
+    const workerXs=[CX-180,CX,CX+180];
+    const jobsCh=()=>mkCh('jobs',CX-90,CY+30,180,44,5,0,[],'jobs (cap=5)','rgba(255,178,41,0.45)');
+    const resCh=()=>mkCh('res',CX-90,WY-70,180,44,5,0,[],'results (cap=5)','rgba(74,222,128,0.45)');
+    const workers=(wStates=[])=>workerXs.map((x,i)=>({...mkG(`W${i}`,x,WY,'idle',`W${i}`,wStates[i]||'')}));
+
+    const snap=(phase,desc,cl,jf,jv,rf,rv,wS=[],arrows=[])=>{
+      const gs=[mkG('main',CX+250,CY+30,'running','main'),...workers(wS)];
+      const chs=[{...jobsCh(),filled:jf,vals:jv},{...resCh(),filled:rf,vals:rv}];
+      steps.push({phase,desc,cl,goroutines:gs,channels:chs,arrows,sent,recv,blocked,bufUsed:jf+rf});
+    };
+
+    snap('init','Fan-out pattern: 3 workers drain jobs channel concurrently, send to results.',1,0,[],0,[]);
+    snap('spawn','3 worker goroutines spawned. Each will range over jobs channel.',3,0,[],0,[],['idle','idle','idle']);
+    // Fill jobs
+    for(let j=1;j<=5;j++){sent++;snap('send',`main: jobs <- ${j}. Enqueuing work item.`,12,j,[...Array(j)].map((_,i)=>i+1),0,[],['idle','idle','idle']);}
+
+    snap('close','main: close(jobs). Workers will drain then exit range loop.',13,5,[1,2,3,4,5],0,[],['idle','idle','idle']);
+
+    // Workers pick up jobs
+    snap('run','W0 picks job=1. W1 picks job=2. W2 picks job=3. Parallel processing!',3,2,[4,5],0,[],['job=1','job=2','job=3']);
+    recv+=3;sent+=3;
+    snap('send','Workers compute j*j and send results. results=[1,4,9].',3,2,[4,5],3,[1,4,9],['done','done','done']);
+
+    snap('run','W0 picks job=4. W1 picks job=5. W2 idle.',3,0,[],3,[1,4,9],['job=4','job=5','idle']);
+    recv+=2;sent+=2;
+    snap('send','results=[1,4,9,16,25]. All 5 jobs done.',3,0,[],5,[1,4,9,16,25],['done','done','idle']);
+
+    // Collect results
+    for(let i=0;i<5;i++){recv++;snap('recv',`main: <-results → ${[1,4,9,16,25][i]}. Collecting output.`,15,0,[],4-i,[1,4,9,16,25].slice(i+1),['done','done','done']);}
+    snap('init','Fan-out = horizontal scaling. N workers, 1 jobs channel, 1 results channel. Classic worker pool.',16,0,[],0,[],['done','done','done']);
+    return steps;
+  },
+},
+};
+
+/* ══════ PLAYBACK ══════ */
+const ST={steps:[],idx:0,playing:false,timer:null,speed:350};
+let curScene='unbuf';
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  badge.className='pbadge '+(step.phase||'init');
+  badge.textContent=(step.phase||'INIT').toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-tick').textContent=ST.idx+1;
+  document.getElementById('s-sent').textContent=step.sent||0;
+  document.getElementById('s-recv').textContent=step.recv||0;
+  document.getElementById('s-blk').textContent=step.blocked||0;
+  document.getElementById('s-buf').textContent=step.bufUsed||0;
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SCENARIOS[curScene].code,step.cl>=0?step.cl:-1);
+  if(step.phase&&step.phase!=='init')snd(step.phase);
+  if(step.phase==='deadlock'||step.phase==='panic'){triggerCA();snd('deadlock');}
+}
+
+function startSim(){
+  initAudio();
+  if(ST.playing)pause();
+  const sc=SCENARIOS[curScene];
+  ST.steps=sc.build();
+  ST.idx=0;
+  if(!ST.steps.length)return;
+  applyStep(ST.steps[0]);
+  setTimeout(()=>play(),300);
+  snd('click');
+}
+
+function loadScenario(key){
+  curScene=key;
+  document.querySelectorAll('.stab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  // Right panel content
+  document.getElementById('axioms').innerHTML=`
+    <strong>Unbuffered (make(chan T))</strong><br>
+    Send blocks until receiver ready. Receiver blocks until sender ready. Rendezvous synchronization.<br><br>
+    <strong>Buffered (make(chan T, n))</strong><br>
+    Send blocks only when buffer full. Recv blocks only when buffer empty. Decoupled up to n messages.<br><br>
+    <strong>Closed channel</strong><br>
+    Recv always succeeds: returns zero value + ok=false. Send panics. close() signals "no more data".`;
+  document.getElementById('gotchas').innerHTML=`
+    <span class="rw-tag" style="color:#f43f5e">PANIC</span> send on closed channel<br>
+    <span class="rw-tag" style="color:#f43f5e">PANIC</span> close of closed channel<br>
+    <span class="rw-tag" style="color:#f43f5e">DEADLOCK</span> all goroutines asleep (runtime detects)<br>
+    <span class="rw-tag" style="color:#fbbf24">GOTCHA</span> nil channel: send/recv block forever<br>
+    <span class="rw-tag" style="color:#fbbf24">GOTCHA</span> close from receiver = race condition<br>
+    <span class="rw-tag" style="color:#4ade80">OK</span> multiple goroutines can recv from one channel<br>
+    <span class="rw-tag" style="color:#4ade80">OK</span> recv from closed+non-empty returns data first`;
+  document.getElementById('facts').innerHTML=`
+    <span class="rw-tag">v := &lt;-ch</span> blocking recv<br>
+    <span class="rw-tag">v, ok := &lt;-ch</span> ok=false if closed+empty<br>
+    <span class="rw-tag">for v := range ch</span> loops until close()<br>
+    <span class="rw-tag">select + default</span> non-blocking recv/send<br>
+    <span class="rw-tag">len(ch)</span> items in buffer now<br>
+    <span class="rw-tag">cap(ch)</span> buffer capacity<br>
+    <span class="rw-tag">nil chan</span> always blocks (useful in select to disable case)<br>
+    <span class="rw-tag">close()</span> only sender should close — convention`;
+  renderCode(sc.code,-1);
+  startSim();
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){
+  if(!ST.steps.length)return;
+  if(ST.idx>=ST.steps.length-1)ST.idx=0;
+  ST.playing=true;
+  document.getElementById('play-btn').textContent='⏸ PAUSE';
+  document.getElementById('play-btn').classList.add('playing');
+  ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);
+}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:900,2:700,3:500,4:380,5:280,6:200,7:140,8:90,9:55,10:25};ST.speed=m[v]||280;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'Enter':startSim();break;
+    case'1':loadScenario('unbuf');break;case'2':loadScenario('buffered');break;
+    case'3':loadScenario('close');break;case'4':loadScenario('select');break;
+    case'5':loadScenario('deadlock');break;case'6':loadScenario('fanout');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['unbuf','UNBUF'],['buffered','BUFFERED'],['close','CLOSE'],['select','SELECT'],['deadlock','DEADLOCK'],['fanout','FAN-OUT']];
+  document.getElementById('scenario-tabs').innerHTML=order.map(([k,l],i)=>
+    `<button class="stab${k===curScene?' active':''}" data-key="${k}" onclick="loadScenario('${k}')">${i+1}. ${l}</button>`
+  ).join('');
+}
+
+/* ══════ BOOT ══════ */
+function boot(){
+  const term=document.getElementById('boot-terminal');
+  const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'CHAN.VIZ v1.0 — INITIALIZING...',s:'',d:180},
+    {t:'LOADING: CHANNEL_ENGINE.MOD',s:'OK',d:130},
+    {t:'LOADING: UNBUFFERED_SIM.MOD (rendezvous)',s:'OK',d:140},
+    {t:'LOADING: BUFFERED_SIM.MOD (async queue)',s:'OK',d:130},
+    {t:'LOADING: CLOSE_SIM.MOD (drain + range)',s:'OK',d:130},
+    {t:'LOADING: SELECT_SIM.MOD (multiplexer)',s:'OK',d:120},
+    {t:'LOADING: DEADLOCK_DETECT.MOD (FATAL)',s:'OK',d:140},
+    {t:'LOADING: FANOUT_SIM.MOD (worker pool)',s:'OK',d:120},
+    {t:'MOUNTING CANVAS RENDERER...',s:'DONE',d:150},
+    {t:'ALL MODULES LOADED. STARTING...',s:'',d:250},
+  ];
+  let li=0;
+  function al(){
+    if(li>=lines.length){setTimeout(sa,300);return;}
+    const bl=lines[li];
+    const div=document.createElement('div');div.className='bl';
+    div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;
+    term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));
+    fill.style.width=Math.round((li/lines.length)*100)+'%';
+    li++;setTimeout(al,bl.d);
+  }al();
+}
+function sa(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  loadScenario('unbuf');
+}
+boot();
+</script>
+</body>
+</html>

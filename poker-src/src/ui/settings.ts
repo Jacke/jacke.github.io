@@ -17,6 +17,7 @@ export interface Settings {
   bgAnim: string;
   sound: boolean;
   reducedMotion: boolean;
+  lang: string;
 }
 
 const STORAGE_KEY = 'iamjacke-poker-settings';
@@ -29,6 +30,7 @@ const DEFAULTS: Settings = {
   bgAnim: 'static',
   sound: true,
   reducedMotion: false,
+  lang: 'en',
 };
 
 export function loadSettings(): Settings {
@@ -44,6 +46,7 @@ export function loadSettings(): Settings {
       bgAnim: parsed.bgAnim ?? DEFAULTS.bgAnim,
       sound: parsed.sound ?? DEFAULTS.sound,
       reducedMotion: parsed.reducedMotion ?? DEFAULTS.reducedMotion,
+      lang: parsed.lang ?? DEFAULTS.lang,
     };
   } catch {
     return { ...DEFAULTS };
@@ -67,4 +70,5 @@ export function applySettings(s: Settings): void {
   document.body.dataset['bganim'] = s.bgAnim;
   document.body.dataset['reducedmotion'] = s.reducedMotion ? 'on' : 'off';
   document.body.dataset['sound'] = s.sound ? 'on' : 'off';
+  document.body.dataset['lang'] = s.lang;
 }

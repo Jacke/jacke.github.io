@@ -1,8 +1,7 @@
 import { Peer, type DataConnection } from 'peerjs';
 import { Emitter, type Transport, type TransportStatus } from '../protocol/transport.js';
-import {
-  type Message, isMessage, parseMessage, serializeMessage,
-} from '../protocol/messages.js';
+import { type Message } from '../protocol/messages.js';
+import { SigningSession } from '../protocol/crypto.js';
 
 const PEER_CONFIG = {
   debug: 2,
@@ -47,6 +46,7 @@ export class PeerJSTransport extends Emitter implements Transport {
   private role: Role;
   private readonly roomId: string;
   private readonly options: PeerJSOptions;
+  private signing = new SigningSession();
 
   constructor(options: PeerJSOptions) {
     super();
@@ -179,15 +179,12 @@ export class PeerJSTransport extends Emitter implements Transport {
 
   private handleData(data: unknown): void {
     try {
-      // PeerJS with serialization:'json' delivers objects directly; strings in fallback.
-      const msg = typeof data === 'string' ? parseMessage(data) : (isMessage(data) ? data : null);
-      if (!msg) {
-        console.warn('[poker] invalid message shape', data);
-        return;
-      }
+      // PeerJS delivers objects directly with json serialization; strings in fallback.
+      const raw: unknown = typeof data === 'string' ? JSON.parse(data) : data;
+      const msg = this.signing.verifyAndUnwrap(raw);
       this.emit('message', msg);
     } catch (e) {
-      console.warn('[poker] failed to parse message', e);
+      console.warn('[poker] rejected message:', (e as Error).message);
     }
   }
 
@@ -205,8 +202,8 @@ export class PeerJSTransport extends Emitter implements Transport {
     if (!this.conn || !this.conn.open) {
       throw new Error('PeerJS transport not open');
     }
-    // With serialization:'json', we can pass the object directly.
-    this.conn.send(serializeMessage(msg));
+    const envelope = this.signing.wrap(msg);
+    this.conn.send(JSON.stringify(envelope));
   }
 
   close(): void {

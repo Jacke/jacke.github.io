@@ -77,16 +77,22 @@
 {{- end }}
 
 <!-- tailwind css -->
-{{ $styles := resources.Get "css/main.css" }} {{ $styles = $styles |
-    resources.PostCSS }} {{ if hugo.IsProduction }} {{- with $styles -}}
-    <style>
-      {{- .Content | safeCSS -}}
-    </style>
-    {{- end -}} {{ else }} {{ $styles = $styles | resources.ExecuteAsTemplate
-    (printf "css/index.dev.%v.css" now.UnixMilli) .}}
-    <link href="{{ $styles.RelPermalink }}" rel="stylesheet" />
-    {{ end }}
+{{ $styles := resources.Get "css/main.css" }}
+{{ $styles = $styles | css.PostCSS }}
+{{ if hugo.IsProduction }}
+  {{- with $styles -}}
+    <style>{{- .Content | safeCSS -}}</style>
+  {{- end -}}
+{{ else }}
+  {{ $styles = $styles | resources.ExecuteAsTemplate (printf "css/index.dev.%v.css" now.UnixMilli) . }}
+  <link href="{{ $styles.RelPermalink }}" rel="stylesheet" />
+{{ end }}
 <!-- end tailwind css -->
+
+{{- if .IsHome }}
+  {{ $xpCSS := resources.Get "css/xp-emu.css" | resources.Minify }}
+  <link rel="stylesheet" href="{{ $xpCSS.RelPermalink }}">
+{{ end -}}
 
 <!-- <div class="float-left"></div> -->
 {{- /* Search */}}

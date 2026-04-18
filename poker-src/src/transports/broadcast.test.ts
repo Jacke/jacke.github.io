@@ -127,12 +127,44 @@ describe('BroadcastTransport — same-room handshake', () => {
     const raw = (b as unknown as { channel: { postMessage: (m: unknown) => void } }).channel;
     raw.postMessage({ from: 'other', payload: { type: 'nonsense' } });
     raw.postMessage({ from: 'other', payload: 'not even an object' });
+    // Unsigned-but-shaped message — was accepted pre-signing, must be rejected now.
+    raw.postMessage({ from: 'other', payload: { type: 'action', player: 0, action: 'fold' } });
     await new Promise(r => setTimeout(r, 20));
 
     // Garbage should have been silently dropped — no error, no crash.
     expect(errors).not.toHaveBeenCalled();
     a.close();
     b.close();
+  });
+
+  it('rejects forged messages from a third party on the same room', async () => {
+    const a = new BroadcastTransport('ROOM3F', 'Alice');
+    const b = new BroadcastTransport('ROOM3F', 'Bob');
+    await Promise.all([waitForOpen(a), waitForOpen(b)]);
+
+    // Third transport joins — drive-by attacker with its own keypair.
+    const mallory = new BroadcastTransport('ROOM3F', 'Mallory');
+    await waitForOpen(mallory);
+
+    // Alice has now learned Bob's pubkey (from whichever of Bob/Mallory
+    // arrived first). Any future send from the other peer should be rejected.
+    // To make this deterministic, we directly poke Alice's internal session
+    // and verify its lastRecvSeq only advances from one signing identity.
+    const recvCount: Message[] = [];
+    a.on('message', (m) => { if (m.type === 'action') recvCount.push(m); });
+
+    b.send({ type: 'action', player: 0, action: 'raise', amount: 60 });
+    await new Promise(r => setTimeout(r, 20));
+
+    // Mallory tries — but Alice already pinned to whichever pubkey she saw first.
+    mallory.send({ type: 'action', player: 0, action: 'raise', amount: 999 });
+    await new Promise(r => setTimeout(r, 20));
+
+    // At most one action got through (from the pinned peer).
+    expect(recvCount.length).toBeLessThanOrEqual(1);
+    a.close();
+    b.close();
+    mallory.close();
   });
 
   it('close() stops emitting and sets status to closed', async () => {

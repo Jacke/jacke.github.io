@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LRU.VIZ v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;--font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.48) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,.05);}
+.tab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#op-bar{display:flex;align-items:center;gap:7px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.38);flex-shrink:0;flex-wrap:wrap;}
+.obtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all .1s;white-space:nowrap;}.obtn:hover{background:rgba(255,178,41,.08);}
+.op-label{font-size:8.5px;color:var(--amber-dim);letter-spacing:1px;white-space:nowrap;}
+.op-inp{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 7px;width:52px;outline:none;}
+.op-inp:focus{border-color:var(--amber);}
+select.op-sel{font-family:var(--font-code);font-size:11px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 5px;outline:none;cursor:pointer;}
+select.op-sel option{background:#111;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.get{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.07);}
+.pbadge.put{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.hit{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.09);}
+.pbadge.miss{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.08);}
+.pbadge.evict{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.09);}
+.pbadge.promote{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.08);}
+.pbadge.insert{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.07);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}.cline.active{background:rgba(255,178,41,.09);}
+.cline.active .cc{position:relative;}.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,.4),1px 0 1px rgba(50,80,255,.4);pointer-events:none;}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}#r-scroll::-webkit-scrollbar{width:3px;}#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas><div id="scan-line"></div><div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">LRU.VIZ</div>
+  <div id="boot-tagline">CACHE EVICTION POLICY VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">LRU.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="op-bar">
+        <span class="op-label">CAP</span>
+        <select class="op-sel" id="cap-sel"><option>3</option><option selected>5</option><option>7</option></select>
+        <span class="op-label">KEY</span>
+        <input class="op-inp" type="text" id="key-inp" placeholder="A" maxlength="3">
+        <span class="op-label">VAL</span>
+        <input class="op-inp" type="text" id="val-inp" placeholder="1" maxlength="4">
+        <button class="obtn" style="border-color:rgba(74,222,128,.5);color:#86efac" onclick="doPut()">⊕ PUT</button>
+        <button class="obtn" style="border-color:rgba(34,211,238,.5);color:#67e8f9" onclick="doGet()">⊙ GET</button>
+        <div style="width:1px;height:18px;background:rgba(255,178,41,.12)"></div>
+        <button class="obtn" style="border-color:rgba(168,85,247,.5);color:#d8b4fe" onclick="loadDemo()">🎬 DEMO</button>
+        <button class="obtn" style="border-color:rgba(244,63,94,.3);color:#fda4af;font-size:12px;padding:2px 7px" onclick="clearCache()">⊘ CLR</button>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc"><span class="pbadge init" id="pbadge">INIT</span><span id="step-txt">Put/Get keys or load DEMO. LEFT = Most Recently Used.</span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">SIZE</span><span class="sv" id="s-size">0</span></div>
+        <div class="si"><span class="sl">CAP</span><span class="sv" id="s-cap">5</span></div>
+        <div class="si"><span class="sl">HITS</span><span class="sv" id="s-hits" style="color:#4ade80">0</span></div>
+        <div class="si"><span class="sl">MISSES</span><span class="sv" id="s-miss" style="color:#f43f5e">0</span></div>
+        <div class="si"><span class="sl">EVICTS</span><span class="sv" id="s-evict" style="color:#f97316">0</span></div>
+        <div class="si"><span class="sl">HIT%</span><span class="sv" id="s-hitr" style="font-size:13px">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–3</span> Mode</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE CODE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ COMPLEXITY</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ INTERVIEW FACTS</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+/* NOISE */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const g=AC.createGain(),ws=AC.createWaveShaper();const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}ws.curve=cv;ws.connect(AC.destination);g.connect(ws);const o=AC.createOscillator();o.connect(g);const p={get:[380,.06],put:[480,.07],hit:[560,.09],miss:[200,.1],evict:[300,.1],promote:[520,.08],insert:[440,.07],click:[360,.04]};const[f,d]=p[type]||[360,.05];o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+function hlGo(l){let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');s=s.replace(/\b(func|if|else|return|var|type|struct|int|bool|make|nil|true|false|string)\b/g,'<span class="kw">$1</span>');s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');return s;}
+function renderCode(lines,active){const el=document.getElementById('code-scroll');el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}}
+
+/* ══════ MODES ══════ */
+const MODES={
+  lru:{label:'LRU',
+    code:['// LRU: Least Recently Used eviction','type LRUCache struct {','    cap  int','    m    map[string]*Node // O(1) lookup','    head *Node  // most recently used','    tail *Node  // least recently used','}','','func (c *LRUCache) Get(key string) (int, bool) {','    node, ok := c.m[key]','    if !ok { return 0, false }  // cache miss','    c.moveToFront(node)          // promote: now MRU','    return node.val, true        // cache hit','}','','func (c *LRUCache) Put(key string, val int) {','    if node, ok := c.m[key]; ok {','        node.val = val','        c.moveToFront(node)  // update: move to front','        return','    }','    if len(c.m) >= c.cap {','        lru := c.tail','        c.removeNode(lru)    // evict LRU (tail)','        delete(c.m, lru.key)','    }','    node := &Node{key: key, val: val}','    c.addToFront(node)','    c.m[key] = node','}'],
+    cx:`<strong>Get</strong>: O(1) — hash map lookup + O(1) list move<br><strong>Put</strong>: O(1) — insert at front + O(1) tail eviction<br><strong>Space</strong>: O(capacity) — map + doubly linked list<br><strong>Key insight</strong>: map gives O(1) access to any node; DLL gives O(1) reorder`,
+    how:`LRU uses a <strong>doubly linked list</strong> + <strong>hash map</strong>.<br><br>List order = recency: HEAD = most recently used, TAIL = least recently used.<br><br><strong>GET hit</strong>: move node to HEAD (now MRU).<br><strong>PUT new</strong>: if full, remove TAIL (evict LRU), add new node at HEAD.<br><strong>PUT update</strong>: update value + move to HEAD.`,
+    facts:`<span class="rw-tag">LeetCode 146</span> most common cache interview problem<br><span class="rw-tag">container/list</span> Go std — doubly linked list for LRU backbone<br><span class="rw-tag">Redis</span> approximated LRU (sample 5 random keys, evict oldest)<br><span class="rw-tag">CPU cache</span> L1/L2/L3 use LRU-like policies<br><span class="rw-tag">Groupcache</span> Google's distributed LRU cache in Go`,
+  },
+  lfu:{label:'LFU',
+    code:['// LFU: Least Frequently Used eviction','type LFUCache struct {','    cap    int','    minF   int              // current min frequency','    items  map[string]*Item // key → item','    freq   map[int]*DList   // freq → ordered list of items','}','','func (c *LFUCache) Get(key string) (int, bool) {','    item, ok := c.items[key]','    if !ok { return 0, false }','    c.incrementFreq(item)  // freq++ → move to next bucket','    return item.val, true','}','','func (c *LFUCache) Put(key string, val int) {','    if item, ok := c.items[key]; ok {','        item.val = val','        c.incrementFreq(item)','        return','    }','    if len(c.items) >= c.cap {','        // evict LRU within minimum freq bucket','        list := c.freq[c.minF]','        evict := list.tail  // LRU in min-freq list','        list.remove(evict)','        delete(c.items, evict.key)','    }','    item := &Item{key: key, val: val, freq: 1}','    c.freq[1].addToFront(item)','    c.items[key] = item','    c.minF = 1','}'],
+    cx:`<strong>Get</strong>: O(1) — lookup + freq bucket move<br><strong>Put</strong>: O(1) — evict from minFreq bucket tail<br><strong>Space</strong>: O(capacity) — items map + freq map of lists<br><strong>vs LRU</strong>: LFU avoids evicting frequently accessed items; LRU is simpler`,
+    how:`LFU tracks <strong>access frequency</strong> per key. Uses two maps:<br>1. <code>items</code>: key → item (with freq counter)<br>2. <code>freq</code>: freq → doubly linked list of items (same freq, ordered by recency)<br><br>On access: item's freq++, moved to <code>freq[f+1]</code> list.<br>On evict: remove tail of <code>freq[minF]</code> list (least frequent + least recent tie-break).`,
+    facts:`<span class="rw-tag">LeetCode 460</span> harder follow-up to LRU — O(1) LFU<br><span class="rw-tag">Scan resistance</span> LFU better than LRU for repeated sequential scans<br><span class="rw-tag">Weakness</span> LFU: cold start — new hot items have freq=1, get evicted fast<br><span class="rw-tag">TinyLFU</span> used by Caffeine (Java): bloom filter + LFU estimation<br><span class="rw-tag">W-TinyLFU</span> Caffeine default: combines LRU window + LFU main cache`,
+  },
+  arc:{label:'ARC',
+    code:['// ARC: Adaptive Replacement Cache','// Combines recency (LRU) + frequency (LFU) adaptively','type ARCCache struct {','    cap int  // total capacity p','    p   int  // adaptive split: LRU vs LFU portion','    t1  *LRU // recent once (LRU part)','    t2  *LRU // recent frequently (LFU part)','    b1  *ghost // ghost entries for t1 evictions','    b2  *ghost // ghost entries for t2 evictions','}','','// On cache hit in t1: move to t2 (promoted to frequent)','// On cache hit in t2: keep in t2 (still frequent)','// On miss, key in b1 ghost: p++ (grow LRU portion)','// On miss, key in b2 ghost: p-- (grow LFU portion)','// ARC self-tunes p based on access pattern','','// p grows toward LRU-friendly when workload is recency-heavy','// p grows toward LFU-friendly when workload is freq-heavy','// IBM patent — not usable in Linux kernel','// ZFS, PostgreSQL (8.1) used ARC'],
+    cx:`<strong>Hit</strong>: O(1) — lookup in t1/t2/b1/b2<br><strong>Miss</strong>: O(1) — insert + adaptive p adjustment<br><strong>Space</strong>: O(2×capacity) — 2 ghost lists for adaptation<br><strong>vs LRU/LFU</strong>: adapts to workload automatically`,
+    how:`ARC maintains 4 lists:<br><strong>T1</strong>: recently seen once (LRU ring)<br><strong>T2</strong>: seen at least twice (LFU ring)<br><strong>B1</strong>: ghost of recently evicted T1 entries<br><strong>B2</strong>: ghost of recently evicted T2 entries<br><br>Parameter <code>p</code> splits capacity between T1 and T2. Hit in B1 → grow T1 (workload is recency-heavy). Hit in B2 → grow T2 (frequency-heavy). ARC self-tunes.`,
+    facts:`<span class="rw-tag">IBM patent</span> US6,996,676 — reason Linux uses CLOCK-Pro instead<br><span class="rw-tag">ZFS</span> Solaris/FreeBSD — uses ARC as L1 cache<br><span class="rw-tag">PostgreSQL</span> shared_buffers used ARC until 8.1<br><span class="rw-tag">Adaptive</span> outperforms both LRU and LFU on mixed workloads<br><span class="rw-tag">CLOCK-Pro</span> patent-free ARC approximation used in Linux`,
+  },
+};
+
+/* ══════ LRU ENGINE ══════ */
+// State: {list: [{key,val,freq,hlColor}], map: {key→idx}, hits, misses, evicts}
+function makeLRUState(){return{list:[],map:{},hits:0,misses:0,evicts:0};}
+
+function cloneState(s){return{list:s.list.map(n=>({...n})),map:{...s.map},hits:s.hits,misses:s.misses,evicts:s.evicts};}
+
+function lruGet(state,key,cap,steps){
+  const snap=(phase,desc,cl,hl=null,evictKey=null)=>{
+    const s=cloneState(state);
+    if(hl!==null)s.list.forEach(n=>{n.hl=(n.key===hl);n.evict=(n.key===evictKey);});
+    steps.push({phase,desc,cl,state:s,cap});
+  };
+  snap('get',`GET "${key}": checking hash map...`,9);
+  if(state.map[key]===undefined){
+    state.misses++;
+    snap('miss',`GET "${key}": MISS. Key not in cache. map[key] = nil.`,10);
+    return;
+  }
+  state.hits++;
+  // move to front
+  const idx=state.list.findIndex(n=>n.key===key);
+  const node=state.list.splice(idx,1)[0];
+  node.hl=true;
+  state.list.unshift(node);
+  // rebuild map
+  state.list.forEach((n,i)=>state.map[n.key]=i);
+  snap('hit',`GET "${key}": HIT! val=${node.val}. moveToFront() → key is now MRU.`,11,key);
+}
+
+function lruPut(state,key,val,cap,steps){
+  const snap=(phase,desc,cl,hl=null,evictKey=null)=>{
+    const s=cloneState(state);
+    s.list.forEach(n=>{n.hl=(n.key===hl);n.evict=(n.key===evictKey);n.isNew=(n.key===hl&&phase==='insert');});
+    steps.push({phase,desc,cl,state:s,cap});
+  };
+  snap('put',`PUT "${key}"=${val}: checking if key exists...`,15);
+  if(state.map[key]!==undefined){
+    const idx=state.list.findIndex(n=>n.key===key);
+    const node=state.list.splice(idx,1)[0];
+    node.val=val;state.list.unshift(node);
+    state.list.forEach((n,i)=>state.map[n.key]=i);
+    snap('promote',`PUT "${key}": key exists. Updated val=${val}. moveToFront() → now MRU.`,17,key);
+    return;
+  }
+  if(state.list.length>=cap){
+    const lru=state.list[state.list.length-1];
+    snap('evict',`Cache FULL (${cap}/${cap}). Evicting LRU: key="${lru.key}" (tail of list). O(1): just remove tail.`,21,null,lru.key);
+    state.list.pop();delete state.map[lru.key];state.evicts++;
+  }
+  const node={key,val,hl:true,isNew:true,freq:1};
+  state.list.unshift(node);
+  state.list.forEach((n,i)=>state.map[n.key]=i);
+  snap('insert',`PUT "${key}"=${val}: addToFront() — now MRU. map[key] = node ptr. O(1).`,24,key);
+}
+
+/* ══════ LFU ENGINE ══════ */
+function makeLFUState(){return{list:[],freqMap:{},minFreq:0,hits:0,misses:0,evicts:0};}
+// list items: {key,val,freq}
+function lfuGet(state,key,steps){
+  const snap=(phase,desc,cl)=>{const s=cloneState(state);s.list=s.list.map(n=>({...n,hl:n.key===key}));steps.push({phase,desc,cl,state:s,cap:parseInt(document.getElementById('cap-sel').value)||5,isLFU:true});};
+  snap('get',`GET "${key}": checking cache...`,9);
+  const idx=state.list.findIndex(n=>n.key===key);
+  if(idx===-1){state.misses++;snap('miss',`GET "${key}": MISS.`,10);return;}
+  state.hits++;
+  state.list[idx].freq++;
+  // re-sort by freq desc (stable: maintain insertion order for same freq)
+  snap('promote',`GET "${key}": HIT! freq++ = ${state.list[idx].freq}. Re-bucketed.`,11);
+}
+
+function lfuPut(state,key,val,cap,steps){
+  const snap=(phase,desc,cl)=>{const s=cloneState(state);s.list=s.list.map(n=>({...n,hl:n.key===key,isNew:n.key===key&&phase==='insert'}));steps.push({phase,desc,cl,state:s,cap,isLFU:true});};
+  snap('put',`PUT "${key}"=${val}...`,15);
+  const idx=state.list.findIndex(n=>n.key===key);
+  if(idx!==-1){state.list[idx].val=val;state.list[idx].freq++;snap('promote',`Key exists. Updated val=${val}, freq=${state.list[idx].freq}.`,17);return;}
+  if(state.list.length>=cap){
+    // evict min freq, then LRU within that freq
+    const minF=Math.min(...state.list.map(n=>n.freq));
+    const minItems=state.list.filter(n=>n.freq===minF);
+    const evict=minItems[minItems.length-1];// last = LRU within freq bucket
+    snap('evict',`Cache full. Evicting LFU: key="${evict.key}" freq=${evict.freq} (min freq, LRU tie-break).`,22,);
+    state.list.splice(state.list.findIndex(n=>n.key===evict.key),1);state.evicts++;
+  }
+  state.list.unshift({key,val,freq:1});
+  snap('insert',`PUT "${key}"=${val} freq=1 → front of freq[1] bucket.`,25);
+}
+
+/* ══════ ARC DEMO (scenario-based, no live engine) ══════ */
+function buildARCScenario(){
+  const steps=[];
+  // Simulate ARC with p=2, cap=4
+  // t1: recent-once, t2: recent-twice, b1: ghost t1, b2: ghost t2
+  const arc={t1:[],t2:[],b1:[],b2:[],p:2,cap:4,hits:0,misses:0,evicts:0};
+  function snap(phase,desc,cl){
+    steps.push({phase,desc,cl,state:{arcState:{...arc,t1:[...arc.t1],t2:[...arc.t2],b1:[...arc.b1],b2:[...arc.b2]},hits:arc.hits,misses:arc.misses,evicts:arc.evicts},cap:arc.cap,isARC:true});
+  }
+  snap('init','ARC demo: cap=4, p=2 (adaptive split). T1=recent once, T2=recent frequent.',0);
+  const ops=[['A',1],['B',2],['C',3],['D',4],['A',1],['E',5],['A',1],['B',2],['B',2],['F',6]];
+  ops.forEach(([k,v])=>{
+    const inT2=arc.t2.includes(k),inT1=arc.t1.includes(k),inB1=arc.b1.includes(k),inB2=arc.b2.includes(k);
+    if(inT1||inT2){
+      arc.hits++;
+      if(inT1){arc.t1=arc.t1.filter(x=>x!==k);arc.t2.unshift(k);snap('promote',`HIT "${k}" in T1 → promoted to T2 (now frequently accessed). p unchanged.`,11);}
+      else{arc.t2=arc.t2.filter(x=>x!==k);arc.t2.unshift(k);snap('hit',`HIT "${k}" in T2 → moved to front of T2. Still "frequent".`,9);}
+    } else {
+      arc.misses++;
+      if(inB1){arc.p=Math.min(arc.cap,arc.p+1);snap('promote',`MISS "${k}" in B1 ghost → p++ = ${arc.p}. Growing T1 (recency-heavy workload).`,13);}
+      else if(inB2){arc.p=Math.max(0,arc.p-1);snap('promote',`MISS "${k}" in B2 ghost → p-- = ${arc.p}. Growing T2 (frequency-heavy workload).`,15);}
+      else snap('miss',`MISS "${k}": not in cache or ghost lists.`,10);
+      // evict if needed
+      const total=arc.t1.length+arc.t2.length;
+      if(total>=arc.cap){
+        if(arc.t1.length>arc.p&&arc.t1.length>0){const ev=arc.t1.pop();arc.b1.unshift(ev);if(arc.b1.length>arc.cap)arc.b1.pop();arc.evicts++;snap('evict',`Cache full. Evict T1 tail "${ev}" (T1=${arc.t1.length}>${arc.p}). Ghost in B1.`,20);}
+        else if(arc.t2.length>0){const ev=arc.t2.pop();arc.b2.unshift(ev);if(arc.b2.length>arc.cap)arc.b2.pop();arc.evicts++;snap('evict',`Cache full. Evict T2 tail "${ev}" (T1≤p, T2 evict). Ghost in B2.`,20);}
+      }
+      arc.t1.unshift(k);snap('insert',`INSERT "${k}" into T1 (first time seen). T1=[${arc.t1}] T2=[${arc.t2}].`,24);
+    }
+  });
+  return steps;
+}
+
+/* ══════ CANVAS ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const w=document.getElementById('viz-wrap');CW=canvas.width=w.clientWidth;CH=canvas.height=w.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+
+const NODE_W=70,NODE_H=52,NODE_GAP=10,HASH_COL_W=100;
+
+function renderLRU(step){
+  const{state,cap}=step;
+  const{list}=state;
+  const isLFU=step.isLFU;
+  const PAD=14,TOP=22;
+
+  // Header
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`${isLFU?'LFU':'LRU'}  capacity=${cap}  size=${list.length}  hits=${state.hits}  misses=${state.misses}  evicts=${state.evicts}`,PAD,4);
+
+  // Labels
+  const listY=TOP+30;const listTotalW=(NODE_W+NODE_GAP)*Math.min(list.length,cap+1);
+  const listX=PAD+HASH_COL_W+30;
+
+  // MRU/LRU arrows
+  if(list.length>0){
+    ctx.font=`12px 'VT323'`;ctx.fillStyle='rgba(255,178,41,0.4)';ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(isLFU?'HIGH FREQ':'← MRU (FRONT)',listX+NODE_W/2,listY-2);
+    if(list.length>1){
+      const lastX=listX+(NODE_W+NODE_GAP)*(list.length-1);
+      ctx.fillText(isLFU?'LOW FREQ':'LRU (TAIL) →',lastX+NODE_W/2,listY-2);
+    }
+  }
+
+  // Hash map panel
+  const hmX=PAD,hmY=listY,hmW=HASH_COL_W,hmH=Math.min(CH-listY-80,(cap+1)*28+20);
+  ctx.strokeStyle='rgba(255,178,41,0.2)';ctx.lineWidth=1;ctx.strokeRect(hmX,hmY,hmW,hmH);
+  ctx.font=`11px 'VT323'`;ctx.fillStyle='rgba(255,178,41,0.3)';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('HASH MAP',hmX+hmW/2,hmY+2);
+  list.forEach((node,i)=>{
+    const hy=hmY+16+i*26;if(hy>hmY+hmH-8)return;
+    const col=node.hl?'#fbbf24':node.evict?'#f43f5e':node.isNew?'#4ade80':'rgba(255,178,41,0.5)';
+    ctx.save();ctx.fillStyle=col+'18';ctx.strokeStyle=col+'55';ctx.lineWidth=1;
+    ctx.fillRect(hmX+2,hy,hmW-4,22);ctx.strokeRect(hmX+2,hy,hmW-4,22);
+    ctx.font=`10px 'IBM Plex Mono'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(`"${node.key}" → &`,hmX+6,hy+11);
+    ctx.restore();
+    // arrow to node
+    const nx=listX+(NODE_W+NODE_GAP)*i+NODE_W/2;const ny=listY;
+    ctx.save();ctx.strokeStyle=col+'40';ctx.lineWidth=1;ctx.setLineDash([2,4]);
+    ctx.beginPath();ctx.moveTo(hmX+hmW,hy+11);ctx.lineTo(nx,ny);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+  });
+
+  // DLL nodes
+  list.forEach((node,i)=>{
+    const nx=listX+(NODE_W+NODE_GAP)*i,ny=listY;
+    if(nx+NODE_W>CW-10)return;
+    const col=node.hl?'#fbbf24':node.evict?'#f43f5e':node.isNew?'#4ade80':'rgba(255,178,41,0.55)';
+    ctx.save();
+    if(node.hl||node.isNew){ctx.shadowColor=col;ctx.shadowBlur=14;}
+    if(node.evict){ctx.shadowColor='#f43f5e';ctx.shadowBlur=18;}
+    ctx.fillStyle=col+'14';ctx.strokeStyle=col;ctx.lineWidth=node.hl||node.evict||node.isNew?2:1;
+    ctx.fillRect(nx,ny,NODE_W,NODE_H);ctx.strokeRect(nx,ny,NODE_W,NODE_H);
+    // key
+    ctx.font=`18px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`"${node.key}"`,nx+NODE_W/2,ny+14);
+    // val
+    ctx.font=`12px 'IBM Plex Mono'`;ctx.fillStyle=col+'aa';ctx.textAlign='center';
+    ctx.fillText(`val: ${node.val}`,nx+NODE_W/2,ny+30);
+    // freq for LFU
+    if(isLFU&&node.freq!=null){
+      ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(168,85,247,0.7)';ctx.textAlign='center';
+      ctx.fillText(`f=${node.freq}`,nx+NODE_W/2,ny+NODE_H-4);
+    }
+    ctx.restore();
+    // DLL pointers
+    if(i<list.length-1){
+      const nx2=listX+(NODE_W+NODE_GAP)*(i+1);
+      if(nx2+NODE_W>CW-10)return;
+      ctx.save();ctx.strokeStyle='rgba(255,178,41,0.3)';ctx.lineWidth=1;
+      // next →
+      ctx.beginPath();ctx.moveTo(nx+NODE_W,ny+NODE_H/3);ctx.lineTo(nx2,ny+NODE_H/3);
+      const ax=nx2,ay=ny+NODE_H/3;
+      ctx.moveTo(ax,ay);ctx.lineTo(ax-8,ay-4);ctx.moveTo(ax,ay);ctx.lineTo(ax-8,ay+4);ctx.stroke();
+      // prev ←
+      ctx.strokeStyle='rgba(255,178,41,0.15)';
+      ctx.beginPath();ctx.moveTo(nx2,ny+NODE_H*2/3);ctx.lineTo(nx+NODE_W,ny+NODE_H*2/3);
+      const bx=nx+NODE_W,by=ny+NODE_H*2/3;
+      ctx.moveTo(bx,by);ctx.lineTo(bx+8,by-4);ctx.moveTo(bx,by);ctx.lineTo(bx+8,by+4);ctx.stroke();
+      ctx.restore();
+    }
+  });
+
+  // Evict indicator
+  if(list.length>0&&list.some(n=>n.evict)){
+    const evIdx=list.findIndex(n=>n.evict);const ex=listX+(NODE_W+NODE_GAP)*evIdx;const ey=listY;
+    ctx.save();ctx.font=`16px 'VT323'`;ctx.fillStyle='#f43f5e';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.shadowColor='#f43f5e';ctx.shadowBlur=10;
+    ctx.fillText('EVICT',ex+NODE_W/2,ey-2);ctx.restore();triggerCA();
+  }
+
+  // Capacity bar
+  const barX=listX,barY=listY+NODE_H+16,barW=(NODE_W+NODE_GAP)*cap-NODE_GAP,barH=10;
+  ctx.fillStyle='rgba(255,178,41,0.07)';ctx.fillRect(barX,barY,barW,barH);
+  const fillW=barW*list.length/cap;
+  const pct=list.length/cap;
+  const bCol=pct>=1?'#f43f5e':pct>=0.8?'#f97316':'#4ade80';
+  ctx.fillStyle=bCol+'44';ctx.fillRect(barX,barY,fillW,barH);
+  ctx.strokeStyle='rgba(255,178,41,0.2)';ctx.lineWidth=1;ctx.strokeRect(barX,barY,barW,barH);
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.35)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`CAPACITY: ${list.length}/${cap}`,barX,barY+barH+4);
+}
+
+function renderARC(step){
+  const{state,cap}=step;
+  const{arcState}=state;
+  if(!arcState)return;
+  const PAD=16,TOP=22;
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`ARC  cap=${cap}  p=${arcState.p}  hits=${state.hits}  misses=${state.misses}  evicts=${state.evicts}`,PAD,4);
+
+  const lists=[
+    {name:'T1 (recent once)',items:arcState.t1,col:'#60a5fa'},
+    {name:'T2 (frequent)',items:arcState.t2,col:'#4ade80'},
+    {name:'B1 (ghost T1)',items:arcState.b1,col:'rgba(96,165,250,0.3)'},
+    {name:'B2 (ghost T2)',items:arcState.b2,col:'rgba(74,222,128,0.3)'},
+  ];
+  const rowH=60,rowPAD=PAD;
+  lists.forEach((lst,row)=>{
+    const ry=TOP+20+row*rowH;
+    ctx.font=`12px 'VT323'`;ctx.fillStyle=lst.col;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(lst.name.toUpperCase(),rowPAD,ry);
+    lst.items.forEach((k,i)=>{
+      const bx=rowPAD+140+i*(44+6),by=ry+14;if(bx+44>CW-PAD)return;
+      const isGhost=row>=2;
+      ctx.save();ctx.fillStyle=isGhost?'rgba(0,0,0,0)':lst.col+'18';ctx.strokeStyle=lst.col;ctx.lineWidth=isGhost?1:1.5;
+      if(isGhost)ctx.setLineDash([3,3]);
+      ctx.fillRect(bx,by,44,32);ctx.strokeRect(bx,by,44,32);ctx.setLineDash([]);
+      ctx.font=`16px 'VT323'`;ctx.fillStyle=lst.col;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(`"${k}"`,bx+22,by+16);ctx.restore();
+    });
+    if(lst.items.length===0){ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.12)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('(empty)',rowPAD+140,ry+18);}
+  });
+
+  // p bar
+  const bx=PAD,by=TOP+260,bw=300,bh=14;
+  ctx.strokeStyle='rgba(255,178,41,0.2)';ctx.lineWidth=1;ctx.strokeRect(bx,by,bw,bh);
+  const pw=bw*(arcState.p/cap);
+  ctx.fillStyle='rgba(96,165,250,0.25)';ctx.fillRect(bx,by,pw,bh);
+  ctx.fillStyle='rgba(74,222,128,0.25)';ctx.fillRect(bx+pw,by,bw-pw,bh);
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.4)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`T1 portion  p=${arcState.p}/${cap}`,bx,by+bh+4);
+  ctx.textAlign='right';ctx.fillText(`T2 portion`,bx+bw,by+bh+4);
+}
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+  if(step.isARC)renderARC(step);
+  else renderLRU(step);
+}
+
+/* ══════ LIVE STATE ══════ */
+let lruState=makeLRUState(),lfuState=makeLFUState();
+
+/* ══════ PLAYBACK ══════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:420};
+let curMode='lru';
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  const phase=step.phase||'init';
+  badge.className='pbadge '+phase;badge.textContent=phase.toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  const s=step.state||{};
+  const list=s.list||[];
+  document.getElementById('s-size').textContent=list.length;
+  document.getElementById('s-cap').textContent=step.cap||5;
+  document.getElementById('s-hits').textContent=s.hits||0;
+  document.getElementById('s-miss').textContent=s.misses||0;
+  document.getElementById('s-evict').textContent=s.evicts||0;
+  const total=(s.hits||0)+(s.misses||0);
+  document.getElementById('s-hitr').textContent=total>0?((s.hits/total)*100).toFixed(0)+'%':'—';
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(MODES[curMode].code,step.cl>=0?step.cl:-1);
+  if(phase&&phase!=='init')snd(phase);
+  if(phase==='evict')triggerCA();
+}
+
+function runSteps(steps){if(!steps||!steps.length)return;if(ST.playing)pause();ST.steps=steps;ST.idx=0;applyStep(steps[0]);setTimeout(()=>play(),250);}
+
+function cap(){return parseInt(document.getElementById('cap-sel').value)||5;}
+
+function doPut(){
+  initAudio();
+  const k=document.getElementById('key-inp').value||'X';
+  const v=document.getElementById('val-inp').value||'1';
+  const steps=[];
+  if(curMode==='lru'){lruPut(lruState,k,parseInt(v)||0,cap(),steps);}
+  else if(curMode==='lfu'){lfuPut(lfuState,k,parseInt(v)||0,cap(),steps);}
+  if(steps.length)runSteps(steps);
+  snd('click');
+}
+
+function doGet(){
+  initAudio();
+  const k=document.getElementById('key-inp').value||'X';
+  const steps=[];
+  if(curMode==='lru'){lruGet(lruState,k,cap(),steps);}
+  else if(curMode==='lfu'){lfuGet(lfuState,k,steps);}
+  if(steps.length)runSteps(steps);
+  snd('click');
+}
+
+function loadDemo(){
+  initAudio();clearCache();
+  const c=cap();
+  const steps=[];
+  if(curMode==='arc'){
+    const arcSteps=buildARCScenario();
+    runSteps(arcSteps);snd('click');return;
+  }
+  const ops=curMode==='lru'
+    ?[['put','A',1],['put','B',2],['put','C',3],['put','D',4],['put','E',5],['get','A'],['put','F',6],['get','B'],['get','B'],['put','G',7],['get','C'],['get','A']]
+    :[['put','A',1],['put','B',2],['put','C',3],['put','A',1],['put','D',4],['get','A'],['put','B',2],['get','B'],['get','B'],['put','E',5],['get','A'],['get','B']];
+  ops.forEach(op=>{
+    if(op[0]==='put'){if(curMode==='lru')lruPut(lruState,op[1],op[2],c,steps);else lfuPut(lfuState,op[1],op[2],c,steps);}
+    else{if(curMode==='lru')lruGet(lruState,op[1],c,steps);else lfuGet(lfuState,op[1],steps);}
+  });
+  runSteps(steps);snd('click');
+}
+
+function clearCache(){
+  if(ST.playing)pause();
+  lruState=makeLRUState();lfuState=makeLFUState();
+  ST.steps=[];ST.idx=0;ctx.clearRect(0,0,CW,CH);
+  document.getElementById('pbadge').className='pbadge init';document.getElementById('pbadge').textContent='INIT';
+  document.getElementById('step-txt').textContent='Cache cleared.';
+  document.getElementById('step-ctr').textContent='0 / 0';
+  document.getElementById('prog-bar').style.width='0%';
+  ['s-size','s-hits','s-miss','s-evict'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('s-hitr').textContent='—';
+  snd('click');
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){if(!ST.steps.length)return;if(ST.idx>=ST.steps.length-1)ST.idx=0;ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+function selectMode(key){
+  curMode=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const m=MODES[key];
+  document.getElementById('cx-info').innerHTML=m.cx;
+  document.getElementById('how-info').innerHTML=m.how;
+  document.getElementById('facts').innerHTML=m.facts;
+  renderCode(m.code,-1);
+  clearCache();
+  setTimeout(()=>loadDemo(),200);
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectMode('lru');break;case'2':selectMode('lfu');break;case'3':selectMode('arc');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['lru','1. LRU'],['lfu','2. LFU'],['arc','3. ARC']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curMode?' active':''}" data-key="${k}" onclick="selectMode('${k}')">${l}</button>`).join('');
+}
+
+function boot(){
+  const term=document.getElementById('boot-terminal');const fill=document.getElementById('boot-fill');
+  const lines=[{t:'LRU.VIZ v1.0 — INITIALIZING...',s:'',d:180},{t:'LOADING: LRU_ENGINE.MOD (hashmap + dll)',s:'OK',d:130},{t:'LOADING: LFU_ENGINE.MOD (freq buckets)',s:'OK',d:130},{t:'LOADING: ARC_ENGINE.MOD (adaptive T1/T2/B1/B2)',s:'OK',d:140},{t:'MOUNTING CANVAS RENDERER...',s:'DONE',d:150},{t:'EVICTION POLICIES ONLINE.',s:'',d:200}];
+  let li=0;
+  function al(){if(li>=lines.length){setTimeout(sa,300);return;}const bl=lines[li];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));fill.style.width=Math.round((li/lines.length)*100)+'%';li++;setTimeout(al,bl.d);}al();
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();const m=MODES['lru'];document.getElementById('cx-info').innerHTML=m.cx;document.getElementById('how-info').innerHTML=m.how;document.getElementById('facts').innerHTML=m.facts;renderCode(m.code,-1);window.addEventListener('resize',resizeCanvas);resizeCanvas();setTimeout(()=>selectMode('lru'),300);}
+boot();
+</script>
+</body>
+</html>

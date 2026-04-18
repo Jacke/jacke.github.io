@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRAPH.LAB v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060501;--amber:#ffb229;--amber-dim:#c47e00;
+  --green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;
+  --cyan:#22d3ee;--pink:#ec4899;--orange:#f97316;
+  --font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,0.55) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%{filter:brightness(1)contrast(1.03);}92%{filter:brightness(0.9)contrast(1.1);}93%{filter:brightness(1)contrast(1.03);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scanline{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(to bottom,transparent,rgba(255,178,41,0.04),transparent);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.035;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim 0.28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,0.22),inset 3px 0 0 rgba(30,80,255,0.22);}100%{opacity:0;}}
+
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber),0 0 80px rgba(255,178,41,0.3);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-family:var(--font-ui);font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity 0.1s;}
+.bl.show{opacity:1;}
+.bl-ok{color:#4ade80;}.bl-warn{color:#f59e0b;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,0.1);border:1px solid rgba(255,178,41,0.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width 0.08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,0.3);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor 0.7s step-end infinite;vertical-align:middle;margin-left:4px;}
+
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn 0.6s ease;}
+
+/* HEADER */
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,0.18);background:rgba(0,0,0,0.5);flex-shrink:0;height:46px;}
+#logo{font-family:var(--font-logo);font-size:34px;color:var(--amber);text-shadow:0 0 20px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#algo-tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}
+#algo-tabs::-webkit-scrollbar{display:none;}
+.atab{font-family:var(--font-ui);font-size:9.5px;padding:4px 10px;border:1px solid rgba(255,178,41,0.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all 0.12s;flex-shrink:0;}
+.atab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,0.05);}
+.atab.active{border-color:var(--amber);background:rgba(255,178,41,0.11);color:var(--amber);box-shadow:0 0 8px rgba(255,178,41,0.25);}
+#snd-btn{font-size:16px;background:transparent;border:1px solid rgba(255,178,41,0.25);color:var(--amber);padding:4px 8px;cursor:pointer;flex-shrink:0;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+
+/* LEFT */
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,0.12);}
+#canvas-wrap{flex:1;position:relative;overflow:hidden;}
+#graph-canvas{width:100%;height:100%;display:block;cursor:crosshair;}
+#graph-canvas.drag-mode{cursor:grab;}
+#graph-canvas.drag-mode:active{cursor:grabbing;}
+
+/* CANVAS OVERLAY INFO */
+#canvas-hint{position:absolute;bottom:8px;right:10px;font-size:9px;color:rgba(255,178,41,0.28);pointer-events:none;line-height:1.8;text-align:right;}
+
+/* OP BAR */
+#op-bar{display:flex;align-items:center;gap:6px;padding:5px 12px;border-top:1px solid rgba(255,178,41,0.1);background:rgba(0,0,0,0.35);flex-shrink:0;flex-wrap:wrap;}
+.obtn{font-family:var(--font-logo);font-size:15px;padding:3px 9px;border:1px solid rgba(255,178,41,0.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all 0.1s;}
+.obtn:hover{background:rgba(255,178,41,0.08);box-shadow:0 0 7px rgba(255,178,41,0.2);}
+.obtn.run{border-color:rgba(96,165,250,0.5);color:#93c5fd;}
+.obtn.run:hover{background:rgba(96,165,250,0.08);}
+.obtn.demo{border-color:rgba(168,85,247,0.5);color:#d8b4fe;}
+.obtn.demo:hover{background:rgba(168,85,247,0.08);}
+.obtn.danger{border-color:rgba(244,63,94,0.4);color:#fda4af;}
+.obtn.danger:hover{background:rgba(244,63,94,0.08);}
+.obtn.mode-btn{font-size:11px;padding:2px 7px;}
+.obtn.mode-btn.active{background:rgba(255,178,41,0.12);border-color:var(--amber);color:var(--amber);}
+.op-sep{width:1px;height:20px;background:rgba(255,178,41,0.12);flex-shrink:0;}
+.op-label{font-size:9px;color:var(--amber-dim);letter-spacing:1px;}
+#src-input,#dst-input{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,178,41,0.3);color:var(--amber);padding:3px 7px;width:44px;outline:none;text-align:center;}
+#src-input:focus,#dst-input:focus{border-color:var(--amber);}
+#weight-input{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,178,41,0.3);color:var(--amber);padding:3px 7px;width:44px;outline:none;text-align:center;}
+#weight-input:focus{border-color:var(--amber);}
+
+/* PROG + STEP */
+#prog-wrap{height:2px;background:rgba(255,178,41,0.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,0.25),var(--amber));transition:width 0.12s linear;}
+#step-desc{padding:5px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,0.09);background:rgba(0,0,0,0.32);min-height:34px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:15px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);background:rgba(255,178,41,0.04);}
+.pbadge.visit{color:#f59e0b;border-color:#f59e0b;background:rgba(245,158,11,0.09);}
+.pbadge.relax{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,0.09);}
+.pbadge.found{color:#10b981;border-color:#10b981;background:rgba(16,185,129,0.09);}
+.pbadge.miss{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,0.09);}
+.pbadge.tree{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,0.09);}
+.pbadge.finalize{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,0.09);}
+#step-txt{font-size:10.5px;color:rgba(255,178,41,0.65);flex:1;}
+
+/* STATS */
+#stats{display:flex;gap:16px;padding:4px 12px;border-top:1px solid rgba(255,178,41,0.09);background:rgba(0,0,0,0.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:8.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:var(--font-logo);font-size:20px;color:var(--amber);text-shadow:0 0 6px rgba(255,178,41,0.4);}
+
+/* CONTROLS */
+#controls{display:flex;align-items:center;gap:6px;padding:5px 12px;border-top:1px solid rgba(255,178,41,0.13);background:rgba(0,0,0,0.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:15px;padding:3px 9px;border:1px solid rgba(255,178,41,0.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all 0.1s;}
+.cbtn:hover{background:rgba(255,178,41,0.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:18px;background:rgba(255,178,41,0.12);}
+.sw{display:flex;align-items:center;gap:5px;}
+.sl2{font-size:8.5px;color:var(--amber-dim);letter-spacing:1px;}
+input[type=range]{-webkit-appearance:none;appearance:none;width:68px;height:2px;background:rgba(255,178,41,0.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:15px;color:var(--amber-dim);margin-left:auto;}
+
+/* KB HINTS */
+#kbhints{display:flex;gap:10px;padding:3px 12px;background:rgba(0,0,0,0.38);border-top:1px solid rgba(255,178,41,0.06);flex-shrink:0;}
+.kbh{font-size:8.5px;color:rgba(255,178,41,0.3);}
+.kbk{border:1px solid rgba(255,178,41,0.2);padding:0 3px;font-size:7.5px;}
+
+/* RIGHT PANEL */
+#right{width:360px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,0.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,0.09);}
+.phdr{font-family:var(--font-logo);font-size:13px;letter-spacing:3px;color:var(--amber-dim);padding:5px 11px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,178,41,0.07);}
+#code-scroll{overflow-y:auto;max-height:185px;padding:4px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:10px;line-height:1.7;padding:0 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,0.09);}
+.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,0.45),1px 0 1px rgba(50,80,255,0.45);pointer-events:none;}
+.cline.active .cc{position:relative;}
+.ln{color:rgba(255,178,41,0.18);width:20px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+
+/* DIST TABLE */
+#dist-table-wrap{padding:6px 10px;max-height:160px;overflow-y:auto;}
+#dist-table-wrap::-webkit-scrollbar{width:3px;}
+#dist-table-wrap::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.2);}
+.dtbl{width:100%;border-collapse:collapse;font-size:10px;}
+.dtbl th{font-family:var(--font-ui);font-size:8px;color:var(--amber-dim);letter-spacing:1.5px;padding:3px 6px;border-bottom:1px solid rgba(255,178,41,0.13);text-align:left;}
+.dtbl td{padding:3px 6px;font-family:var(--font-code);border-bottom:1px solid rgba(255,178,41,0.05);}
+.dtbl td.fin{color:#10b981;}.dtbl td.inf{color:rgba(255,178,41,0.25);}
+.dtbl td.cur{color:#f59e0b;font-weight:500;}
+.dtbl tr.path-row td{background:rgba(16,185,129,0.06);}
+
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.18);}
+
+/* INFO SECTION */
+.info-block{padding:8px 11px;font-size:10px;line-height:1.7;color:rgba(255,178,41,0.48);}
+.info-block strong{color:rgba(255,178,41,0.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,0.07);border:1px solid rgba(255,178,41,0.2);padding:1px 5px;font-size:9px;margin:1px 2px;}
+.cx-tbl{width:100%;border-collapse:collapse;font-size:10px;}
+.cx-tbl th{padding:4px 7px;font-family:var(--font-ui);color:var(--amber-dim);letter-spacing:1px;font-size:8px;border-bottom:1px solid rgba(255,178,41,0.13);text-align:left;}
+.cx-tbl td{padding:4px 7px;font-family:var(--font-code);border-bottom:1px solid rgba(255,178,41,0.05);}
+.cx-b{color:#10b981;}.cx-a{color:var(--amber);}.cx-w{color:#f43f5e;}.cx-s{color:#60a5fa;}.cx-n{color:rgba(255,178,41,0.4);font-size:9px;}
+
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,178,41,0.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scanline"></div>
+<div id="ca-overlay"></div>
+
+<!-- BOOT -->
+<div id="boot">
+  <div id="boot-logo">GRAPH.LAB</div>
+  <div id="boot-tagline">GRAPH ALGORITHM VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+
+<!-- MAIN -->
+<div id="crt-wrap">
+<div id="main">
+  <div id="header">
+    <div id="logo">GRAPH.LAB</div>
+    <div id="algo-tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <!-- LEFT -->
+    <div id="left">
+      <div id="canvas-wrap">
+        <canvas id="graph-canvas"></canvas>
+        <div id="canvas-hint">
+          CLICK: add node &nbsp;|&nbsp; DRAG node: move<br>
+          SHIFT+CLICK two nodes: add edge
+        </div>
+      </div>
+      <div id="op-bar">
+        <span class="op-label">SRC</span>
+        <input type="text" id="src-input" placeholder="A" maxlength="2">
+        <span class="op-label">DST</span>
+        <input type="text" id="dst-input" placeholder="B" maxlength="2">
+        <span class="op-label">W</span>
+        <input type="number" id="weight-input" placeholder="1" min="1" max="99" value="1">
+        <button class="obtn run" onclick="runAlgo()">▶ RUN</button>
+        <div class="op-sep"></div>
+        <button class="obtn demo" onclick="loadDemo()">🎬 DEMO</button>
+        <button class="obtn danger" onclick="clearGraph()">⊘ CLEAR</button>
+        <div class="op-sep"></div>
+        <button class="obtn mode-btn active" id="btn-directed" onclick="toggleDirected()">DIRECTED</button>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Load a demo or build a graph — then press RUN.</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">STEPS</span><span class="sv" id="s-steps">0</span></div>
+        <div class="si"><span class="sl">VISITED</span><span class="sv" id="s-vis">0</span></div>
+        <div class="si"><span class="sl">RELAXED</span><span class="sv" id="s-rel">0</span></div>
+        <div class="si"><span class="sl">PATH LEN</span><span class="sv" id="s-path">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div class="sw"><span class="sl2">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play/Pause</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–5</span> Algo</span>
+        <span class="kbh"><span class="kbk">ENTER</span> Run</span>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div id="right">
+      <div class="psec">
+        <div class="phdr">▸ GO SOURCE CODE</div>
+        <div id="code-scroll"></div>
+      </div>
+      <div class="psec">
+        <div class="phdr">▸ DIST / PARENT TABLE</div>
+        <div id="dist-table-wrap"><div id="dist-table"></div></div>
+      </div>
+      <div id="r-scroll">
+        <div class="psec">
+          <div class="phdr">▸ COMPLEXITY</div>
+          <table class="cx-tbl" id="cx-body-wrap">
+            <thead><tr><th>OP</th><th>TIME</th><th>SPACE</th><th>NOTE</th></tr></thead>
+            <tbody id="cx-body"></tbody>
+          </table>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ USE WHEN / AVOID</div>
+          <div id="use-when" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ REAL WORLD</div>
+          <div id="real-world" class="info-block"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ══════════ NOISE CANVAS ══════════ */
+(function(){
+  const c=document.getElementById('noise'),ctx=c.getContext('2d');
+  function r(){c.width=innerWidth;c.height=innerHeight;}r();
+  window.addEventListener('resize',r);
+  function d(){
+    const id=ctx.createImageData(c.width,c.height),data=id.data;
+    for(let i=0;i<data.length;i+=4){const v=Math.random()>0.966?255:0;data[i]=data[i+1]=data[i+2]=v;data[i+3]=v?160:0;}
+    ctx.putImageData(id,0,0);requestAnimationFrame(d);
+  }d();
+})();
+function schedGlitch(){
+  setTimeout(()=>{
+    document.getElementById('crt-wrap').style.filter='brightness(0.3)';
+    setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';schedGlitch();},22+Math.random()*15);
+  },3500+Math.random()*5000);
+}schedGlitch();
+
+/* ══════════ AUDIO ══════════ */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function playSound(type){
+  if(muted||!AC)return;
+  try{
+    const g=AC.createGain(),ws=AC.createWaveShaper();
+    const curve=new Float32Array(256);
+    for(let i=0;i<256;i++){const x=i*2/256-1;curve[i]=x*(Math.PI+14)/(Math.PI+14*Math.abs(x));}
+    ws.curve=curve;ws.connect(AC.destination);g.connect(ws);
+    const osc=AC.createOscillator();osc.connect(g);
+    const freqs={visit:320,relax:440,found:660,miss:180,tree:520,click:380,finalize:880};
+    const durs={visit:0.06,relax:0.05,found:0.22,miss:0.12,tree:0.07,click:0.04,finalize:0.25};
+    osc.frequency.setValueAtTime(freqs[type]||320,AC.currentTime);
+    osc.type='sawtooth';
+    g.gain.setValueAtTime(0.12,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+(durs[type]||0.06));
+    osc.start(AC.currentTime);osc.stop(AC.currentTime+(durs[type]||0.06)+0.02);
+  }catch(e){}
+}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)playSound('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ══════════ SYNTAX HIGHLIGHT ══════════ */
+function hlGo(l){
+  let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');
+  s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+  const kw=/\b(func|for|if|else|return|var|const|range|len|make|append|int|float64|bool|string|nil|true|false|type|struct|map|interface|continue|break|go|defer|switch|case|default|import|package)\b/g;
+  s=s.replace(kw,'<span class="kw">$1</span>');
+  s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+  s=s.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="nm">$1</span>');
+  return s;
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ══════════ GRAPH STATE ══════════ */
+let G = {
+  nodes: {},  // id -> {id, x, y, label}
+  edges: [],  // [{from, to, weight}]
+  directed: true,
+  nodeSeq: 0,
+};
+
+function addNode(x, y, label){
+  const id = label || String.fromCharCode(65+G.nodeSeq%26)+(G.nodeSeq>=26?Math.floor(G.nodeSeq/26):'');
+  G.nodeSeq++;
+  G.nodes[id] = {id, x, y};
+  return id;
+}
+function addEdge(from, to, weight=1){
+  if(!G.nodes[from]||!G.nodes[to])return false;
+  // Prevent duplicate
+  const dup = G.edges.find(e=>e.from===from&&e.to===to);
+  if(dup){dup.weight=weight;return true;}
+  G.edges.push({from,to,weight:parseInt(weight)||1});
+  return true;
+}
+function removeNode(id){
+  delete G.nodes[id];
+  G.edges = G.edges.filter(e=>e.from!==id&&e.to!==id);
+}
+
+function getNeighbors(nodeId){
+  const res=[];
+  G.edges.forEach(e=>{
+    if(e.from===nodeId)res.push({to:e.to,w:e.weight});
+    if(!G.directed&&e.to===nodeId)res.push({to:e.from,w:e.weight});
+  });
+  return res;
+}
+function getEdgeWeight(from,to){
+  const e=G.edges.find(e=>e.from===from&&e.to===to);
+  if(e)return e.weight;
+  if(!G.directed){const e2=G.edges.find(e=>e.from===to&&e.to===from);if(e2)return e2.weight;}
+  return Infinity;
+}
+
+/* ══════════ PLAYBACK STATE ══════════ */
+const ST={steps:[],idx:0,playing:false,timer:null,speed:280,algo:'dijkstra'};
+
+/* ══════════ CANVAS RENDERING ══════════ */
+const canvas=document.getElementById('graph-canvas');
+const ctx2=canvas.getContext('2d');
+const NODE_R=22;
+
+let renderState={
+  visited:new Set(),  // green-filled
+  current:'',         // orange glow
+  path:new Set(),     // bright edges
+  pathNodes:new Set(),
+  frontier:new Set(), // blue
+  relaxed:{},         // nodeId -> {dist, prev}
+  treeEdges:new Set(),// purple MST edges
+  finalized:new Set(),// finalized nodes
+};
+
+function resizeCanvas(){
+  const wrap=document.getElementById('canvas-wrap');
+  canvas.width=wrap.clientWidth;
+  canvas.height=wrap.clientHeight;
+  drawGraph();
+}
+
+function nodeColor(id){
+  if(renderState.pathNodes.has(id))return{fill:'rgba(16,185,129,0.25)',stroke:'#10b981',glow:'rgba(16,185,129,0.8)',text:'#86efac'};
+  if(id===renderState.current)return{fill:'rgba(245,158,11,0.3)',stroke:'#f59e0b',glow:'rgba(245,158,11,0.9)',text:'#fcd34d'};
+  if(renderState.finalized.has(id))return{fill:'rgba(34,211,238,0.15)',stroke:'#22d3ee',glow:'rgba(34,211,238,0.5)',text:'#a5f3fc'};
+  if(renderState.visited.has(id))return{fill:'rgba(168,85,247,0.18)',stroke:'#a855f7',glow:'rgba(168,85,247,0.6)',text:'#d8b4fe'};
+  if(renderState.frontier.has(id))return{fill:'rgba(96,165,250,0.2)',stroke:'#60a5fa',glow:'rgba(96,165,250,0.6)',text:'#93c5fd'};
+  return{fill:'rgba(255,178,41,0.07)',stroke:'rgba(255,178,41,0.4)',glow:null,text:'var(--amber)'};
+}
+
+function drawArrow(x1,y1,x2,y2,color,width){
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<1)return;
+  const ux=dx/len,uy=dy/len;
+  const sx=x1+ux*NODE_R,sy=y1+uy*NODE_R;
+  const ex=x2-ux*NODE_R,ey=y2-uy*NODE_R;
+  ctx2.beginPath();ctx2.moveTo(sx,sy);ctx2.lineTo(ex,ey);
+  ctx2.strokeStyle=color;ctx2.lineWidth=width;ctx2.stroke();
+  if(G.directed){
+    const al=10,aw=5;
+    const ax=ex-ux*al,ay=ey-uy*al;
+    const nx=-uy,ny=ux;
+    ctx2.beginPath();
+    ctx2.moveTo(ex,ey);
+    ctx2.lineTo(ax+nx*aw,ay+ny*aw);
+    ctx2.lineTo(ax-nx*aw,ay-ny*aw);
+    ctx2.closePath();
+    ctx2.fillStyle=color;ctx2.fill();
+  }
+}
+
+function isPathEdge(from,to){
+  if(renderState.path.has(`${from}->${to}`))return true;
+  if(!G.directed&&renderState.path.has(`${to}->${from}`))return true;
+  return false;
+}
+function isTreeEdge(from,to){
+  if(renderState.treeEdges.has(`${from}-${to}`))return true;
+  if(renderState.treeEdges.has(`${to}-${from}`))return true;
+  return false;
+}
+
+function drawGraph(hlEdge=null){
+  ctx2.clearRect(0,0,canvas.width,canvas.height);
+
+  // Edges
+  G.edges.forEach(e=>{
+    const n1=G.nodes[e.from],n2=G.nodes[e.to];
+    if(!n1||!n2)return;
+    const isPath=isPathEdge(e.from,e.to);
+    const isTree=isTreeEdge(e.from,e.to);
+    const isCur=hlEdge&&((hlEdge.from===e.from&&hlEdge.to===e.to)||(hlEdge.from===e.to&&hlEdge.to===e.from));
+    let color,width;
+    if(isPath){color='rgba(16,185,129,0.85)';width=3;}
+    else if(isTree){color='rgba(168,85,247,0.8)';width=2.5;}
+    else if(isCur){color='rgba(245,158,11,0.9)';width=2.5;}
+    else{color='rgba(255,178,41,0.22)';width=1.5;}
+
+    if(isPath||isTree||isCur){
+      ctx2.save();
+      ctx2.shadowColor=isPath?'rgba(16,185,129,0.6)':isTree?'rgba(168,85,247,0.5)':'rgba(245,158,11,0.6)';
+      ctx2.shadowBlur=8;
+    }
+    drawArrow(n1.x,n1.y,n2.x,n2.y,color,width);
+    if(isPath||isTree||isCur)ctx2.restore();
+
+    // Weight label
+    const mx=(n1.x+n2.x)/2,my=(n1.y+n2.y)/2;
+    const dx=n2.y-n1.y,dy=n1.x-n2.x;
+    const dl=Math.sqrt(dx*dx+dy*dy)||1;
+    const ox=dx/dl*14,oy=dy/dl*14;
+    ctx2.font=`500 11px 'IBM Plex Mono'`;
+    ctx2.fillStyle=isPath?'#86efac':isTree?'#d8b4fe':'rgba(255,178,41,0.45)';
+    ctx2.textAlign='center';ctx2.textBaseline='middle';
+    ctx2.fillText(e.weight,mx+ox,my+oy);
+  });
+
+  // Undirected: also draw reverse-direction arrows as single line
+  if(!G.directed){
+    G.edges.forEach(e=>{
+      const n1=G.nodes[e.from],n2=G.nodes[e.to];
+      if(!n1||!n2)return;
+    });
+  }
+
+  // Nodes
+  Object.values(G.nodes).forEach(n=>{
+    const c=nodeColor(n.id);
+    ctx2.save();
+    if(c.glow){ctx2.shadowColor=c.glow;ctx2.shadowBlur=18;}
+    ctx2.beginPath();ctx2.arc(n.x,n.y,NODE_R,0,Math.PI*2);
+    ctx2.fillStyle=c.fill;ctx2.fill();
+    ctx2.strokeStyle=c.stroke;ctx2.lineWidth=c.glow?2:1.5;ctx2.stroke();
+    ctx2.restore();
+    ctx2.font=`${NODE_R>=20?'20':'16'}px 'VT323'`;
+    ctx2.fillStyle=c.text==='var(--amber)'?'#ffb229':c.text;
+    ctx2.textAlign='center';ctx2.textBaseline='middle';
+    ctx2.fillText(n.id,n.x,n.y+1);
+
+    // Dist label above node
+    const dist=renderState.relaxed[n.id];
+    if(dist!==undefined){
+      const dStr=dist===Infinity?'∞':String(dist);
+      ctx2.font=`10px 'IBM Plex Mono'`;
+      ctx2.fillStyle=renderState.finalized.has(n.id)?'#67e8f9':renderState.pathNodes.has(n.id)?'#86efac':'rgba(255,178,41,0.55)';
+      ctx2.textAlign='center';ctx2.textBaseline='bottom';
+      ctx2.fillText(dStr,n.x,n.y-NODE_R-3);
+    }
+  });
+}
+
+/* ══════════ CANVAS INTERACTION ══════════ */
+let shiftSelectFirst=null;
+let dragNode=null,dragOffX=0,dragOffY=0;
+
+function getNodeAt(x,y){
+  return Object.values(G.nodes).find(n=>Math.hypot(n.x-x,n.y-y)<=NODE_R+4)||null;
+}
+
+canvas.addEventListener('mousedown',e=>{
+  initAudio();
+  const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left,y=e.clientY-rect.top;
+  const hit=getNodeAt(x,y);
+  if(e.shiftKey){
+    if(!hit){
+      // Add node at click
+      const id=addNode(x,y);
+      playSound('click');drawGraph();return;
+    }
+    if(!shiftSelectFirst){
+      shiftSelectFirst=hit.id;
+      drawGraph();return;
+    }
+    // Second node: add edge
+    const w=parseInt(document.getElementById('weight-input').value)||1;
+    if(shiftSelectFirst!==hit.id){
+      addEdge(shiftSelectFirst,hit.id,w);
+      playSound('click');
+    }
+    shiftSelectFirst=null;
+    drawGraph();return;
+  }
+  if(hit){dragNode=hit;dragOffX=x-hit.x;dragOffY=y-hit.y;canvas.classList.add('drag-mode');}
+  else{
+    // Click empty space: add node
+    const id=addNode(x,y);
+    playSound('click');drawGraph();
+  }
+});
+canvas.addEventListener('mousemove',e=>{
+  if(!dragNode)return;
+  const rect=canvas.getBoundingClientRect();
+  dragNode.x=e.clientX-rect.left-dragOffX;
+  dragNode.y=e.clientY-rect.top-dragOffY;
+  drawGraph();
+});
+canvas.addEventListener('mouseup',()=>{dragNode=null;canvas.classList.remove('drag-mode');});
+canvas.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left,y=e.clientY-rect.top;
+  const hit=getNodeAt(x,y);
+  if(hit){removeNode(hit.id);playSound('miss');drawGraph();}
+});
+
+/* ══════════ GRAPH ALGORITHMS ══════════ */
+
+// Priority queue (binary min-heap)
+class PQ{
+  constructor(){this.h=[];}
+  push(item,pri){this.h.push({item,pri});this._up(this.h.length-1);}
+  pop(){const top=this.h[0];const last=this.h.pop();if(this.h.length){this.h[0]=last;this._down(0);}return top;}
+  get size(){return this.h.length;}
+  _up(i){while(i>0){const p=(i-1)>>1;if(this.h[p].pri<=this.h[i].pri)break;[this.h[p],this.h[i]]=[this.h[i],this.h[p]];i=p;}}
+  _down(i){const n=this.h.length;while(true){let s=i,l=2*i+1,r=2*i+2;if(l<n&&this.h[l].pri<this.h[s].pri)s=l;if(r<n&&this.h[r].pri<this.h[s].pri)s=r;if(s===i)break;[this.h[s],this.h[i]]=[this.h[i],this.h[s]];i=s;}}
+}
+
+function cloneRS(){
+  return{
+    visited:new Set(renderState.visited),
+    current:renderState.current,
+    path:new Set(renderState.path),
+    pathNodes:new Set(renderState.pathNodes),
+    frontier:new Set(renderState.frontier),
+    relaxed:Object.assign({},renderState.relaxed),
+    treeEdges:new Set(renderState.treeEdges),
+    finalized:new Set(renderState.finalized),
+  };
+}
+
+function dijkstraSteps(src,dst){
+  const steps=[];
+  const ids=Object.keys(G.nodes);
+  const dist={};const prev={};
+  ids.forEach(id=>{dist[id]=Infinity;prev[id]=null;});
+  dist[src]=0;
+  const pq=new PQ();pq.push(src,0);
+  const finalized=new Set();
+
+  const initRS={visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set([src]),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()};
+  steps.push({rs:JSON.parse(JSON.stringify({...initRS,visited:initRS.visited,frontier:initRS.frontier,finalized:initRS.finalized,path:initRS.path,pathNodes:initRS.pathNodes,treeEdges:initRS.treeEdges})),
+    phase:'init',desc:`Dijkstra from ${src}${dst?` to ${dst}`:' (all nodes)'}. Source dist=0, all others=∞. Priority queue initialized.`,
+    cl:2,visited:0,relaxed:0,pathLen:'—',hlEdge:null,distSnap:JSON.parse(JSON.stringify(dist)),prevSnap:JSON.parse(JSON.stringify(prev))});
+
+  let visitedCount=0,relaxedCount=0;
+
+  while(pq.size>0){
+    const {item:u}=pq.pop();
+    if(finalized.has(u))continue;
+    finalized.add(u);visitedCount++;
+
+    const rs1={visited:new Set([...finalized]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set([...finalized])};
+    steps.push({rs:rs1,phase:'visit',
+      desc:`Dequeue ${u} (dist=${dist[u]===Infinity?'∞':dist[u]}). Finalize — shortest path to ${u} confirmed.`,
+      cl:5,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:null,distSnap:JSON.parse(JSON.stringify(dist)),prevSnap:JSON.parse(JSON.stringify(prev))});
+
+    if(dst&&u===dst){
+      // Reconstruct path
+      const path=[];let cur=dst;
+      while(cur){path.unshift(cur);cur=prev[cur];}
+      const pathSet=new Set();
+      for(let i=0;i<path.length-1;i++)pathSet.add(`${path[i]}->${path[i+1]}`);
+      const rs2={...rs1,path:pathSet,pathNodes:new Set(path)};
+      steps.push({rs:rs2,phase:'found',
+        desc:`✓ FOUND shortest path: ${path.join(' → ')} with total distance ${dist[dst]}.`,
+        cl:14,visited:visitedCount,relaxed:relaxedCount,pathLen:dist[dst],hlEdge:null,distSnap:JSON.parse(JSON.stringify(dist)),prevSnap:JSON.parse(JSON.stringify(prev))});
+      return steps;
+    }
+
+    getNeighbors(u).forEach(({to:v,w})=>{
+      if(finalized.has(v))return;
+      const nd=dist[u]+w;
+      const rs_before={visited:new Set([...finalized]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set([v]),relaxed:{...dist},treeEdges:new Set(),finalized:new Set([...finalized])};
+      steps.push({rs:rs_before,phase:'relax',
+        desc:`Check edge ${u}→${v} (w=${w}): dist[${v}]=${dist[v]===Infinity?'∞':dist[v]} vs ${dist[u]}+${w}=${nd}. ${nd<dist[v]?'IMPROVE!':'No improvement.'}`,
+        cl:8,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:{from:u,to:v},distSnap:JSON.parse(JSON.stringify(dist)),prevSnap:JSON.parse(JSON.stringify(prev))});
+      if(nd<dist[v]){
+        dist[v]=nd;prev[v]=u;relaxedCount++;pq.push(v,nd);
+        const rs_after={visited:new Set([...finalized]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set([v]),relaxed:{...dist},treeEdges:new Set(),finalized:new Set([...finalized])};
+        steps.push({rs:rs_after,phase:'relax',
+          desc:`Updated dist[${v}]=${nd}, prev[${v}]=${u}. Pushed to queue.`,
+          cl:11,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:{from:u,to:v},distSnap:JSON.parse(JSON.stringify(dist)),prevSnap:JSON.parse(JSON.stringify(prev))});
+      }
+    });
+  }
+
+  // No dst specified or dst unreachable
+  const allDist=Object.entries(dist).filter(([k])=>k!==src);
+  const rsF={visited:new Set([...finalized]),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set([...finalized])};
+  const msg=dst?`✗ ${dst} unreachable from ${src}.`:`✓ All reachable nodes finalized.`;
+  steps.push({rs:rsF,phase:dst?'miss':'finalize',
+    desc:msg,cl:dst?16:15,visited:visitedCount,relaxed:relaxedCount,pathLen:dst?'∞':'—',hlEdge:null,distSnap:JSON.parse(JSON.stringify(dist)),prevSnap:JSON.parse(JSON.stringify(prev))});
+  return steps;
+}
+
+function bellmanFordSteps(src,dst){
+  const steps=[];
+  const ids=Object.keys(G.nodes);
+  const dist={};const prev={};
+  ids.forEach(id=>{dist[id]=Infinity;prev[id]=null;});
+  dist[src]=0;
+  let visitedCount=0,relaxedCount=0;
+
+  const initRS={visited:new Set([src]),current:src,path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()};
+  steps.push({rs:initRS,phase:'init',
+    desc:`Bellman-Ford from ${src}. Will relax ALL edges |V|-1=${ids.length-1} times. Handles negative weights.`,
+    cl:1,visited:1,relaxed:0,pathLen:'—',hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+
+  for(let i=0;i<ids.length-1;i++){
+    let improved=false;
+    const roundRS={visited:new Set(ids.filter(id=>dist[id]<Infinity)),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()};
+    steps.push({rs:roundRS,phase:'visit',
+      desc:`Round ${i+1}/${ids.length-1}: scanning all ${G.edges.length} edges.`,
+      cl:3,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+
+    G.edges.forEach(e=>{
+      if(dist[e.from]===Infinity)return;
+      const nd=dist[e.from]+e.weight;
+      const rs1={visited:new Set(ids.filter(id=>dist[id]<Infinity)),current:e.from,path:new Set(),pathNodes:new Set(),frontier:new Set([e.to]),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()};
+      steps.push({rs:rs1,phase:'relax',
+        desc:`Round ${i+1}: edge ${e.from}→${e.to} (w=${e.weight}): ${dist[e.to]===Infinity?'∞':dist[e.to]} vs ${dist[e.from]}+${e.weight}=${nd}. ${nd<dist[e.to]?'UPDATE':'Skip'}`,
+        cl:5,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:{from:e.from,to:e.to},distSnap:{...dist},prevSnap:{...prev}});
+      if(nd<dist[e.to]){
+        dist[e.to]=nd;prev[e.to]=e.from;relaxedCount++;improved=true;visitedCount++;
+      }
+    });
+    if(!improved)break;
+  }
+
+  // Negative cycle check
+  let hasNegCycle=false;
+  G.edges.forEach(e=>{
+    if(dist[e.from]!==Infinity&&dist[e.from]+e.weight<dist[e.to])hasNegCycle=true;
+  });
+  if(hasNegCycle){
+    steps.push({rs:{visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()},
+      phase:'miss',desc:'⚠ NEGATIVE CYCLE DETECTED! Shortest paths undefined.',
+      cl:13,visited:visitedCount,relaxed:relaxedCount,pathLen:'∞',hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+    return steps;
+  }
+
+  const rsF={visited:new Set(ids.filter(id=>dist[id]<Infinity)),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()};
+  if(dst&&dist[dst]<Infinity){
+    const path=[];let cur=dst;while(cur){path.unshift(cur);cur=prev[cur];}
+    const pathSet=new Set();for(let i=0;i<path.length-1;i++)pathSet.add(`${path[i]}->${path[i+1]}`);
+    steps.push({rs:{...rsF,path:pathSet,pathNodes:new Set(path)},phase:'found',
+      desc:`✓ Shortest path ${path.join(' → ')}, distance = ${dist[dst]}.`,
+      cl:14,visited:visitedCount,relaxed:relaxedCount,pathLen:dist[dst],hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+  }else{
+    steps.push({rs:rsF,phase:'finalize',
+      desc:dst?`✗ ${dst} unreachable from ${src}.`:`✓ All-pairs shortest paths computed.`,
+      cl:14,visited:visitedCount,relaxed:relaxedCount,pathLen:dst?'∞':'—',hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+  }
+  return steps;
+}
+
+function bfsSteps(src,dst){
+  const steps=[];
+  const visited=new Set([src]);
+  const prev={};const queue=[src];
+  let visitedCount=1,relaxedCount=0;
+
+  steps.push({rs:{visited:new Set([src]),current:src,path:new Set(),pathNodes:new Set(),frontier:new Set([src]),relaxed:{},treeEdges:new Set(),finalized:new Set()},
+    phase:'init',desc:`BFS from ${src}. Queue: [${src}]. Explores by level — guarantees shortest hop count.`,
+    cl:1,visited:1,relaxed:0,pathLen:'—',hlEdge:null,distSnap:{[src]:0},prevSnap:{}});
+
+  const dist={[src]:0};
+  while(queue.length){
+    const u=queue.shift();
+    if(u===dst){
+      const path=[];let cur=dst;while(cur!==undefined){path.unshift(cur);cur=prev[cur];}
+      const pathSet=new Set();for(let i=0;i<path.length-1;i++)pathSet.add(`${path[i]}->${path[i+1]}`);
+      steps.push({rs:{visited:new Set([...visited]),current:u,path:pathSet,pathNodes:new Set(path),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set([...visited])},
+        phase:'found',desc:`✓ FOUND ${dst}! Path: ${path.join(' → ')}, hops = ${path.length-1}.`,
+        cl:8,visited:visitedCount,relaxed:relaxedCount,pathLen:path.length-1,hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+      return steps;
+    }
+    steps.push({rs:{visited:new Set([...visited]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set([...queue]),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()},
+      phase:'visit',desc:`Dequeue ${u} (level ${dist[u]}). Exploring neighbors…`,
+      cl:4,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+
+    getNeighbors(u).forEach(({to:v})=>{
+      if(!visited.has(v)){
+        visited.add(v);prev[v]=u;dist[v]=dist[u]+1;queue.push(v);visitedCount++;relaxedCount++;
+        steps.push({rs:{visited:new Set([...visited]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set([...queue]),relaxed:{...dist},treeEdges:new Set(),finalized:new Set()},
+          phase:'relax',desc:`Found ${v} via ${u} (level ${dist[v]}). Added to queue.`,
+          cl:6,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:{from:u,to:v},distSnap:{...dist},prevSnap:{...prev}});
+      }
+    });
+  }
+  const rsF={visited:new Set([...visited]),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...dist},treeEdges:new Set(),finalized:new Set([...visited])};
+  steps.push({rs:rsF,phase:dst?'miss':'finalize',
+    desc:dst?`✗ ${dst} not reachable from ${src}.`:`✓ BFS complete. Visited ${visitedCount} nodes.`,
+    cl:10,visited:visitedCount,relaxed:relaxedCount,pathLen:dst?'∞':'—',hlEdge:null,distSnap:{...dist},prevSnap:{...prev}});
+  return steps;
+}
+
+function dfsSteps(src,dst){
+  const steps=[];
+  const visited=new Set();
+  const prev={};
+  let visitedCount=0,relaxedCount=0;
+
+  steps.push({rs:{visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set([src]),relaxed:{},treeEdges:new Set(),finalized:new Set()},
+    phase:'init',desc:`DFS from ${src}. Stack-based. Explores as deep as possible before backtracking.`,
+    cl:1,visited:0,relaxed:0,pathLen:'—',hlEdge:null,distSnap:{},prevSnap:{}});
+
+  const stack=[src];
+  while(stack.length){
+    const u=stack.pop();
+    if(visited.has(u))continue;
+    visited.add(u);visitedCount++;
+
+    steps.push({rs:{visited:new Set([...visited]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set([...stack]),relaxed:{},treeEdges:new Set(),finalized:new Set()},
+      phase:'visit',desc:`Visit ${u}. Stack: [${[...stack].join(', ')}].`,
+      cl:4,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:null,distSnap:{},prevSnap:{...prev}});
+
+    if(u===dst){
+      const path=[];let cur=dst;while(cur!==undefined){path.unshift(cur);cur=prev[cur];}
+      const pathSet=new Set();for(let i=0;i<path.length-1;i++)pathSet.add(`${path[i]}->${path[i+1]}`);
+      steps.push({rs:{visited:new Set([...visited]),current:u,path:pathSet,pathNodes:new Set(path),frontier:new Set(),relaxed:{},treeEdges:new Set(),finalized:new Set()},
+        phase:'found',desc:`✓ FOUND ${dst}! DFS path: ${path.join(' → ')}.`,
+        cl:8,visited:visitedCount,relaxed:relaxedCount,pathLen:path.length-1,hlEdge:null,distSnap:{},prevSnap:{...prev}});
+      return steps;
+    }
+
+    const nbrs=getNeighbors(u);
+    for(let i=nbrs.length-1;i>=0;i--){
+      const {to:v}=nbrs[i];
+      if(!visited.has(v)){
+        if(!prev[v])prev[v]=u;
+        stack.push(v);relaxedCount++;
+        steps.push({rs:{visited:new Set([...visited]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set([v]),relaxed:{},treeEdges:new Set(),finalized:new Set()},
+          phase:'relax',desc:`Push ${v} onto stack (neighbor of ${u}).`,
+          cl:6,visited:visitedCount,relaxed:relaxedCount,pathLen:'—',hlEdge:{from:u,to:v},distSnap:{},prevSnap:{...prev}});
+      }
+    }
+  }
+  const rsF={visited:new Set([...visited]),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{},treeEdges:new Set(),finalized:new Set([...visited])};
+  steps.push({rs:rsF,phase:dst?'miss':'finalize',
+    desc:dst?`✗ ${dst} not found in DFS.`:`✓ DFS complete. Visited ${visitedCount} nodes.`,
+    cl:10,visited:visitedCount,relaxed:relaxedCount,pathLen:dst?'∞':'—',hlEdge:null,distSnap:{},prevSnap:{...prev}});
+  return steps;
+}
+
+function primSteps(src){
+  const steps=[];
+  const ids=Object.keys(G.nodes);
+  const inMST=new Set();const key={};const parent={};
+  ids.forEach(id=>{key[id]=Infinity;parent[id]=null;});
+  key[src]=0;
+  let cost=0;let visitedCount=0;
+  const treeEdges=new Set();
+
+  steps.push({rs:{visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set([src]),relaxed:{...key},treeEdges:new Set(),finalized:new Set()},
+    phase:'init',desc:`Prim's MST from ${src}. Grows minimum spanning tree by cheapest edge cut at each step.`,
+    cl:1,visited:0,relaxed:0,pathLen:'—',hlEdge:null,distSnap:{...key},prevSnap:{...parent}});
+
+  const pq=new PQ();pq.push(src,0);
+
+  while(pq.size>0&&inMST.size<ids.length){
+    const {item:u}=pq.pop();
+    if(inMST.has(u))continue;
+    inMST.add(u);visitedCount++;
+    if(parent[u])treeEdges.add(`${parent[u]}-${u}`);
+    cost+=key[u];
+
+    steps.push({rs:{visited:new Set([...inMST]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{...key},treeEdges:new Set([...treeEdges]),finalized:new Set([...inMST])},
+      phase:'tree',desc:`Add ${u} to MST${parent[u]?' via edge '+parent[u]+'→'+u+' (w='+getEdgeWeight(parent[u],u)+')':'  (start)'}. MST cost so far: ${cost}.`,
+      cl:6,visited:visitedCount,relaxed:0,pathLen:cost,hlEdge:parent[u]?{from:parent[u],to:u}:null,distSnap:{...key},prevSnap:{...parent}});
+
+    getNeighbors(u).forEach(({to:v,w})=>{
+      if(!inMST.has(v)&&w<key[v]){
+        key[v]=w;parent[v]=u;pq.push(v,w);
+        steps.push({rs:{visited:new Set([...inMST]),current:u,path:new Set(),pathNodes:new Set(),frontier:new Set([v]),relaxed:{...key},treeEdges:new Set([...treeEdges]),finalized:new Set([...inMST])},
+          phase:'relax',desc:`Update key[${v}]=${w} (edge ${u}→${v}). Cheaper than previous ${key[v]===w?'(same)':'(was '+key[v]+')'}. Push to PQ.`,
+          cl:9,visited:visitedCount,relaxed:0,pathLen:cost,hlEdge:{from:u,to:v},distSnap:{...key},prevSnap:{...parent}});
+      }
+    });
+  }
+  steps.push({rs:{visited:new Set([...inMST]),current:'',path:new Set(),pathNodes:new Set([...inMST]),frontier:new Set(),relaxed:{...key},treeEdges:new Set([...treeEdges]),finalized:new Set([...inMST])},
+    phase:'finalize',desc:`✓ Prim's MST complete. ${inMST.size} nodes, total weight = ${cost}.`,
+    cl:12,visited:visitedCount,relaxed:0,pathLen:cost,hlEdge:null,distSnap:{...key},prevSnap:{...parent}});
+  return steps;
+}
+
+function kruskalSteps(){
+  const steps=[];
+  const ids=Object.keys(G.nodes);
+  // Union-Find
+  const parent={};ids.forEach(id=>parent[id]=id);
+  function find(x){return parent[x]===x?x:(parent[x]=find(parent[x]));}
+  function union(a,b){const ra=find(a),rb=find(b);if(ra===rb)return false;parent[ra]=rb;return true;}
+
+  const sortedEdges=[...G.edges].sort((a,b)=>a.weight-b.weight);
+  let cost=0;const treeEdges=new Set();let added=0;
+  let visitedCount=0;
+
+  steps.push({rs:{visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{},treeEdges:new Set(),finalized:new Set()},
+    phase:'init',desc:`Kruskal's MST. Sort all ${G.edges.length} edges by weight. Greedily add cheapest if no cycle (Union-Find).`,
+    cl:1,visited:0,relaxed:0,pathLen:'—',hlEdge:null,distSnap:{},prevSnap:{}});
+
+  for(const e of sortedEdges){
+    const connected=find(e.from)===find(e.to);
+    steps.push({rs:{visited:new Set(),current:e.from,path:new Set(),pathNodes:new Set(),frontier:new Set([e.to]),relaxed:{},treeEdges:new Set([...treeEdges]),finalized:new Set()},
+      phase:'relax',desc:`Edge ${e.from}→${e.to} (w=${e.weight}): ${connected?'SKIP — would form cycle.':'Check union-find…'}`,
+      cl:5,visited:visitedCount,relaxed:added,pathLen:cost||'—',hlEdge:{from:e.from,to:e.to},distSnap:{},prevSnap:{}});
+
+    if(!connected){
+      union(e.from,e.to);treeEdges.add(`${e.from}-${e.to}`);cost+=e.weight;added++;visitedCount+=added<=1?2:1;
+      steps.push({rs:{visited:new Set([e.from,e.to]),current:e.from,path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{},treeEdges:new Set([...treeEdges]),finalized:new Set()},
+        phase:'tree',desc:`✓ Added edge ${e.from}→${e.to} (w=${e.weight}) to MST. MST cost: ${cost}. (${added}/${ids.length-1} edges)`,
+        cl:8,visited:visitedCount,relaxed:added,pathLen:cost,hlEdge:{from:e.from,to:e.to},distSnap:{},prevSnap:{}});
+    }
+    if(added===ids.length-1)break;
+  }
+
+  steps.push({rs:{visited:new Set([...ids]),current:'',path:new Set(),pathNodes:new Set([...ids]),frontier:new Set(),relaxed:{},treeEdges:new Set([...treeEdges]),finalized:new Set([...ids])},
+    phase:'finalize',desc:`✓ Kruskal MST complete: ${added} edges, total weight = ${cost}.`,
+    cl:11,visited:visitedCount,relaxed:added,pathLen:cost,hlEdge:null,distSnap:{},prevSnap:{}});
+  return steps;
+}
+
+/* ══════════ ALGO DATA (code + meta) ══════════ */
+const ALGOS={
+  dijkstra:{
+    name:'Dijkstra',label:'DIJKSTRA',
+    complexity:[{op:'Total',time:'O((V+E) log V)',space:'O(V)',note:'binary heap PQ'},{op:'Dense',time:'O(V²)',space:'O(V)',note:'adj matrix'},{op:'Fib Heap',time:'O(E + V log V)',space:'O(V)',note:'theoretical'}],
+    use:['Shortest path with non-negative weights','Road navigation, GPS routing','Network packet routing (OSPF)','Positive-weight graphs'],
+    avoid:['Negative edge weights (use Bellman-Ford)','Sparse graphs with neg weights'],
+    realWorld:`<strong>Used in:</strong><br><span class="rw-tag">Google Maps</span> routing engine<br><span class="rw-tag">OSPF</span> network routing protocol<br><span class="rw-tag">Go stdlib</span> shortest path in heap-based queues<br><span class="rw-tag">Game dev</span> pathfinding (A* is Dijkstra+heuristic)`,
+    code:[
+      'func Dijkstra(g *Graph, src, dst string) ([]string, int) {',
+      '    dist := map[string]int{src: 0}',
+      '    prev := map[string]string{}',
+      '    pq  := &PriorityQueue{}',
+      '    heap.Push(pq, &Item{id: src, pri: 0})',
+      '    for pq.Len() > 0 {',
+      '        u := heap.Pop(pq).(*Item).id',
+      '        if u == dst { break }',
+      '        for _, e := range g.Adj[u] {',
+      '            nd := dist[u] + e.Weight',
+      '            if d, ok := dist[e.To]; !ok || nd < d {',
+      '                dist[e.To] = nd',
+      '                prev[e.To] = u',
+      '                heap.Push(pq, &Item{id: e.To, pri: nd})',
+      '            }',
+      '        }',
+      '    }',
+      '    // reconstruct path',
+      '    path := []string{}',
+      '    for cur := dst; cur != ""; cur = prev[cur] {',
+      '        path = append([]string{cur}, path...)',
+      '    }',
+      '    return path, dist[dst]',
+      '}',
+    ],
+  },
+  bellman:{
+    name:'Bellman-Ford',label:'BELLMAN',
+    complexity:[{op:'Total',time:'O(V·E)',space:'O(V)',note:'|V|-1 passes'},{op:'Neg cycle',time:'O(V·E)',space:'O(V)',note:'+1 pass check'}],
+    use:['Negative edge weights','Detect negative cycles','Distributed routing (distance vector)','Simpler than Dijkstra'],
+    avoid:['Large dense graphs (O(VE) slow)','Non-negative weights (use Dijkstra)'],
+    realWorld:`<strong>Used in:</strong><br><span class="rw-tag">BGP</span> border gateway routing<br><span class="rw-tag">RIP</span> routing information protocol<br><span class="rw-tag">Arbitrage detection</span> currency exchange<br><span class="rw-tag">Finance</span> negative cycle = arbitrage opportunity`,
+    code:[
+      'func BellmanFord(g *Graph, src string) map[string]int {',
+      '    dist := map[string]int{src: 0}',
+      '    for i := 0; i < len(g.Nodes)-1; i++ {',
+      '        for _, e := range g.Edges {',
+      '            if d, ok := dist[e.From]; ok {',
+      '                nd := d + e.Weight',
+      '                if cur, ok2 := dist[e.To]; !ok2 || nd < cur {',
+      '                    dist[e.To] = nd',
+      '                }',
+      '            }',
+      '        }',
+      '    }',
+      '    // negative cycle detection',
+      '    for _, e := range g.Edges {',
+      '        if d, ok := dist[e.From]; ok {',
+      '            if d+e.Weight < dist[e.To] {',
+      '                panic("negative cycle detected")',
+      '            }',
+      '        }',
+      '    }',
+      '    return dist',
+      '}',
+    ],
+  },
+  bfs:{
+    name:'BFS',label:'BFS',
+    complexity:[{op:'Total',time:'O(V+E)',space:'O(V)',note:'queue'},{op:'Shortest',time:'O(V+E)',space:'O(V)',note:'unweighted'}],
+    use:['Shortest path in unweighted graphs','Level-order traversal','Connected components','Web crawling','Social network distance'],
+    avoid:['Weighted graphs (use Dijkstra)','Deep trees (high memory)'],
+    realWorld:`<strong>Used in:</strong><br><span class="rw-tag">Social networks</span> "people you may know"<br><span class="rw-tag">Web crawlers</span> breadth-first URL expansion<br><span class="rw-tag">Git</span> merge-base calculation<br><span class="rw-tag">Go analyzer</span> reachability analysis`,
+    code:[
+      'func BFS(g *Graph, src, dst string) []string {',
+      '    visited := map[string]bool{src: true}',
+      '    prev    := map[string]string{}',
+      '    queue   := []string{src}',
+      '    for len(queue) > 0 {',
+      '        u := queue[0]; queue = queue[1:]',
+      '        if u == dst {',
+      '            return reconstruct(prev, src, dst)',
+      '        }',
+      '        for _, v := range g.Adj[u] {',
+      '            if !visited[v] {',
+      '                visited[v] = true',
+      '                prev[v] = u',
+      '                queue = append(queue, v)',
+      '            }',
+      '        }',
+      '    }',
+      '    return nil // not reachable',
+      '}',
+    ],
+  },
+  dfs:{
+    name:'DFS',label:'DFS',
+    complexity:[{op:'Total',time:'O(V+E)',space:'O(V)',note:'call stack'}],
+    use:['Cycle detection','Topological sort','SCC (Tarjan, Kosaraju)','Maze solving','Reachability analysis'],
+    avoid:['Shortest path (no guarantee)','Very deep graphs (stack overflow)'],
+    realWorld:`<strong>Used in:</strong><br><span class="rw-tag">Go toolchain</span> import cycle detection<br><span class="rw-tag">Compilers</span> AST traversal, dead code<br><span class="rw-tag">Git</span> commit graph traversal<br><span class="rw-tag">SAT solvers</span> backtracking search`,
+    code:[
+      'func DFS(g *Graph, src, dst string) []string {',
+      '    visited := map[string]bool{}',
+      '    prev    := map[string]string{}',
+      '    stack   := []string{src}',
+      '    for len(stack) > 0 {',
+      '        u := stack[len(stack)-1]',
+      '        stack = stack[:len(stack)-1]',
+      '        if visited[u] { continue }',
+      '        visited[u] = true',
+      '        if u == dst {',
+      '            return reconstruct(prev, src, dst)',
+      '        }',
+      '        for _, v := range g.Adj[u] {',
+      '            if !visited[v] {',
+      '                if prev[v] == "" { prev[v] = u }',
+      '                stack = append(stack, v)',
+      '            }',
+      '        }',
+      '    }',
+      '    return nil',
+      '}',
+    ],
+  },
+  prim:{
+    name:"Prim's MST",label:'PRIM',
+    complexity:[{op:'Binary heap',time:'O(E log V)',space:'O(V)',note:'dense: O(V²)'},{op:'Fib heap',time:'O(E + V log V)',space:'O(V)',note:'theoretical opt'}],
+    use:['Minimum spanning tree','Dense graphs (prefer over Kruskal)','Network design (cables, pipes)','Cluster analysis'],
+    avoid:['Disconnected graphs (forest)','Directed graphs (use Edmonds)'],
+    realWorld:`<strong>Used in:</strong><br><span class="rw-tag">Network cable</span> laying optimization<br><span class="rw-tag">Image segmentation</span> pixel clustering<br><span class="rw-tag">Telecommunications</span> minimum cost backbone<br>Use undirected graph mode for MST.`,
+    code:[
+      'func Prim(g *Graph, src string) ([]Edge, int) {',
+      '    inMST := map[string]bool{}',
+      '    key   := map[string]int{src: 0}',
+      '    par   := map[string]string{}',
+      '    pq    := &PriorityQueue{}',
+      '    heap.Push(pq, &Item{id: src, pri: 0})',
+      '    mst, cost := []Edge{}, 0',
+      '    for pq.Len() > 0 {',
+      '        u := heap.Pop(pq).(*Item).id',
+      '        if inMST[u] { continue }',
+      '        inMST[u] = true',
+      '        if par[u] != "" {',
+      '            mst = append(mst, Edge{par[u], u, key[u]})',
+      '            cost += key[u]',
+      '        }',
+      '        for _, e := range g.Adj[u] {',
+      '            if !inMST[e.To] && e.Weight < key[e.To] {',
+      '                key[e.To] = e.Weight',
+      '                par[e.To] = u',
+      '                heap.Push(pq, &Item{id: e.To, pri: e.Weight})',
+      '            }',
+      '        }',
+      '    }',
+      '    return mst, cost',
+      '}',
+    ],
+  },
+  kruskal:{
+    name:"Kruskal's MST",label:'KRUSKAL',
+    complexity:[{op:'Total',time:'O(E log E)',space:'O(V)',note:'sort edges'},{op:'Union-Find',time:'O(α(V)) per op',space:'O(V)',note:'near O(1)'}],
+    use:['MST in sparse graphs','When edges already sorted','Simple implementation','Disconnected → spanning forest'],
+    avoid:['Dense graphs (prefer Prim)','Directed graphs'],
+    realWorld:`<strong>Used in:</strong><br><span class="rw-tag">Image processing</span> region merging<br><span class="rw-tag">Cluster analysis</span> hierarchical clustering<br><span class="rw-tag">Physical network</span> cable routing<br>Uses Union-Find (Disjoint Set Union) to detect cycles in O(α) ≈ O(1).`,
+    code:[
+      'func Kruskal(g *Graph) ([]Edge, int) {',
+      '    sort.Slice(g.Edges, func(i,j int) bool {',
+      '        return g.Edges[i].Weight < g.Edges[j].Weight',
+      '    })',
+      '    uf := NewUnionFind(g.Nodes)',
+      '    mst, cost := []Edge{}, 0',
+      '    for _, e := range g.Edges {',
+      '        if uf.Find(e.From) != uf.Find(e.To) {',
+      '            uf.Union(e.From, e.To)',
+      '            mst = append(mst, e)',
+      '            cost += e.Weight',
+      '        }',
+      '        if len(mst) == len(g.Nodes)-1 { break }',
+      '    }',
+      '    return mst, cost',
+      '}',
+    ],
+  },
+};
+
+/* ══════════ RENDER STEP ══════════ */
+function applyRS(step){
+  renderState={
+    visited:step.rs.visited||new Set(),
+    current:step.rs.current||'',
+    path:step.rs.path||new Set(),
+    pathNodes:step.rs.pathNodes||new Set(),
+    frontier:step.rs.frontier||new Set(),
+    relaxed:step.rs.relaxed||{},
+    treeEdges:step.rs.treeEdges||new Set(),
+    finalized:step.rs.finalized||new Set(),
+  };
+  drawGraph(step.hlEdge||null);
+  const badge=document.getElementById('pbadge');
+  badge.className='pbadge '+(step.phase||'init');
+  badge.textContent=(step.phase||'INIT').toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-steps').textContent=ST.steps.length?ST.idx+1:0;
+  document.getElementById('s-vis').textContent=step.visited||0;
+  document.getElementById('s-rel').textContent=step.relaxed||0;
+  document.getElementById('s-path').textContent=step.pathLen!==undefined?step.pathLen:'—';
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+
+  // Update dist table
+  updateDistTable(step.distSnap||{},step.prevSnap||{});
+  // Code highlight
+  const A=ALGOS[ST.algo];
+  renderCode(A.code,step.cl>=0?step.cl:-1);
+  // Sound
+  if(step.phase==='found'){triggerCA();playSound('found');}
+  else if(step.phase==='miss'){triggerCA();playSound('miss');}
+  else if(step.phase==='visit')playSound('visit');
+  else if(step.phase==='relax')playSound('relax');
+  else if(step.phase==='tree')playSound('tree');
+  else if(step.phase==='finalize')playSound('finalize');
+}
+
+function updateDistTable(distSnap,prevSnap){
+  const ids=Object.keys(G.nodes).sort();
+  if(!ids.length){document.getElementById('dist-table').innerHTML='<div style="font-size:10px;color:rgba(255,178,41,0.25);padding:8px">No nodes</div>';return;}
+  const rows=ids.map(id=>{
+    const d=distSnap[id];
+    const p=prevSnap[id]||'—';
+    const isCur=id===renderState.current;
+    const isFin=renderState.finalized.has(id);
+    const isPath=renderState.pathNodes.has(id);
+    const dStr=d===undefined?'—':d===Infinity?'∞':String(d);
+    const cls=isPath?'fin':isFin?'fin':isCur?'cur':d===Infinity||d===undefined?'inf':'';
+    return`<tr class="${isPath?'path-row':''}"><td class="${cls}">${id}</td><td class="${cls}">${dStr}</td><td class="cx-n">${p}</td></tr>`;
+  }).join('');
+  document.getElementById('dist-table').innerHTML=`<table class="dtbl"><thead><tr><th>NODE</th><th>DIST</th><th>PREV</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ══════════ OPERATIONS ══════════ */
+function runAlgo(){
+  initAudio();
+  const nodes=Object.keys(G.nodes);
+  if(nodes.length<2){alert('Add at least 2 nodes first.');return;}
+  const src=document.getElementById('src-input').value.trim().toUpperCase()||nodes[0];
+  const dst=document.getElementById('dst-input').value.trim().toUpperCase()||'';
+  if(!G.nodes[src]){alert(`Node "${src}" not found.`);return;}
+  if(dst&&!G.nodes[dst]){alert(`Node "${dst}" not found.`);return;}
+
+  // Reset render state
+  renderState={visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{},treeEdges:new Set(),finalized:new Set()};
+
+  if(ST.algo==='dijkstra')ST.steps=dijkstraSteps(src,dst);
+  else if(ST.algo==='bellman')ST.steps=bellmanFordSteps(src,dst);
+  else if(ST.algo==='bfs')ST.steps=bfsSteps(src,dst||'');
+  else if(ST.algo==='dfs')ST.steps=dfsSteps(src,dst||'');
+  else if(ST.algo==='prim')ST.steps=primSteps(src);
+  else if(ST.algo==='kruskal')ST.steps=kruskalSteps();
+
+  if(!ST.steps.length)return;
+  if(ST.playing)pause();
+  ST.idx=0;applyRS(ST.steps[0]);
+  setTimeout(()=>play(),300);
+  playSound('click');
+}
+
+function loadDemo(){
+  initAudio();
+  G.nodes={};G.edges=[];G.nodeSeq=0;
+  const algo=ST.algo;
+  if(algo==='kruskal'||algo==='prim'){
+    // Undirected for MST
+    G.directed=false;updateDirectedBtn();
+    const W=canvas.width,H=canvas.height;
+    const cx=W/2,cy=H/2;
+    const nd=(id,ox,oy)=>G.nodes[id]={id,x:Math.round(cx+ox),y:Math.round(cy+oy)};
+    nd('A',-180,-80);nd('B',0,-140);nd('C',180,-80);nd('D',-200,60);nd('E',0,40);nd('F',200,60);nd('G',0,150);
+    G.nodeSeq=7;
+    const e=(a,b,w)=>G.edges.push({from:a,to:b,weight:w});
+    e('A','B',4);e('A','D',3);e('B','C',6);e('B','E',2);e('C','F',5);e('D','E',1);e('D','G',8);e('E','F',7);e('E','G',3);e('F','G',9);
+  }else if(algo==='bellman'){
+    // Directed with one negative edge
+    G.directed=true;updateDirectedBtn();
+    const W=canvas.width,H=canvas.height;
+    const cx=W/2,cy=H/2;
+    const nd=(id,ox,oy)=>G.nodes[id]={id,x:Math.round(cx+ox),y:Math.round(cy+oy)};
+    nd('S',-200,0);nd('A',-70,-80);nd('B',-70,80);nd('C',80,-80);nd('D',80,80);nd('T',220,0);
+    G.nodeSeq=6;
+    const e=(a,b,w)=>G.edges.push({from:a,to:b,weight:w});
+    e('S','A',4);e('S','B',2);e('A','C',3);e('A','B',-2);e('B','D',5);e('C','T',1);e('D','C',-3);e('D','T',4);
+    document.getElementById('src-input').value='S';document.getElementById('dst-input').value='T';
+  }else{
+    // General weighted directed
+    G.directed=true;updateDirectedBtn();
+    const W=canvas.width,H=canvas.height;
+    const cx=W/2,cy=H/2;
+    const nd=(id,ox,oy)=>G.nodes[id]={id,x:Math.round(cx+ox),y:Math.round(cy+oy)};
+    nd('A',-200,-60);nd('B',-60,-120);nd('C',100,-80);nd('D',-60,60);nd('E',100,80);nd('F',230,0);
+    G.nodeSeq=6;
+    const e=(a,b,w)=>G.edges.push({from:a,to:b,weight:w});
+    e('A','B',7);e('A','D',9);e('B','C',6);e('B','D',1);e('C','F',5);e('D','E',2);e('D','C',3);e('E','F',4);e('E','C',1);e('B','E',8);
+    document.getElementById('src-input').value='A';document.getElementById('dst-input').value='F';
+  }
+  renderState={visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{},treeEdges:new Set(),finalized:new Set()};
+  drawGraph();
+  document.getElementById('pbadge').className='pbadge init';document.getElementById('pbadge').textContent='INIT';
+  document.getElementById('step-txt').textContent='Demo loaded. Press ▶ RUN.';
+  document.getElementById('step-ctr').textContent='0 / 0';
+  document.getElementById('prog-bar').style.width='0%';
+  ST.steps=[];ST.idx=0;
+  updateDistTable({},{});
+  playSound('click');
+}
+
+function clearGraph(){
+  G.nodes={};G.edges=[];G.nodeSeq=0;
+  renderState={visited:new Set(),current:'',path:new Set(),pathNodes:new Set(),frontier:new Set(),relaxed:{},treeEdges:new Set(),finalized:new Set()};
+  ST.steps=[];ST.idx=0;if(ST.playing)pause();
+  drawGraph();
+  document.getElementById('pbadge').className='pbadge init';document.getElementById('pbadge').textContent='INIT';
+  document.getElementById('step-txt').textContent='Cleared. Build a graph or load DEMO.';
+  document.getElementById('step-ctr').textContent='0 / 0';
+  document.getElementById('prog-bar').style.width='0%';
+  updateDistTable({},{});playSound('click');
+}
+
+function toggleDirected(){
+  G.directed=!G.directed;updateDirectedBtn();drawGraph();playSound('click');
+}
+function updateDirectedBtn(){
+  const btn=document.getElementById('btn-directed');
+  btn.textContent=G.directed?'DIRECTED':'UNDIRECTED';
+  btn.classList.toggle('active',G.directed);
+}
+
+function selectAlgo(key){
+  ST.algo=key;
+  document.querySelectorAll('.atab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const A=ALGOS[key];
+  // Update right panel
+  document.getElementById('cx-body').innerHTML=A.complexity.map(r=>`<tr><td class="cx-a">${r.op}</td><td class="cx-a">${r.time}</td><td class="cx-s">${r.space}</td><td class="cx-n">${r.note}</td></tr>`).join('');
+  document.getElementById('use-when').innerHTML=
+    A.use.map(t=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#4ade80">+</span>${t}</div>`).join('')+
+    A.avoid.map(t=>`<div style="display:flex;gap:5px;margin-bottom:3px"><span style="color:#f43f5e">−</span>${t}</div>`).join('');
+  document.getElementById('real-world').innerHTML=A.realWorld;
+  renderCode(A.code,-1);
+  updateDistTable({},{});
+  playSound('click');
+}
+
+/* ══════════ PLAYBACK ══════════ */
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyRS(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyRS(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();playSound('click');}
+function play(){
+  if(ST.idx>=ST.steps.length-1&&ST.steps.length>0)ST.idx=0;
+  ST.playing=true;
+  document.getElementById('play-btn').textContent='⏸ PAUSE';
+  document.getElementById('play-btn').classList.add('playing');
+  ST.timer=setInterval(()=>{
+    if(ST.idx>=ST.steps.length-1){pause();return;}
+    ST.idx++;applyRS(ST.steps[ST.idx]);
+  },ST.speed);
+}
+function pause(){
+  ST.playing=false;clearInterval(ST.timer);
+  document.getElementById('play-btn').textContent='▶ PLAY';
+  document.getElementById('play-btn').classList.remove('playing');
+}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyRS(ST.steps[0]);playSound('click');}
+function changeSpeed(v){
+  const m={1:900,2:700,3:500,4:350,5:250,6:170,7:120,8:80,9:50,10:25};
+  ST.speed=m[v]||250;
+  if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyRS(ST.steps[ST.idx]);},ST.speed);}
+}
+
+/* ══════════ KEYBOARD ══════════ */
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  const tag=e.target.tagName;
+  if(tag==='INPUT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;
+    case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;
+    case'm':case'M':toggleMute();break;
+    case'Enter':runAlgo();break;
+    case'1':selectAlgo('dijkstra');break;
+    case'2':selectAlgo('bellman');break;
+    case'3':selectAlgo('bfs');break;
+    case'4':selectAlgo('dfs');break;
+    case'5':selectAlgo('prim');break;
+    case'6':selectAlgo('kruskal');break;
+  }
+});
+
+/* ══════════ TABS ══════════ */
+function buildTabs(){
+  const order=[['dijkstra','DIJKSTRA'],['bellman','BELLMAN-FORD'],['bfs','BFS'],['dfs','DFS'],['prim',"PRIM'S MST"],['kruskal',"KRUSKAL'S MST"]];
+  document.getElementById('algo-tabs').innerHTML=order.map(([k,l],i)=>
+    `<button class="atab${k===ST.algo?' active':''}" data-key="${k}" onclick="selectAlgo('${k}')">${i+1}. ${l}</button>`
+  ).join('');
+}
+
+/* ══════════ BOOT ══════════ */
+function boot(){
+  const term=document.getElementById('boot-terminal');
+  const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'GRAPH.LAB v1.0 — INITIALIZING...',s:'',d:200},
+    {t:'CPU: x86_64 EXTENDED MODE',s:'OK',d:150},
+    {t:'LOADING: DIJKSTRA_ENGINE.MOD',s:'OK',d:140},
+    {t:'LOADING: BELLMAN_FORD.MOD (neg weights)',s:'OK',d:160},
+    {t:'LOADING: BFS_ENGINE.MOD (queue)',s:'OK',d:120},
+    {t:'LOADING: DFS_ENGINE.MOD (stack)',s:'OK',d:120},
+    {t:'LOADING: PRIM_MST.MOD (priority queue)',s:'OK',d:140},
+    {t:'LOADING: KRUSKAL_MST.MOD (union-find)',s:'OK',d:140},
+    {t:'MOUNTING CANVAS RENDERER...',s:'DONE',d:160},
+    {t:'ALL MODULES LOADED. STARTING...',s:'',d:280},
+  ];
+  let li=0;
+  function addLine(){
+    if(li>=lines.length){setTimeout(startApp,350);return;}
+    const bl=lines[li];
+    const div=document.createElement('div');div.className='bl';
+    div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;
+    term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));
+    fill.style.width=Math.round((li/lines.length)*100)+'%';
+    li++;setTimeout(addLine,bl.d);
+  }addLine();
+}
+
+function startApp(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  selectAlgo('dijkstra');
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  loadDemo();
+  // Auto-run after a moment
+  setTimeout(()=>{runAlgo();},600);
+}
+
+boot();
+</script>
+</body>
+</html>

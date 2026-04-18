@@ -57,6 +57,15 @@
   <link rel="mask-icon" href="/favicon/safari-pinned-tab.svg" color="#c8a882" />
   <link rel="manifest" href="/favicon/site.webmanifest" />
 
+  <!-- ── Google Analytics ──────────────────────────────────────── -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-HF3EGN90FY"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-HF3EGN90FY');
+  </script>
+
   <!-- ── Perf / resource hints ─────────────────────────────────── -->
   <link rel="preconnect" href="https://esm.sh" crossorigin />
   <link rel="dns-prefetch" href="https://esm.sh" />
@@ -412,6 +421,40 @@
       max-width: 620px; margin: 0;
     }
 
+    /* ── Lab grid ── */
+    .lab-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1px;
+      margin: 0 0 120px;
+      background: rgba(255, 253, 248, 0.06);
+      border: 1px solid rgba(255, 253, 248, 0.08);
+    }
+    .lab-card {
+      display: block;
+      padding: 28px 28px 24px;
+      background: #0d0a07;
+      text-decoration: none;
+      transition: background 0.25s;
+    }
+    .lab-card:hover { background: rgba(200, 168, 130, 0.06); }
+    .lab-card-tag {
+      font-family: 'Dank Mono', monospace;
+      font-size: 10px; letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #c8a882;
+      margin: 0 0 10px;
+    }
+    .lab-card-title {
+      font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
+      font-size: 18px; color: #fffdf8; margin: 0 0 8px;
+      line-height: 1.2; letter-spacing: -0.01em;
+    }
+    .lab-card-desc {
+      font-size: 13px; line-height: 1.5;
+      color: rgba(255, 253, 248, 0.45); margin: 0;
+    }
+
     /* ── CTA ── */
     .cta-heading {
       font-family: 'Futura Now Headline', sans-serif; font-weight: bold;
@@ -550,6 +593,121 @@
           </div>
         </li>
       </ol>
+
+      <!-- Lab -->
+      <p class="section-label reveal">Lab</p>
+      <div class="lab-grid reveal">
+        <a class="lab-card" href="/poker/">
+          <p class="lab-card-tag">Game</p>
+          <p class="lab-card-title">Poker</p>
+          <p class="lab-card-desc">Multiplayer Texas Hold'em, 7 variants incl. Joker &amp; Short Deck. P2P + server matchmaking. Ed25519 signed.</p>
+        </a>
+        <a class="lab-card" href="/algos/search-viz.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">Search Algorithms</p>
+          <p class="lab-card-desc">Interactive visualizations of binary search, DFS, BFS, A* and more.</p>
+        </a>
+        <a class="lab-card" href="/algos/dp_viz.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">Dynamic Programming</p>
+          <p class="lab-card-desc">Step-by-step DP table animations — knapsack, LCS, edit distance.</p>
+        </a>
+        <a class="lab-card" href="/algos/data-struct_1.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">Data Structures</p>
+          <p class="lab-card-desc">Arrays, linked lists, stacks, queues, hash maps — animated operations.</p>
+        </a>
+        <a class="lab-card" href="/algos/tree-viz.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">Trees</p>
+          <p class="lab-card-desc">BST, AVL, Red-Black, B-Tree — insert, delete, rebalance visualized.</p>
+        </a>
+        <a class="lab-card" href="/algos/graph-lab.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">Graph Algorithms</p>
+          <p class="lab-card-desc">Dijkstra, topological sort, cycle detection, connected components.</p>
+        </a>
+        <a class="lab-card" href="/algos/hash-map.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">HashMap Internals</p>
+          <p class="lab-card-desc">Hashing, collision resolution, rehashing, load factor — step by step.</p>
+        </a>
+        <a class="lab-card" href="/algos/lru-viz.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">LRU Cache</p>
+          <p class="lab-card-desc">Doubly-linked list + hash map — eviction policy visualized.</p>
+        </a>
+        <a class="lab-card" href="/algos/consistent-hash.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Consistent Hashing</p>
+          <p class="lab-card-desc">Ring topology, virtual nodes, key distribution across shards.</p>
+        </a>
+        <a class="lab-card" href="/algos/kafka-viz_1.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Kafka</p>
+          <p class="lab-card-desc">Producers, partitions, consumer groups, offset commits — animated.</p>
+        </a>
+        <a class="lab-card" href="/algos/raft-sim.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Raft Consensus</p>
+          <p class="lab-card-desc">Leader election, log replication, term handling — interactive sim.</p>
+        </a>
+        <a class="lab-card" href="/algos/chan2-viz_5.html">
+          <p class="lab-card-tag">Go</p>
+          <p class="lab-card-title">Channels &amp; Goroutines</p>
+          <p class="lab-card-desc">Buffered/unbuffered channels, select, fan-in/fan-out patterns.</p>
+        </a>
+        <a class="lab-card" href="/algos/net-viz.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Networking</p>
+          <p class="lab-card-desc">TCP handshake, HTTP/2 streams, DNS resolution — packet by packet.</p>
+        </a>
+        <a class="lab-card" href="/algos/db-viz_1.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Database Internals</p>
+          <p class="lab-card-desc">B-tree pages, WAL, MVCC, query execution — storage engine anatomy.</p>
+        </a>
+        <a class="lab-card" href="/algos/mem-viz.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Memory Management</p>
+          <p class="lab-card-desc">Stack vs heap, allocation, GC roots, reference counting visualized.</p>
+        </a>
+        <a class="lab-card" href="/algos/sync-viz_1.html">
+          <p class="lab-card-tag">Go</p>
+          <p class="lab-card-title">Concurrency Primitives</p>
+          <p class="lab-card-desc">Mutex, RWMutex, WaitGroup, Once, sync.Map — race condition demos.</p>
+        </a>
+        <a class="lab-card" href="/algos/interface-viz.html">
+          <p class="lab-card-tag">Go</p>
+          <p class="lab-card-title">Interfaces</p>
+          <p class="lab-card-desc">Interface tables, type assertions, embedding, polymorphism.</p>
+        </a>
+        <a class="lab-card" href="/algos/map-viz-ru.html">
+          <p class="lab-card-tag">Go</p>
+          <p class="lab-card-title">Map Internals</p>
+          <p class="lab-card-desc">Go map buckets, overflow chains, evacuation during growth.</p>
+        </a>
+        <a class="lab-card" href="/algos/retry-viz.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Retry &amp; Backoff</p>
+          <p class="lab-card-desc">Exponential backoff, jitter, circuit breakers — failure patterns.</p>
+        </a>
+        <a class="lab-card" href="/algos/txlog-sim.html">
+          <p class="lab-card-tag">Systems</p>
+          <p class="lab-card-title">Transaction Log</p>
+          <p class="lab-card-desc">WAL, checkpointing, crash recovery — append-only log simulator.</p>
+        </a>
+        <a class="lab-card" href="/algos/btree-viz.html">
+          <p class="lab-card-tag">Algo Viz</p>
+          <p class="lab-card-title">B-Tree</p>
+          <p class="lab-card-desc">Insert, split, merge, search — order-configurable B-tree.</p>
+        </a>
+        <a class="lab-card" href="/grammar/">
+          <p class="lab-card-tag">Reference</p>
+          <p class="lab-card-title">English Grammar</p>
+          <p class="lab-card-desc">Tenses, articles, gerunds, conditionals — 17 sections with examples.</p>
+        </a>
+      </div>
 
       <!-- CTA -->
       <h2 class="cta-heading reveal">Let's build something.</h2>

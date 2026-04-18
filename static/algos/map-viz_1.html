@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MAP.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--a:#ffb229;--ad:#a06800;--g:#4ade80;--r:#f43f5e;--p:#a855f7;--b:#60a5fa;--c:#22d3ee;--o:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--a);font-family:'Share Tech Mono',monospace;}
+@keyframes flicker{0%,93%{filter:brightness(1);}94%{filter:brightness(.7);}95%{filter:brightness(1);}}
+@keyframes scan{from{top:0}to{top:100vh}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes glitch{0%,100%{clip-path:none;transform:none}20%{clip-path:inset(10% 0 80% 0);transform:translate(-3px)}40%{clip-path:inset(50% 0 30% 0);transform:translate(3px)}60%{clip-path:none;transform:none}}
+
+#crt{width:100vw;height:100vh;display:flex;flex-direction:column;animation:flicker .2s steps(1) infinite;}
+#scanline{position:fixed;top:0;left:0;right:0;height:2px;background:rgba(255,178,41,.04);pointer-events:none;z-index:999;animation:scan 8s linear infinite;}
+#vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.7) 100%);pointer-events:none;z-index:998;}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:997;opacity:.025;}
+#ca{position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:0;transition:opacity .05s;}
+#ca.on{opacity:1;box-shadow:inset -5px 0 0 rgba(255,0,0,.3),inset 5px 0 0 rgba(0,50,255,.3);}
+
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);z-index:900;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;}
+#bl{font-family:'VT323';font-size:96px;color:var(--a);text-shadow:0 0 40px var(--a),0 0 80px rgba(255,178,41,.3);letter-spacing:8px;}
+#bs{font-size:11px;letter-spacing:6px;color:var(--ad);margin-bottom:44px;}
+#blog{width:620px;max-width:90vw;font-size:12px;line-height:2;}
+.bline{opacity:0;display:flex;justify-content:space-between;transition:opacity .05s;}
+.bline.v{opacity:1;}.bok{color:var(--g);}
+#bprog{width:620px;max-width:90vw;height:2px;background:rgba(255,178,41,.1);margin-top:24px;}
+#bfill{height:100%;width:0;background:var(--a);box-shadow:0 0 8px var(--a);transition:width .1s;}
+@keyframes cur{50%{opacity:0}}
+.bcur{display:inline-block;width:8px;height:13px;background:var(--a);animation:cur .7s step-end infinite;vertical-align:middle;}
+
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;}
+#main.show{display:flex;animation:fadein .4s ease;}
+#hdr{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.6);flex-shrink:0;}
+#logo{font-family:'VT323';font-size:30px;color:var(--a);text-shadow:0 0 15px var(--a);letter-spacing:4px;}
+#tabs{display:flex;gap:3px;flex:1;overflow:hidden;}
+.tab{font-size:9px;padding:3px 10px;border:1px solid rgba(255,178,41,.2);color:var(--ad);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .1s;}
+.tab:hover,.tab.active{border-color:var(--a);color:var(--a);background:rgba(255,178,41,.08);}
+#snd{font-size:14px;background:transparent;border:1px solid rgba(255,178,41,.2);color:var(--a);padding:2px 7px;cursor:pointer;}
+#panels{display:flex;flex:1;overflow:hidden;}
+
+/* LEFT */
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#viz{flex:1;position:relative;overflow:hidden;}
+#vc{display:block;width:100%;height:100%;}
+#pbar-wrap{height:2px;background:rgba(255,178,41,.06);}
+#pbar{height:100%;width:0;background:var(--a);transition:width .15s;}
+#desc{display:flex;align-items:center;gap:8px;padding:5px 12px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.4);min-height:38px;flex-shrink:0;}
+.badge{font-family:'VT323';font-size:12px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.badge.init{color:var(--ad);border-color:var(--ad);}
+.badge.hash{color:var(--b);border-color:var(--b);background:rgba(96,165,250,.08);}
+.badge.insert{color:var(--g);border-color:var(--g);background:rgba(74,222,128,.07);}
+.badge.lookup{color:var(--c);border-color:var(--c);background:rgba(34,211,238,.07);}
+.badge.grow{color:var(--o);border-color:var(--o);background:rgba(249,115,22,.08);}
+.badge.evac{color:var(--p);border-color:var(--p);background:rgba(168,85,247,.07);}
+.badge.crash{color:var(--r);border-color:var(--r);background:rgba(244,63,94,.1);}
+.badge.warn{color:var(--o);border-color:var(--o);}
+.badge.done{color:var(--g);border-color:var(--g);}
+#dtxt{font-size:11px;color:rgba(255,178,41,.75);flex:1;line-height:1.5;}
+#stats{display:flex;gap:16px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.08);background:rgba(0,0,0,.25);flex-shrink:0;flex-wrap:wrap;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7px;color:var(--ad);letter-spacing:2px;}
+.sv{font-family:'VT323';font-size:18px;color:var(--a);}
+#ctrl{display:flex;align-items:center;gap:5px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.3);flex-shrink:0;flex-wrap:wrap;}
+.cb{font-family:'VT323';font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.3);background:transparent;color:var(--a);cursor:pointer;transition:.1s;}
+.cb:hover{background:rgba(255,178,41,.07);}
+#pb.pl{color:var(--r);border-color:var(--r);}
+.csep{width:1px;height:14px;background:rgba(255,178,41,.1);}
+input[type=range]{-webkit-appearance:none;width:56px;height:2px;background:rgba(255,178,41,.2);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--a);cursor:pointer;}
+#sc{font-family:'VT323';font-size:13px;color:var(--ad);margin-left:auto;}
+#kb{display:flex;gap:8px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.05);flex-shrink:0;}
+.kh{font-size:7px;color:rgba(255,178,41,.25);}.kk{border:1px solid rgba(255,178,41,.15);padding:0 3px;font-size:7px;}
+
+/* RIGHT */
+#right{width:400px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;border-left:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.18);}
+.rsec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.12);}
+.rhdr{font-family:'VT323';font-size:14px;letter-spacing:4px;color:var(--a);padding:5px 12px 5px 14px;background:rgba(0,0,0,.4);border-bottom:1px solid rgba(255,178,41,.15);border-left:3px solid rgba(255,178,41,.5);}
+#cscroll{overflow-y:auto;max-height:210px;padding:2px 0;}
+#cscroll::-webkit-scrollbar{width:3px;}#cscroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+.cl{display:flex;font-family:'IBM Plex Mono';font-size:10.5px;line-height:1.7;padding:0 6px;white-space:pre;}
+.cl.act{background:rgba(255,178,41,.09);border-left:2px solid var(--a);}
+.ln{color:rgba(255,178,41,.25);width:20px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#5a6a7a;font-style:italic;}.op{color:#56b6c2;}
+#rscroll{flex:1;overflow-y:auto;}
+#rscroll::-webkit-scrollbar{width:3px;}#rscroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.1);}
+.ib{padding:10px 14px;font-size:11px;line-height:1.9;color:rgba(255,178,41,.7);}
+.ib strong{color:#ffcc55;}
+.tag{display:inline-block;background:rgba(255,178,41,.08);border:1px solid rgba(255,178,41,.25);padding:1px 6px;font-size:10px;margin:2px 2px;}
+.wtag{display:inline-block;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.4);padding:1px 6px;font-size:10px;margin:2px 2px;color:var(--r);}
+.gtag{display:inline-block;background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.35);padding:1px 6px;font-size:10px;margin:2px 2px;color:var(--g);}
+::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scanline"></div>
+<div id="vignette"></div>
+<div id="ca"></div>
+<div id="boot">
+  <div id="bl">MAP.VIZ</div>
+  <div id="bs">GO RUNTIME HASHMAP INTERNALS</div>
+  <div id="blog"></div>
+  <div id="bprog"><div id="bfill"></div></div>
+</div>
+<div id="crt"><div id="main">
+  <div id="hdr">
+    <div id="logo">MAP.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz"><canvas id="vc"></canvas></div>
+      <div id="pbar-wrap"><div id="pbar"></div></div>
+      <div id="desc"><span class="badge init" id="badge">INIT</span><span id="dtxt"></span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">COUNT</span><span class="sv" id="s-cnt">—</span></div>
+        <div class="si"><span class="sl">B</span><span class="sv" id="s-b" style="color:var(--b)">—</span></div>
+        <div class="si"><span class="sl">BUCKETS</span><span class="sv" id="s-bk" style="color:var(--o)">—</span></div>
+        <div class="si"><span class="sl">LOAD</span><span class="sv" id="s-lf" style="color:var(--c)">—</span></div>
+        <div class="si"><span class="sl">OVERFLOW</span><span class="sv" id="s-ov" style="color:var(--p)">—</span></div>
+      </div>
+      <div id="ctrl">
+        <button class="cb" onclick="prev()">◀ PREV</button>
+        <button class="cb" id="pb" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cb" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cb" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <span style="font-size:8px;color:var(--ad)">SPD</span>
+        <input type="range" id="spd" min="1" max="10" value="4" oninput="setSpd(this.value)">
+        <span id="sc">0/0</span>
+      </div>
+      <div id="kb">
+        <span class="kh"><span class="kk">←→</span> step</span>
+        <span class="kh"><span class="kk">SPC</span> play</span>
+        <span class="kh"><span class="kk">R</span> reset</span>
+        <span class="kh"><span class="kk">M</span> mute</span>
+        <span class="kh"><span class="kk">1-6</span> scene</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="rsec"><div class="rhdr">▸ SOURCE</div><div id="cscroll"></div></div>
+      <div id="rscroll">
+        <div class="rsec"><div class="rhdr">▸ RULES</div><div id="ri-cx" class="ib"></div></div>
+        <div class="rsec"><div class="rhdr">▸ HOW IT WORKS</div><div id="ri-hw" class="ib"></div></div>
+        <div class="rsec"><div class="rhdr">▸ GOTCHAS</div><div id="ri-gc" class="ib"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ─── NOISE ─── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');
+function r(){c.width=innerWidth;c.height=innerHeight;}r();window.addEventListener('resize',r);
+function d(){const id=x.createImageData(c.width,c.height),da=id.data;
+for(let i=0;i<da.length;i+=4){const v=Math.random()>.97?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?100:0;}
+x.putImageData(id,0,0);requestAnimationFrame(d);}d();})();
+
+/* glitch */
+function sGlitch(){setTimeout(()=>{const e=document.getElementById('crt');e.style.filter='brightness(.15)';setTimeout(()=>{e.style.filter='';sGlitch();},12+Math.random()*20);},4000+Math.random()*7000);}sGlitch();
+function flashCA(dur=280){const e=document.getElementById('ca');e.classList.add('on');setTimeout(()=>e.classList.remove('on'),dur);}
+
+/* ─── AUDIO ─── */
+let AC=null,muted=false;
+function snd(t){if(muted||!AC)return;try{const o=AC.createOscillator(),g=AC.createGain(),w=AC.createWaveShaper();
+const d=new Float32Array(256);for(let i=0;i<256;i++)d[i]=i<128?i/128:i/128-2;w.curve=d;
+o.connect(w);w.connect(g);g.connect(AC.destination);
+const f={hash:440,insert:560,lookup:500,grow:300,evac:380,crash:100,warn:200,done:620,init:360};
+o.frequency.setValueAtTime(f[t]||380,AC.currentTime);o.type=t==='crash'?'sawtooth':'triangle';
+g.gain.setValueAtTime(.06,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.18);
+o.start(AC.currentTime);o.stop(AC.currentTime+.2);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd').textContent=muted?'🔇':'🔊';if(!muted)snd('insert');}
+
+/* ─── SYNTAX HIGHLIGHT ─── */
+function hl(line){
+  const ci=line.indexOf('//');
+  const code=ci>=0?line.slice(0,ci):line;
+  const cmt=ci>=0?line.slice(ci):'';
+  function proc(s){
+    s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/\b(func|go|var|type|struct|const|return|if|else|for|range|defer|make|delete|true|false|nil|int|uint8|uint16|uint32|uint64|uintptr|string|bool|error|unsafe)\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&lt;&lt;|&gt;&gt;|\^=|&amp;\^)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return proc(code)+(cmt?'<span class="cm">'+cmt.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>':'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('cscroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cl${i===active?' act':''}"><span class="ln">${i+1}</span><span>${hl(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cl')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ─── CANVAS ─── */
+const cv=document.getElementById('vc'),cx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){const el=document.getElementById('viz');W=cv.width=el.clientWidth;H=cv.height=el.clientHeight;if(PLAY.steps.length)draw(PLAY.steps[PLAY.idx]);}
+window.addEventListener('resize',resize);
+
+const C={A:'#ffb229',G:'#4ade80',R:'#f43f5e',B:'#60a5fa',N:'#22d3ee',O:'#f97316',P:'#a855f7',D:'rgba(255,178,41,.18)'};
+
+function clear(){cx.clearRect(0,0,W,H);}
+
+function box(x,y,w,h,stroke,fill,glow,lw){
+  cx.save();
+  if(glow){cx.shadowColor=stroke;cx.shadowBlur=16;}
+  cx.lineWidth=lw||1.5;cx.strokeStyle=stroke;cx.fillStyle=fill||stroke+'15';
+  cx.fillRect(x,y,w,h);cx.strokeRect(x,y,w,h);
+  cx.restore();
+}
+function txt(s,x,y,font,col,align,base){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.textAlign=align||'center';cx.textBaseline=base||'middle';
+  cx.fillText(s,x,y);cx.restore();
+}
+function glow(s,x,y,font,col){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.shadowColor=col;cx.shadowBlur=14;
+  cx.textAlign='center';cx.textBaseline='middle';cx.fillText(s,x,y);cx.restore();
+}
+function arrow(x1,y1,x2,y2,col,label,dashed){
+  cx.save();cx.strokeStyle=col;cx.lineWidth=1.5;cx.shadowColor=col;cx.shadowBlur=6;
+  if(dashed)cx.setLineDash([4,3]);
+  cx.beginPath();cx.moveTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();cx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1);cx.fillStyle=col;cx.shadowBlur=0;
+  cx.beginPath();cx.moveTo(x2,y2);cx.lineTo(x2-9*Math.cos(a-.3),y2-9*Math.sin(a-.3));cx.lineTo(x2-9*Math.cos(a+.3),y2-9*Math.sin(a+.3));cx.closePath();cx.fill();
+  if(label){cx.font="9px 'Share Tech Mono'";cx.fillStyle=col;cx.textAlign='center';cx.textBaseline='bottom';cx.shadowBlur=0;cx.fillText(label,(x1+x2)/2,(y1+y2)/2-4);}
+  cx.restore();
+}
+function hline(s,x,y1,y2,col){cx.save();cx.strokeStyle=col;cx.lineWidth=1;cx.setLineDash([3,3]);cx.beginPath();cx.moveTo(x,y1);cx.lineTo(x,y2);cx.stroke();cx.setLineDash([]);cx.restore();}
+function scHdr(s){txt(s,W/2,11,"10px 'Share Tech Mono'",'rgba(255,178,41,.18)');}
+
+/* ══════════════════════════════════════════════════
+   SCENE 1: HMAP STRUCT — pointer on stack → heap struct
+══════════════════════════════════════════════════ */
+function drawHmap(s){
+  scHdr('HMAP STRUCT — EVERY MAP IS A POINTER TO A 56-BYTE HEADER');
+
+  // Stack box left
+  const sx=W*.04,sy=H*.12,sw=W*.18,sh=H*.72;
+  box(sx,sy,sw,sh,'rgba(255,178,41,.2)','rgba(0,0,0,.3)');
+  txt('STACK',sx+sw/2,sy+16,"9px 'Share Tech Mono'",'rgba(255,178,41,.3)');
+
+  // var m map[K]V  cell
+  const varY=sy+H*.18;
+  const varCol=s.ptrActive?C.A:'rgba(255,178,41,.5)';
+  box(sx+8,varY,sw-16,36,varCol,'transparent',s.ptrActive);
+  txt('var m map[K]V',sx+sw/2,varY+12,"10px 'Share Tech Mono'",varCol,'center');
+  txt(s.ptr||'0xc0002f0000',sx+sw/2,varY+27,"9px 'VT323'",varCol+'cc','center');
+
+  // arrow stack→heap
+  if(s.ptr&&s.ptr!=='nil'){
+    arrow(sx+sw+6,varY+18,W*.28,H*.38,s.ptrActive?C.A:'rgba(255,178,41,.3)','');
+  }
+
+  // Heap area
+  const hx=W*.28,hy=H*.08;
+  txt('HEAP',hx+8,hy+10,"9px 'Share Tech Mono'",'rgba(255,178,41,.2)','left');
+
+  // hmap struct fields
+  const fields=[
+    {n:'count',     t:'int',            v:s.count||'0',   c:C.A,  b:8},
+    {n:'flags',     t:'uint8',          v:s.flags||'0x00',c:C.O,  b:1},
+    {n:'B',         t:'uint8',          v:s.B||'0',       c:C.B,  b:1},
+    {n:'noverflow', t:'uint16',         v:s.noverfl||'0', c:C.P,  b:2},
+    {n:'hash0',     t:'uint32',         v:s.hash0||'...',c:C.N,   b:4},
+    {n:'buckets',   t:'unsafe.Pointer', v:s.bptr||'nil',  c:C.G,  b:8},
+    {n:'oldbuckets',t:'unsafe.Pointer', v:s.oldptr||'nil',c:s.growing?C.O:C.D,b:8},
+    {n:'nevacuate', t:'uintptr',        v:s.nevac||'0',   c:s.growing?C.P:C.D,b:8},
+  ];
+  const fw=W*.42,fh=H*.78/fields.length,fx=hx+8,fy=H*.12;
+
+  // struct bracket
+  cx.save();cx.strokeStyle='rgba(255,178,41,.2)';cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(fx-4,fy);cx.lineTo(fx-12,fy);cx.lineTo(fx-12,fy+fh*fields.length);cx.lineTo(fx-4,fy+fh*fields.length);cx.stroke();
+  cx.restore();
+  txt('hmap {',fx,fy-10,"10px 'IBM Plex Mono'",'rgba(255,178,41,.3)','left');
+
+  fields.forEach((f,i)=>{
+    const y=fy+i*fh;
+    const active=s.hi===f.n;
+    const col=f.c==='rgba(255,178,41,.18)'?'rgba(255,178,41,.18)':f.c;
+    const fillA=active?col+'20':'transparent';
+    box(fx,y,fw,fh,active?col:col+'44',fillA,active);
+    // name
+    txt(f.n,fx+8,y+fh/2,"11px 'IBM Plex Mono'",active?col:col+'99','left');
+    // type
+    txt(f.t,fx+fw*.54,y+fh/2,"9px 'Share Tech Mono'",active?'rgba(255,178,41,.5)':'rgba(255,178,41,.2)','center');
+    // value
+    txt(f.v,fx+fw-8,y+fh/2,"13px 'VT323'",active?col:col+'88','right');
+    // size strip on far right
+    const sh2=Math.max(3,Math.round(f.b/8*fh*0.7));
+    cx.save();cx.fillStyle=col+(active?'99':'33');cx.fillRect(fx+fw+2,y+fh/2-sh2/2,5,sh2);cx.restore();
+  });
+  txt('}',fx,fy+fh*fields.length+8,"10px 'IBM Plex Mono'",'rgba(255,178,41,.2)','left');
+
+  // Bucket array visualization  
+  if(s.B&&s.B!=='0'){
+    const nb=1<<parseInt(s.B);
+    const bx=fx+fw+18,by=H*.38,bw=Math.min(44,(W-bx-20)/Math.min(nb,8)-2);
+    txt(`buckets  [2^${s.B}=${nb}]bmap`,bx+(Math.min(nb,8))*(bw+2)/2,by-12,"9px 'Share Tech Mono'",C.G+'88','center');
+    for(let i=0;i<Math.min(nb,8);i++){
+      box(bx+i*(bw+2),by,bw,28,C.G+'55',C.G+'08');
+      txt(i,bx+i*(bw+2)+bw/2,by+14,"10px 'VT323'",C.G+'66');
+    }
+    if(nb>8)txt('…+'+( nb-8),bx+8*(bw+2)+4,by+14,"9px 'VT323'",C.G+'44','left');
+    // arrow from buckets field to array
+    const fi=fields.findIndex(f=>f.n==='buckets');
+    arrow(fx+fw,fy+fi*fh+fh/2,bx,by+14,C.G+'77','');
+  }
+
+  if(s.note)glow(s.note,W*.72,H*.82,"12px 'VT323'",s.nc||C.A);
+}
+
+/* ══════════════════════════════════════════════════
+   SCENE 2: BUCKET MEMORY LAYOUT — real memory strip
+══════════════════════════════════════════════════ */
+function drawBmap(s){
+  scHdr('BMAP MEMORY LAYOUT — [tophash×8] [keys×8] [values×8] [overflow*]');
+
+  const SLOT=s.slot>=0?s.slot:-1;
+  const N=8;
+
+  // MEMORY STRIP — continuous band at top
+  const msx=W*.04,msy=H*.07,msw=W*.92,msh=H*.09;
+  // calculate section widths
+  const thW=msw*.12;   // 8 bytes tophash
+  const kW=msw*.35;    // 8 keys (e.g. string = 16B each)
+  const vW=msw*.35;    // 8 values
+  const ovW=msw*.18;   // overflow ptr 8B
+  const secs=[
+    {label:'tophash[8]',sublabel:'uint8 × 8 bytes',w:thW,col:C.B},
+    {label:'keys[8]',   sublabel:'K × 8 slots',    w:kW, col:C.G},
+    {label:'values[8]', sublabel:'V × 8 slots',    w:vW, col:C.O},
+    {label:'overflow',  sublabel:'*bmap  8 bytes',  w:ovW,col:C.P},
+  ];
+  let px=msx;
+  secs.forEach(sec=>{
+    box(px,msy,sec.w,msh,sec.col,sec.col+'10');
+    txt(sec.label,px+sec.w/2,msy+msh*.38,"9px 'Share Tech Mono'",sec.col);
+    txt(sec.sublabel,px+sec.w/2,msy+msh*.72,"8px 'Share Tech Mono'",sec.col+'77');
+    px+=sec.w;
+  });
+
+  // SLOT COLUMNS below — 8 vertical columns
+  const colW=(W*.92)/N;
+  const csx=W*.04;
+  const rows=[
+    {label:'tophash',y:H*.26,h:H*.1,  vals:s.th||Array(N).fill('0x00'),col:C.B},
+    {label:'key',    y:H*.42,h:H*.13, vals:s.ks||Array(N).fill('—'),   col:C.G},
+    {label:'value',  y:H*.61,h:H*.13, vals:s.vs||Array(N).fill('—'),   col:C.O},
+  ];
+
+  // column headers
+  for(let i=0;i<N;i++){
+    const active=i===SLOT;
+    // column highlight strip
+    if(active){
+      cx.save();cx.fillStyle='rgba(255,178,41,.03)';cx.fillRect(csx+i*colW,H*.24,colW-2,H*.53);cx.restore();
+      box(csx+i*colW+1,H*.24,colW-3,H*.53,'rgba(255,178,41,.12)','transparent');
+    }
+    txt('slot '+i,csx+i*colW+colW/2-1,H*.235,"8px 'Share Tech Mono'",active?C.A:'rgba(255,178,41,.25)');
+  }
+
+  rows.forEach(row=>{
+    txt(row.label,csx-4,row.y+row.h/2,"9px 'Share Tech Mono'",row.col+'88','right');
+    for(let i=0;i<N;i++){
+      const active=i===SLOT;
+      const val=row.vals[i];
+      const filled=val!=='—'&&val!=='0x00';
+      const col=row.col;
+      box(csx+i*colW+2,row.y,colW-4,row.h,active?col:filled?col+'66':col+'22',active?col+'18':filled?col+'0a':'transparent',active);
+      txt(val,csx+i*colW+colW/2,row.y+row.h/2,"12px 'VT323'",active?col:filled?col+'cc':col+'33');
+    }
+    // row connector line to memory strip
+    const secX=row.col===C.B?msx:row.col===C.G?msx+thW:msx+thW+kW;
+    const secW=row.col===C.B?thW:row.col===C.G?kW:vW;
+    hline('',secX+secW/2,msy+msh,row.y,row.col+'33');
+  });
+
+  // overflow row
+  const ovY=H*.8,ovSz=W*.92,s_ov=s.ov;
+  const ovCol=s_ov&&s_ov!=='nil'?C.P:C.D;
+  box(csx,ovY,ovSz,H*.07,ovCol,ovCol+'08');
+  txt('overflow  →  '+(s_ov||'nil'),W*.5,ovY+H*.035,"11px 'Share Tech Mono'",ovCol);
+  if(s_ov&&s_ov!=='nil'){
+    arrow(csx+ovSz,ovY+H*.035,csx+ovSz+16,ovY+H*.035,C.P,'');
+    box(csx+ovSz+16,ovY,W*.04,H*.07,C.P,C.P+'0A');
+    txt('→',csx+ovSz+W*.02,ovY+H*.035,"12px 'VT323'",C.P);
+  }
+  if(s.note)txt(s.note,W*.5,H*.93,"10px 'Share Tech Mono'",s.nc||C.B,'center');
+}
+
+/* ══════════════════════════════════════════════════
+   SCENE 3: LOOKUP — hash bit split → bucket → tophash scan
+══════════════════════════════════════════════════ */
+function drawLookup(s){
+  scHdr('LOOKUP — hash(key) → BUCKET (low B bits) → TOPHASH SCAN');
+  const B=parseInt(s.B||'3');
+
+  // KEY input box
+  const kx=W*.04,ky=H*.1,kw=W*.18,kh=42;
+  box(kx,ky,kw,kh,s.step>=1?C.A:'rgba(255,178,41,.3)',s.step>=1?C.A+'12':'transparent',s.step>=1);
+  txt('"'+(s.key||'hello')+'"',kx+kw/2,ky+16,"12px 'VT323'",s.step>=1?C.A:'rgba(255,178,41,.4)');
+  txt('key',kx+kw/2,ky+32,"8px 'Share Tech Mono'",'rgba(255,178,41,.3)');
+
+  // HASH FUNCTION box
+  const hfx=W*.3,hfy=ky,hfw=W*.14,hfh=42;
+  if(s.step>=1){
+    box(hfx,hfy,hfw,hfh,C.N,C.N+'0f',s.step===1);
+    txt('hash(key,seed)',hfx+hfw/2,hfy+16,"9px 'Share Tech Mono'",C.N);
+    txt('64-bit result',hfx+hfw/2,hfy+32,"8px 'Share Tech Mono'",C.N+'88');
+    arrow(kx+kw,ky+21,hfx,ky+21,s.step===1?C.N:C.N+'66','');
+  }
+
+  // 64-BIT HASH BAR
+  if(s.step>=2){
+    const bx=W*.04,by=H*.28,bw=W*.92,bh=H*.08;
+    const topW=bw*(8/64), midW=bw*((64-B-8)/64), bucW=bw*(B/64);
+    // draw sections
+    box(bx,by,topW,bh,C.B,C.B+'15',s.step===2||s.step===3);
+    txt('top 8 bits',bx+topW/2,by+bh*.38,"9px 'Share Tech Mono'",C.B);
+    txt('tophash = 0x'+(s.top||'8F'),bx+topW/2,by+bh*.72,"10px 'VT323'",C.B+'cc');
+    box(bx+topW,by,midW,bh,'rgba(255,178,41,.12)','transparent');
+    txt((64-B-8)+' bits (unused for routing)',bx+topW+midW/2,by+bh/2,"8px 'Share Tech Mono'",'rgba(255,178,41,.2)');
+    box(bx+topW+midW,by,bucW,bh,C.G,C.G+'15',s.step===2||s.step===4);
+    txt('low '+B+' bits',bx+topW+midW+bucW/2,by+bh*.38,"9px 'Share Tech Mono'",C.G);
+    txt('bucket = '+(s.bucket!==undefined?s.bucket:'?'),bx+topW+midW+bucW/2,by+bh*.72,"12px 'VT323'",C.G+'cc');
+    // hash value label
+    txt('hash = 0x'+(s.hashval||'8F0000'+(s.bucket!==undefined?s.bucket.toString(16).padStart(2,'0'):'02')),W*.5,by-10,"10px 'Share Tech Mono'",C.A+'55');
+  }
+
+  // BUCKET ARRAY
+  if(s.step>=3){
+    const n=1<<B;
+    const show=Math.min(n,8);
+    const bkw=Math.min(52,Math.floor(W*.88/show));
+    const bkx=(W-show*bkw)/2,bky=H*.44;
+    txt('buckets  [0..'+(n-1)+']',W*.5,bky-11,"9px 'Share Tech Mono'",C.G+'66');
+    for(let i=0;i<show;i++){
+      const sel=i===s.bucket;
+      box(bkx+i*bkw,bky,bkw-2,32,sel?C.G:C.G+'33',sel?C.G+'18':'transparent',sel);
+      txt(i,bkx+i*bkw+(bkw-2)/2,bky+16,"12px 'VT323'",sel?C.G:C.G+'44');
+    }
+    if(s.bucket!==undefined){
+      const bkSelX=bkx+s.bucket*bkw+(bkw-2)/2;
+      // arrow from bucket bits to bucket
+      if(s.step>=3){
+        const bx=W*.04,by=H*.28,bw=W*.92,bh=H*.08;
+        const topW=bw*(8/64),midW=bw*((64-B-8)/64),bucW=bw*(B/64);
+        arrow(bx+topW+midW+bucW/2,by+bh,bkSelX,bky,C.G+'88','');
+      }
+    }
+  }
+
+  // TOPHASH SCAN
+  if(s.step>=4){
+    const N=8;
+    const slotW=Math.floor(W*.88/N);
+    const slx=W*.06,sly=H*.6;
+    txt('tophash scan  in bucket #'+(s.bucket||0)+'  looking for 0x'+(s.top||'8F'),W*.5,sly-11,"9px 'Share Tech Mono'",C.B+'77');
+    const ths=s.tophash||['0x12','0x8F','0x34','0x8F','0x00','0x00','0x00','0x00'];
+    ths.forEach((v,i)=>{
+      const match=v==='0x'+(s.top||'8F')&&v!=='0x00';
+      const scanning=i===(s.scanAt||0)&&s.step===4;
+      const col=match?(s.step>=5?C.G:C.B):(scanning?C.A:C.B+'33');
+      const active=match||scanning;
+      box(slx+i*slotW,sly,slotW-2,34,col,active?col+'15':'transparent',active);
+      txt(v,slx+i*slotW+(slotW-2)/2,sly+17,"11px 'VT323'",active?col:col);
+      if(match&&s.step>=5){
+        txt('✓',slx+i*slotW+(slotW-2)/2,sly+34+8,"9px 'Share Tech Mono'",C.G);
+      }
+    });
+  }
+
+  // RESULT
+  if(s.result){
+    glow(s.result,W*.5,H*.86,"13px 'VT323'",s.rc||C.G);
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   SCENE 4: INSERT — flag → scan → write → grow?
+══════════════════════════════════════════════════ */
+function drawInsert(s){
+  scHdr('MAP INSERT — mapassign: FLAG → SCAN → WRITE → GROW?');
+
+  // WRITE FLAG indicator (top-center)
+  const fW=W*.38,fH=46,fx=(W-fW)/2,fy=H*.07;
+  const flagSet=s.flagSet||s.crash;
+  const fc=s.crash?C.R:flagSet?C.O:C.D;
+  box(fx,fy,fW,fH,fc,fc+(s.crash?'15':flagSet?'0a':'05'),flagSet||s.crash);
+  txt('hmap.flags  hashWriting = '+(flagSet?'1':'0'),fx+fW/2,fy+16,"10px 'Share Tech Mono'",fc);
+  if(s.crash){
+    txt('FATAL: concurrent map write',fx+fW/2,fy+32,"10px 'VT323'",C.R);
+    flashCA(200);
+  } else {
+    txt(flagSet?'write in progress — concurrent write → fatal':'safe to write',fx+fW/2,fy+32,"9px 'Share Tech Mono'",fc+'99');
+  }
+
+  // 8-SLOT BUCKET
+  const N=8,slotH=40;
+  const slotW=(W*.92)/N,slx=W*.04,sly=H*.25;
+  txt('bucket #'+(s.bucket||0),W*.5,sly-11,"9px 'Share Tech Mono'",'rgba(255,178,41,.4)');
+
+  const slots=s.slots||Array(N).fill('empty');
+  slots.forEach((state,i)=>{
+    const col=state==='empty'?'rgba(255,178,41,.2)':state==='target'?C.G:state==='match'?C.B:state==='full'?C.O:state==='update'?C.B:C.A+'44';
+    const active=state==='target'||state==='match'||state==='update';
+    box(slx+i*slotW+1,sly,slotW-3,slotH,col,active?col+'1a':'transparent',active);
+    const label=state==='empty'?'—':state==='target'?(s.key||'new'):state==='match'?'KEY✓':state==='update'?'UPDATE':state==='full'?'k'+i:'?';
+    txt(label,slx+i*slotW+slotW/2,sly+slotH/2,"11px 'VT323'",active?col.replace(/[0-9a-f]+$/,''):col);
+    // tophash below slot
+    const th=state==='empty'?'0x00':state==='target'||(s.top)?'0x'+(s.top||'AB'):'0x??';
+    txt(th,slx+i*slotW+slotW/2,sly+slotH+10,"9px 'VT323'",col+'88');
+  });
+
+  // LOAD FACTOR GAUGE
+  const count=parseFloat(s.count||'0');
+  const Bv=parseInt(s.B||'1');
+  const buckets=Math.pow(2,Bv);
+  const lf=count>0?(count/buckets).toFixed(2):'0.00';
+  const gx=W*.08,gy=H*.54,gw=W*.84,gh=18;
+
+  txt('LOAD FACTOR: '+count+' keys / '+buckets+' buckets = '+lf+'   threshold: 6.50',W*.5,gy-12,"10px 'Share Tech Mono'",'rgba(255,178,41,.5)');
+  // gauge background
+  box(gx,gy,gw,gh,'rgba(255,178,41,.15)','transparent');
+  // gauge fill
+  const pct=Math.min(parseFloat(lf)/10,1);
+  const gCol=parseFloat(lf)>6.5?C.R:parseFloat(lf)>5?C.O:C.G;
+  cx.save();cx.fillStyle=gCol+(parseFloat(lf)>6.5?'':' cc');cx.fillRect(gx,gy,gw*pct,gh);cx.restore();
+  box(gx,gy,gw,gh,'rgba(255,178,41,.15)','transparent');
+  // threshold line at 6.5/10
+  const tx=gx+gw*(6.5/10);
+  cx.save();cx.strokeStyle=C.R;cx.lineWidth=2;cx.setLineDash([4,3]);
+  cx.beginPath();cx.moveTo(tx,gy-8);cx.lineTo(tx,gy+gh+8);cx.stroke();cx.setLineDash([]);cx.restore();
+  txt('6.5',tx,gy-14,"9px 'Share Tech Mono'",C.R);
+
+  // overflow / grow messages
+  if(s.overflow)glow('OVERFLOW BUCKET ALLOCATED — chain appended',W*.5,H*.75,"12px 'VT323'",C.P);
+  if(s.growTrig)glow('hashGrow()  B: '+Bv+' → '+(Bv+1)+'  doubling buckets',W*.5,H*.82,"12px 'VT323'",C.O);
+  if(s.note&&!s.growTrig&&!s.overflow)txt(s.note,W*.5,H*.82,"10px 'Share Tech Mono'",s.nc||C.A,'center');
+}
+
+/* ══════════════════════════════════════════════════
+   SCENE 5: GROW/EVACUATE — side-by-side arrays with flow
+══════════════════════════════════════════════════ */
+function drawGrow(s){
+  scHdr('INCREMENTAL GROW — 1-2 BUCKETS EVACUATED PER WRITE (NO STW)');
+
+  const B=parseInt(s.B||'3');
+  const oldN=1<<(B-1), newN=1<<B;
+  const evac=parseInt(s.nevac||'0');
+  const maxOld=Math.min(oldN,8), maxNew=Math.min(newN,8);
+
+  // OLD ARRAY (left)
+  const ow=W*.38,oh=44,ox=W*.04;
+  const oy=H*.25;
+  txt('oldbuckets  [B='+(B-1)+']  '+oldN+' buckets',ox+ow/2,oy-16,"9px 'Share Tech Mono'",C.O+'88');
+  const obw=(ow-4)/maxOld;
+  for(let i=0;i<maxOld;i++){
+    const done=i<evac;
+    const col=done?C.O+'33':C.O;
+    box(ox+i*obw+2,oy,obw-2,oh,col,done?'transparent':C.O+'15',!done);
+    txt(i,ox+i*obw+2+obw/2-1,oy+20,"13px 'VT323'",done?C.O+'33':C.O);
+    if(done){
+      // checkmark
+      cx.save();cx.strokeStyle=C.O+'44';cx.lineWidth=1.5;
+      cx.beginPath();cx.moveTo(ox+i*obw+6,oy+oh/2);cx.lineTo(ox+i*obw+obw*.4,oy+oh*.7);cx.lineTo(ox+i*obw+obw*.8,oy+oh*.2);cx.stroke();cx.restore();
+    }
+    // evacuation arrows
+    if(done&&i<Math.min(evac,maxOld)){
+      const midX=ox+i*obw+2+obw/2;
+      const newX_x=W*.54+(i*2)*(W*.38/maxNew)/2;
+      const newY_x=W*.54+(i*2+1)*(W*.38/maxNew)/2;
+      arrow(midX,oy+oh,midX-6,H*.54,C.G+'55','X',true);
+      arrow(midX,oy+oh,midX+6,H*.54,C.B+'55','Y',true);
+    }
+  }
+  if(oldN>8)txt('+'+( oldN-8)+' more',ox+ow+6,oy+20,"8px 'Share Tech Mono'",C.O+'33','left');
+
+  // nevacuate PROGRESS BAR (center)
+  const pw=W*.5,px=(W-pw)/2,py=H*.44;
+  const pct=evac/Math.max(oldN,1);
+  txt('nevacuate = '+evac+' / '+oldN,W*.5,py-11,"10px 'Share Tech Mono'",C.P,'center');
+  box(px,py,pw,10,'rgba(168,85,247,.2)','transparent');
+  cx.save();cx.fillStyle=C.P;cx.fillRect(px,py,pw*pct,10);cx.restore();
+  box(px,py,pw,10,'rgba(168,85,247,.2)','transparent');
+
+  // X/Y label
+  txt('bit '+(B-1)+' of hash = 0 → X half (same index)',W*.32,py+22,"8px 'Share Tech Mono'",C.G+'88');
+  txt('bit '+(B-1)+' of hash = 1 → Y half (index + '+oldN+')',W*.68,py+22,"8px 'Share Tech Mono'",C.B+'88');
+
+  // NEW ARRAY (right, bigger)
+  const nw=W*.38,nh=44,nx=W*.58;
+  const ny=H*.55;
+  txt('buckets  [B='+B+']  '+newN+' buckets',nx+nw/2,ny-16,"9px 'Share Tech Mono'",C.G+'88');
+  const nbw=(nw-4)/maxNew;
+  for(let i=0;i<maxNew;i++){
+    const isX=i<evac;
+    const isY=i>=oldN&&i<oldN+evac;
+    const col=isX?C.G:isY?C.B:C.G+'22';
+    const active=isX||isY;
+    box(nx+i*nbw+2,ny,nbw-2,nh,col,active?col+'12':'transparent',active);
+    txt(i,nx+i*nbw+2+nbw/2-1,ny+14,"11px 'VT323'",active?col:C.G+'2a');
+    if(isX)txt('X',nx+i*nbw+2+nbw/2-1,ny+30,"8px 'Share Tech Mono'",C.G+'99');
+    if(isY)txt('Y',nx+i*nbw+2+nbw/2-1,ny+30,"8px 'Share Tech Mono'",C.B+'99');
+  }
+  if(newN>8)txt('+'+( newN-8)+' more',nx+nw+6,ny+20,"8px 'Share Tech Mono'",C.G+'22','left');
+
+  if(s.note)glow(s.note,W*.5,H*.84,"12px 'VT323'",s.nc||C.G);
+}
+
+/* ══════════════════════════════════════════════════
+   SCENE 6: CONCURRENT — race → fatal + solutions
+══════════════════════════════════════════════════ */
+function drawConcurrent(s){
+  scHdr('CONCURRENT MAP — NOT GOROUTINE-SAFE: FATAL (NOT PANIC)');
+
+  // Goroutine boxes
+  const gw=W*.28,gh=54,gy=H*.1;
+  const g1x=W*.06,g2x=W*.66;
+  const G1c=s.g1?C.B:C.B+'44',G2c=s.g2?C.O:C.O+'44';
+
+  box(g1x,gy,gw,gh,G1c,C.B+(s.g1?'0d':'05'),s.g1);
+  glow('goroutine 1',g1x+gw/2,gy+20,"11px 'VT323'",G1c);
+  txt(s.g1op||'_ = m["a"]',g1x+gw/2,gy+40,"9px 'Share Tech Mono'",G1c+'cc');
+
+  box(g2x,gy,gw,gh,G2c,C.O+(s.g2?'0d':'05'),s.g2);
+  glow('goroutine 2',g2x+gw/2,gy+20,"11px 'VT323'",G2c);
+  txt(s.g2op||'_ = m["b"]',g2x+gw/2,gy+40,"9px 'Share Tech Mono'",G2c+'cc');
+
+  // central MAP box
+  const mx=W*.34,my=H*.1,mw=W*.32,mh=54;
+  const mc=s.crash?C.R:s.conflict?C.O:C.A+'55';
+  box(mx,my,mw,mh,mc,mc+(s.crash?'15':s.conflict?'08':'04'),s.crash||s.conflict);
+  glow('map[K]V',mx+mw/2,my+18,"14px 'VT323'",mc);
+  txt('hashWriting = '+(s.conflict||s.crash?'CONFLICT':s.g1||s.g2?'1':'0'),mx+mw/2,my+38,"9px 'Share Tech Mono'",mc+'cc');
+
+  // arrows goroutines → map
+  if(s.g1)arrow(g1x+gw,gy+gh/2,mx,my+gh/2,C.B+'88','');
+  if(s.g2)arrow(g2x,gy+gh/2,mx+mw,my+gh/2,C.O+'88','');
+
+  // CRASH
+  if(s.crash){
+    glow('fatal error: concurrent map write',W*.5,H*.48,"15px 'VT323'",C.R);
+    txt('no recover()  •  no deferred funcs  •  program terminates',W*.5,H*.57,"10px 'Share Tech Mono'",C.R+'88');
+    // detection explanation
+    box(W*.2,H*.64,W*.6,32,'rgba(244,63,94,.25)',C.R+'0a');
+    txt('detection: hmap.flags bit 4 (hashWriting) checked on every write entry',W*.5,H*.64+16,"9px 'Share Tech Mono'",C.R+'aa');
+  }
+
+  // SOLUTIONS
+  if(s.sol){
+    const sols=[
+      {id:'mutex',  l:'sync.Mutex',   n:'universal',  sub:'all patterns, lowest overhead',c:C.G},
+      {id:'rw',     l:'sync.RWMutex', n:'read-heavy', sub:'multiple readers, one writer',c:C.B},
+      {id:'smap',   l:'sync.Map',     n:'read-mostly',sub:'stable key set, many readers',c:C.P},
+    ];
+    txt('SAFE ALTERNATIVES:',W*.5,H*.46,"9px 'Share Tech Mono'",'rgba(255,178,41,.4)');
+    const sw=W*.28,sgap=W*.02,totalW=sols.length*(sw+sgap)-sgap,startX=(W-totalW)/2;
+    sols.forEach((sol,i)=>{
+      const x=startX+i*(sw+sgap);
+      const active=s.sol===sol.id;
+      box(x,H*.5,sw,60,sol.c+(active?'':' 44'),active?sol.c+'12':'transparent',active);
+      glow(sol.l,x+sw/2,H*.5+20,"12px 'VT323'",sol.c+(active?'':' 66'));
+      txt(sol.n,x+sw/2,H*.5+36,"9px 'Share Tech Mono'",sol.c+(active?'':' 55'));
+      txt(sol.sub,x+sw/2,H*.5+50,"8px 'Share Tech Mono'",sol.c+(active?'88':' 33'));
+    });
+    txt('⚠  sync.Map is NOT a general replacement — write-heavy = worse than mutex+map',W*.5,H*.78,"9px 'Share Tech Mono'",C.O+'77');
+  }
+
+  if(s.note&&!s.crash&&!s.sol)txt(s.note,W*.5,H*.78,"10px 'Share Tech Mono'",s.nc||C.A,'center');
+}
+
+/* ─── DISPATCH ─── */
+function draw(step){
+  cx.clearRect(0,0,W,H);
+  switch(SCENE){
+    case'hmap':        drawHmap(step);       break;
+    case'bmap':        drawBmap(step);       break;
+    case'lookup':      drawLookup(step);     break;
+    case'insert':      drawInsert(step);     break;
+    case'grow':        drawGrow(step);       break;
+    case'concurrent':  drawConcurrent(step); break;
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   SCENE DATA
+══════════════════════════════════════════════════ */
+const SCENES={
+  hmap:{
+    label:'1. HMAP',
+    cx:`<strong>hmap</strong>: 56-byte header behind every Go map. A map variable is just a pointer to this struct.<br><br><strong>B</strong>: log₂(bucket count). B=3 → 8 buckets (2³). Always power of 2 so selection is bitwise AND.<br><br><strong>hash0</strong>: random seed per map — same key hashes differently in different maps (anti hash-flood).<br><br><strong>oldbuckets</strong>: nil normally. Non-nil only during grow = incremental, not stop-the-world.`,
+    hw:`<code>make(map[K]V)</code> allocates an hmap + bucket array of 2^B bmaps. The variable stores only a pointer to the header.<br><br>B is chosen so the initial load factor stays below 6.5. For an empty map, B=0 (1 bucket). For large hints, B is increased upfront.<br><br>hash0 randomized per map instance — prevents hash-flooding DoS where adversary provides keys that all map to the same bucket.`,
+    gc:`<span class="tag">56 bytes</span> hmap header on 64-bit — map variable = pointer (8 bytes)<br><span class="wtag">TRAP</span> nil map: reads return zero value, writes panic<br><span class="gtag">SEED</span> hash0 per map — same key, different maps, different buckets<br><span class="tag">2^B</span> bucket count — select via hash &amp; (2^B-1), not modulo<br><span class="gtag">INTERVIEW</span> "what is a Go map at runtime?" → pointer to hmap struct`,
+    code:[
+      '// runtime/map.go — map header (56 bytes on amd64)',
+      'type hmap struct {',
+      '    count      int            // number of live keys',
+      '    flags      uint8          // write-detect flag',
+      '    B          uint8          // log2(# of buckets)',
+      '    noverflow  uint16         // overflow bucket count',
+      '    hash0      uint32         // random seed per map',
+      '    buckets    unsafe.Pointer // *[2^B]bmap',
+      '    oldbuckets unsafe.Pointer // non-nil during grow',
+      '    nevacuate  uintptr        // evac progress (0..2^B-1)',
+      '}',
+      '',
+      '// make(map[K]V, hint) — simplified',
+      'func makemap(t *maptype, hint int) *hmap {',
+      '    h := new(hmap)',
+      '    h.hash0 = fastrand()      // anti hash-flood',
+      '    B := uint8(0)',
+      '    for overLoadFactor(hint, B) { B++ }',
+      '    h.B = B',
+      '    h.buckets = newarray(t.bucket, 1<<B)',
+      '    return h',
+      '}',
+      '// var m map[K]V  →  h = nil (zero value)',
+      '// m["x"]  →  ok, returns zero value',
+      '// m["x"] = 1  →  PANIC: assignment to nil map',
+    ],
+    steps:[
+      {phase:'init',  cl:1,  desc:'hmap struct: 56-byte header on the heap. The map variable on the stack is just an 8-byte pointer to it.',  hi:null, ptr:'nil',    B:null, count:'0', flags:'0x00', hash0:'...', bptr:'nil', oldptr:'nil', nevac:'0', noverfl:'0', ptrActive:false},
+      {phase:'hash',  cl:15, desc:'fastrand() generates hash0: a random 32-bit seed. Every map gets its own seed — same key produces different hashes in different maps.',  hi:'hash0', ptr:'0xc0002f0000', B:null, count:'0', flags:'0x00', hash0:'0x5f3a1c2b', bptr:'nil', oldptr:'nil', nevac:'0', noverfl:'0', ptrActive:true},
+      {phase:'init',  cl:17, desc:'B chosen so initial load stays below 6.5. Hint=0 → B=0 (1 bucket). Hint=100 → B=4 (16 buckets).', hi:'B', ptr:'0xc0002f0000', B:'3', count:'0', flags:'0x00', hash0:'0x5f3a1c2b', bptr:'0xc000a0', oldptr:'nil', nevac:'0', noverfl:'0', ptrActive:true},
+      {phase:'insert',cl:4,  desc:'After 6 inserts: count=6. B=3 = 8 buckets. Load = 6/8 = 0.75 — well below 6.5 threshold.', hi:'count', ptr:'0xc0002f0000', B:'3', count:'6', flags:'0x00', hash0:'0x5f3a1c2b', bptr:'0xc000a0', oldptr:'nil', nevac:'0', noverfl:'0', ptrActive:true},
+      {phase:'grow',  cl:8,  desc:'count=53, B=3 → load=6.6 > 6.5: hashGrow triggered. oldbuckets=old array. New 16-bucket array at bptr. B→4.', hi:'oldbuckets', ptr:'0xc0002f0000', B:'4', count:'53', flags:'0x00', hash0:'0x5f3a1c2b', bptr:'0xc000b0', oldptr:'0xc000a0', nevac:'0', noverfl:'0', ptrActive:true, growing:true},
+      {phase:'evac',  cl:9,  desc:'nevacuate advances per write. Old buckets evacuated incrementally — 1-2 per map write. No stop-the-world.', hi:'nevacuate', ptr:'0xc0002f0000', B:'4', count:'53', flags:'0x00', hash0:'0x5f3a1c2b', bptr:'0xc000b0', oldptr:'0xc000a0', nevac:'11', noverfl:'0', ptrActive:true, growing:true},
+      {phase:'done',  cl:9,  desc:'nevacuate=16=oldN. Grow complete. oldbuckets freed by GC. B=4: 16 buckets. Load=53/16=3.3.', hi:null, ptr:'0xc0002f0000', B:'4', count:'53', flags:'0x00', hash0:'0x5f3a1c2b', bptr:'0xc000b0', oldptr:'nil', nevac:'0', noverfl:'0', ptrActive:true},
+    ],
+  },
+  bmap:{
+    label:'2. BUCKET',
+    cx:`<strong>bmap</strong>: one bucket holds up to 8 key-value pairs.<br><br><strong>tophash[8]</strong>: top 8 bits of each key's hash. Fast pre-filter: check 1 byte before calling the expensive key equality function.<br><br><strong>Layout</strong>: tophash[8] → keys[8] → values[8] → overflow. Keys grouped separately from values to minimize struct padding.<br><br><strong>Reserved values</strong>: tophash 0–4 are state flags (empty/evacuated). Real hashes start at minTopHash=5.`,
+    hw:`Keys and values are not interleaved as {k,v} pairs — they are stored in two separate flat arrays. This avoids struct alignment padding. For a map[int64]int64, interleaving would waste no bytes, but for map[string]bool, interleaving would add 7 bytes padding per slot.<br><br>The tophash prefix check is critical for performance. On a miss, the runtime compares one byte instead of calling the potentially complex key equality function.`,
+    gc:`<span class="tag">8 slots</span> per bucket — designed to fit in 1-2 CPU cache lines<br><span class="gtag">FILTER</span> tophash pre-check: most misses = 1 byte compare<br><span class="wtag">TRAP</span> tophash 0–4 are state flags — not real hash values<br><span class="tag">Layout</span> keys packed, values packed — NOT {key,val} interleaved<br><span class="gtag">INTERVIEW</span> "why store tophash separately?" — fast rejection before key.equal()`,
+    code:[
+      '// bmap: one bucket (layout shown by compiler)',
+      'type bmap struct {',
+      '    tophash [8]uint8',
+      '    // implicit (added by compiler):',
+      '    // keys   [8]K',
+      '    // values [8]V',
+      '    // overflow *bmap',
+      '}',
+      '',
+      '// tophash special values (0..4 reserved):',
+      'const (',
+      '    emptyRest      = 0  // slot empty, no more after',
+      '    emptyOne       = 1  // this slot empty',
+      '    evacuatedX     = 2  // moved to low-half bucket',
+      '    evacuatedY     = 3  // moved to high-half bucket',
+      '    evacuatedEmpty = 4  // was empty, evacuation done',
+      '    minTopHash     = 5  // min valid stored tophash',
+      ')',
+      '',
+      '// stored tophash = (hash >> 56)',
+      '// if result < minTopHash: add minTopHash',
+      '',
+      '// Memory layout advantage (map[string]bool):',
+      '// Grouped:     [key0..key7] [val0..val7]  = 0 waste',
+      '// Interleaved: [{key,val}×8] = 7 bytes padding each',
+    ],
+    steps:[
+      {phase:'init',   cl:1,  desc:'Empty bmap. All 8 tophash slots = 0 (emptyRest: this slot is empty AND no more keys follow).', slot:-1, th:Array(8).fill('0x00'), ks:Array(8).fill('—'), vs:Array(8).fill('—'), ov:null, note:'tophash=0 means emptyRest: scan can stop early at first 0x00', nc:'rgba(96,165,250,.7)'},
+      {phase:'insert', cl:1,  desc:'Insert "cat" → tophash[0] = 0xAB. Written to slot 0. tophash stored FIRST for fast scan.', slot:0, th:['0xAB','0x00','0x00','0x00','0x00','0x00','0x00','0x00'], ks:['"cat"','—','—','—','—','—','—','—'], vs:['42','—','—','—','—','—','—','—'], ov:null, note:'tophash pre-filter: no key equality call needed for slots 1-7'},
+      {phase:'insert', cl:1,  desc:'Slots 0–3 filled. Keys grouped in keys[0..3], values in values[0..3]. Note layout: NOT interleaved.', slot:3, th:['0xAB','0x3F','0xC2','0x77','0x00','0x00','0x00','0x00'], ks:['"cat"','"dog"','"elk"','"fox"','—','—','—','—'], vs:['42','7','99','13','—','—','—','—'], ov:null, note:'keys grouped + values grouped = less padding than interleaved {k,v}×8', nc:'rgba(74,222,128,.7)'},
+      {phase:'insert', cl:1,  desc:'All 8 slots occupied. Bucket is now full. Next insert to this bucket needs an overflow bmap.', slot:7, th:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'], ks:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'], vs:['42','7','99','13','5','88','17','2'], ov:null, note:'last slot filled — next insert triggers overflow allocation', nc:'rgba(249,115,22,.7)'},
+      {phase:'warn',   cl:1,  desc:'Overflow: a new bmap allocated and chained via overflow pointer. Lookup must now traverse the chain.', slot:-1, th:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'], ks:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'], vs:['42','7','99','13','5','88','17','2'], ov:'0xc0008f00', note:'too many overflow buckets → triggers same-size grow (cleanup)', nc:'rgba(168,85,247,.7)'},
+    ],
+  },
+  lookup:{
+    label:'3. LOOKUP',
+    cx:`<strong>Step 1:</strong> hash(key, seed) → 64-bit value<br><strong>Step 2:</strong> bucket index = hash &amp; (2^B - 1) — bottom B bits. Bitwise AND, not division.<br><strong>Step 3:</strong> tophash target = hash &gt;&gt; 56 — top 8 bits<br><strong>Step 4:</strong> scan tophash[8] in bucket: compare one byte at a time<br><strong>Step 5:</strong> on tophash match → full key equality. On mismatch → skip (cheap)`,
+    hw:`Lookup is a two-level filter. Level 1: bucket selection uses bottom B bits — this is a bit mask, extremely fast. Level 2: inside the bucket, the 8-byte tophash array is scanned. Each slot costs one byte comparison.<br><br>Only when a tophash byte matches does the runtime invoke key.equal() — which for strings involves comparing length + memory. The tophash pre-filter eliminates ~99% of comparisons on well-distributed maps.`,
+    gc:`<span class="gtag">O(1)</span> amortized — O(n) worst case with degenerate hash function<br><span class="tag">bucket select</span> hash &amp; (2^B-1) — bitwise AND, not expensive modulo<br><span class="tag">tophash</span> top 8 bits — fast rejection (1 byte) before key.equal()<br><span class="wtag">TRAP</span> grow in progress: lookup may silently read from oldbuckets<br><span class="gtag">INTERVIEW</span> "two-level lookup?" → bit-mask bucket select, tophash pre-filter`,
+    code:[
+      '// m[key]  →  mapaccess1(t, h, key)',
+      'func mapaccess1(t *maptype, h *hmap,',
+      '    key unsafe.Pointer) unsafe.Pointer {',
+      '    if h == nil || h.count == 0 { return zeroptr }',
+      '    // 1. Hash key with random seed',
+      '    hash := t.hasher(key, uintptr(h.hash0))',
+      '    // 2. Select bucket (low B bits)',
+      '    m := bucketMask(h.B)              // (1<<B)-1',
+      '    b := bucketAt(h.buckets, hash&m)',
+      '    // 3. During grow: may need oldbuckets',
+      '    if c := h.oldbuckets; c != nil {',
+      '        oldb := bucketAt(c, hash&(m>>1))',
+      '        if !evacuated(oldb) { b = oldb }',
+      '    }',
+      '    // 4. Top 8 bits = tophash target',
+      '    top := tophash(hash)              // hash >> 56',
+      '    // 5. Scan bucket chain',
+      '    for ; b != nil; b = b.overflow(t) {',
+      '        for i := uintptr(0); i < 8; i++ {',
+      '            if b.tophash[i] != top {',
+      '                if b.tophash[i] == emptyRest { break }',
+      '                continue',
+      '            }',
+      '            k := add(unsafe.Pointer(b), dataOffset+i*uintptr(t.keysize))',
+      '            if t.key.equal(key, k) {',
+      '                return add(unsafe.Pointer(b), valOffset+i*uintptr(t.valuesize))',
+      '            }',
+      '        }',
+      '    }',
+      '    return zeroptr // key not found',
+      '}',
+    ],
+    steps:[
+      {phase:'init',   cl:1,  step:0, key:'hello', B:'3', hashval:'8F3C01', bucket:undefined, top:undefined, tophash:Array(8).fill('0x00'), keyMatch:false, result:null, scanAt:0, desc:'Lookup m["hello"]. Runtime calls mapaccess1. First: check nil/empty map.'},
+      {phase:'hash',   cl:5,  step:1, key:'hello', B:'3', hashval:'8F3C01', bucket:undefined, top:undefined, tophash:Array(8).fill('0x00'), keyMatch:false, result:null, scanAt:0, desc:'hash("hello", seed=0x5f3a) = 0x8F...01. 64-bit result used to find bucket and tophash.'},
+      {phase:'hash',   cl:7,  step:2, key:'hello', B:'3', hashval:'8F3C01', bucket:1,         top:'8F',       tophash:Array(8).fill('0x00'), keyMatch:false, result:null, scanAt:0, desc:'Hash split: top 8 bits = 0x8F (tophash target). Low 3 bits (B=3) = bucket #1.'},
+      {phase:'lookup', cl:8,  step:3, key:'hello', B:'3', hashval:'8F3C01', bucket:1,         top:'8F',       tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'], keyMatch:false, result:null, scanAt:0, desc:'Navigate to bucket #1. Found: contains 4 keys. Top 8 bits = 0x8F. Start tophash scan.'},
+      {phase:'lookup', cl:20, step:4, key:'hello', B:'3', hashval:'8F3C01', bucket:1,         top:'8F',       tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'], keyMatch:false, result:null, scanAt:1, desc:'tophash[0]=0x44 ≠ 0x8F: SKIP (1 byte compare, no key.equal call). tophash[1]=0x8F: MATCH — call key.equal.'},
+      {phase:'lookup', cl:24, step:5, key:'hello', B:'3', hashval:'8F3C01', bucket:1,         top:'8F',       tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'], keyMatch:true,  result:'FOUND → &values[1]', rc:C.G, scanAt:1, desc:'key.equal("hello", keys[1]) = true. Return pointer to values[1]. Value will be read by caller.'},
+      {phase:'done',   cl:28, step:5, key:'missing', B:'3', hashval:'1C3301', bucket:5,        top:'1C',       tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'], keyMatch:false, result:'NOT FOUND → zeroptr (no allocation)', rc:C.O, scanAt:0, desc:'Key "missing" → bucket #5. All tophash scanned, no match. Returns &zeroVal. No panic, no allocation.'},
+    ],
+  },
+  insert:{
+    label:'4. INSERT',
+    cx:`<strong>Write flag:</strong> hashWriting bit set at start. Concurrent write → fatal() (not panic)<br><strong>Scan:</strong> look for existing key (update) AND track first empty slot (insert)<br><strong>Overflow:</strong> all 8 slots full → allocate new overflow bmap, chain to current<br><strong>Grow triggers:</strong><br>  1. Load factor &gt; 6.5 → double buckets (B++)<br>  2. Too many overflow buckets → same-size grow (cleanup)`,
+    hw:`The insertion path has to handle two cases simultaneously: updating an existing key and inserting a new one. It scans through the bucket tracking both the first empty slot (inserti) and any tophash+key match. If a match is found, the value pointer is returned for in-place update. Otherwise the saved empty slot is used.<br><br>The load factor threshold of 6.5 is higher than Java's 0.75 because Go's 8-slot bucket design amortizes collisions more aggressively.`,
+    gc:`<span class="wtag">FATAL</span> concurrent write = fatal — no recover(), no deferred functions<br><span class="tag">6.5</span> load factor threshold (Java HashMap uses 0.75 — different tradeoff)<br><span class="gtag">UPDATE</span> existing key: value written in-place, no memory allocation<br><span class="wtag">TRAP</span> &amp;m[key] does not compile — map values not addressable<br><span class="gtag">INTERVIEW</span> "what triggers grow?" → load &gt; 6.5 OR too many overflow buckets`,
+    code:[
+      '// m[key] = val  →  mapassign(t, h, key) → *val',
+      'func mapassign(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {',
+      '    // Detect concurrent write (not panic — fatal)',
+      '    if h.flags&hashWriting != 0 {',
+      '        fatal("concurrent map writes")',
+      '    }',
+      '    h.flags ^= hashWriting    // set write flag',
+      '',
+      '    hash := t.hasher(key, uintptr(h.hash0))',
+      '    b := bucketAt(h.buckets, hash&bucketMask(h.B))',
+      '    top := tophash(hash)',
+      '',
+      '    var inserti *uint8         // empty slot (tophash ptr)',
+      '    var insertk unsafe.Pointer // empty slot (key ptr)',
+      '',
+      '    for ; b != nil; b = b.overflow(t) {',
+      '        for i := uintptr(0); i < 8; i++ {',
+      '            if b.tophash[i] != top {',
+      '                if isEmpty(b.tophash[i]) && inserti == nil {',
+      '                    inserti = &b.tophash[i] // save empty slot',
+      '                }',
+      '                continue',
+      '            }',
+      '            k := bucketKey(b, i)',
+      '            if !t.key.equal(key, k) { continue }',
+      '            return bucketVal(b, i) // UPDATE in-place',
+      '        }',
+      '    }',
+      '    // Grow check before allocating new slot',
+      '    if overLoadFactor(h.count+1, h.B) ||',
+      '       tooManyOverflowBuckets(h.noverflow, h.B) {',
+      '        hashGrow(t, h)',
+      '    }',
+      '    h.flags &^= hashWriting    // clear write flag',
+      '    return inserti              // caller writes value here',
+      '}',
+    ],
+    steps:[
+      {phase:'init',   cl:3,  desc:'m["newkey"]=99. Enter mapassign. Set hashWriting flag. Any concurrent write now → fatal error.', flagSet:true,  slots:Array(8).fill('empty'),                                                         bucket:'0', count:'0',  B:'1', key:'newkey', top:'AB', overflow:false, growTrig:false},
+      {phase:'insert', cl:15, desc:'Scan bucket. All slots empty. Save slot 0 as inserti. No existing key found → INSERT path.', flagSet:true,  slots:['target','empty','empty','empty','empty','empty','empty','empty'],           bucket:'0', count:'1',  B:'1', key:'newkey', top:'AB', overflow:false, growTrig:false, note:'write tophash[0]=0xAB, copy key, return &values[0] for caller'},
+      {phase:'lookup', cl:22, desc:'count=3, B=1. On next insert of "key0" (already exists): tophash match + key.equal → UPDATE in-place. No alloc.', flagSet:true,  slots:['match','match','match','empty','empty','empty','empty','empty'],         bucket:'0', count:'3',  B:'1', key:'key0',   top:'AB', overflow:false, growTrig:false, note:'update path: return existing value pointer, no slot allocation'},
+      {phase:'warn',   cl:27, desc:'All 8 slots full. Overflow bucket allocated and chained. Lookup now must traverse the chain.', flagSet:true,  slots:Array(8).fill('full'),                                                       bucket:'0', count:'8',  B:'1', key:'9th',    top:'EE', overflow:true, growTrig:false},
+      {phase:'grow',   cl:27, desc:'count=14, B=1, load=14/2=7.0 > 6.5. hashGrow! B→2 (4 buckets). Evacuation begins incrementally.', flagSet:false, slots:Array(8).fill('full'),                                                       bucket:'0', count:'14', B:'1', key:null,     top:null, overflow:false, growTrig:true},
+      {phase:'done',   cl:30, desc:'hashWriting flag cleared. Write complete. count=6, B=2, load=6/4=1.5. Map ready for next operation.', flagSet:false, slots:['match','match','match','target','empty','empty','empty','empty'],         bucket:'0', count:'6',  B:'2', key:'newkey',  top:'AB', overflow:false, growTrig:false, note:'O(1) amortized — grow cost spread across O(count) subsequent operations'},
+    ],
+  },
+  grow:{
+    label:'5. GROW',
+    cx:`<strong>Two grow modes:</strong><br>1. Load &gt; 6.5 → B++ (double buckets)<br>2. Too many overflows → same B (compaction)<br><br><strong>Incremental:</strong> no stop-the-world. 1-2 old buckets evacuated per map write.<br><br><strong>X/Y split:</strong> one old bucket splits into two new buckets. Bit (B-1) of hash determines which: 0→X (same index), 1→Y (index+oldN).<br><br><strong>Read-safe:</strong> lookups check evacuated() flag and use oldbuckets if needed.`,
+    hw:`When hashGrow is called, the old bucket array is saved in oldbuckets and a new array is allocated (double size for load grow, same size for overflow cleanup). The old data is NOT moved immediately.<br><br>Each subsequent map write calls evacuate() for 1-2 old buckets, advancing nevacuate. This amortizes the O(n) cost of rehashing across O(n) subsequent writes, keeping per-operation latency bounded.<br><br>Once nevacuate reaches the old bucket count, oldbuckets is freed and GC reclaims the memory.`,
+    gc:`<span class="gtag">INCREMENTAL</span> no stop-the-world — 1-2 buckets per write<br><span class="tag">X/Y split</span> old bucket → 2 new buckets, determined by one extra hash bit<br><span class="tag">2 modes</span> load grow (B++) vs overflow cleanup (same B)<br><span class="wtag">TRAP</span> for-range during grow: key order non-deterministic (by design)<br><span class="gtag">INTERVIEW</span> "is Go map grow STW?" → No, incremental via nevacuate`,
+    code:[
+      '// hashGrow: triggered when load>6.5 or overflow excess',
+      'func hashGrow(t *maptype, h *hmap) {',
+      '    bigger := uint8(1)  // default: double buckets',
+      '    if !overLoadFactor(h.count+1, h.B) {',
+      '        bigger = 0       // overflow-only: same B',
+      '    }',
+      '    h.oldbuckets = h.buckets',
+      '    h.buckets = newarray(t.bucket, 1<<(h.B+bigger))',
+      '    h.B += bigger',
+      '    h.nevacuate = 0',
+      '    // OLD data still in oldbuckets! Not moved yet.',
+      '}',
+      '',
+      '// evacuate: called 1-2x per write during grow',
+      'func evacuate(t *maptype, h *hmap, oldbucket uintptr) {',
+      '    b := (*bmap)(add(h.oldbuckets, oldbucket*uintptr(t.bucketsize)))',
+      '    newbit := h.noldbuckets()  // = 1 << (h.B-1)',
+      '    for ; b != nil; b = b.overflow(t) {',
+      '        for i := uintptr(0); i < 8; i++ {',
+      '            // extra hash bit selects X or Y destination',
+      '            useY := hash&newbit != 0',
+      '            // copy tophash, key, value to dst bucket',
+      '            setxy(dst, useY, b, i)',
+      '        }',
+      '    }',
+      '    h.nevacuate++',
+      '    if h.nevacuate == newbit {',
+      '        h.oldbuckets = nil  // GC can reclaim now',
+      '    }',
+      '}',
+    ],
+    steps:[
+      {phase:'init',   cl:1,  desc:'B=2: 4 old buckets. count=28, load=28/4=7.0 > 6.5. hashGrow() called. bigger=1 (load-based grow).', B:'3', nevac:'0', note:'oldbuckets saved, new 8-bucket array allocated. B: 2 → 3', nc:C.O},
+      {phase:'grow',   cl:6,  desc:'New array at h.buckets. Old array at h.oldbuckets. nevacuate=0. No keys moved yet — both arrays coexist.', B:'3', nevac:'0', note:'all reads/writes still work: runtime checks both arrays transparently', nc:C.A},
+      {phase:'evac',   cl:14, desc:'First write after grow: evacuate(oldbucket=0). Keys with hash-bit(B-1)=0 → X=bucket[0], bit=1 → Y=bucket[4].', B:'3', nevac:'1', note:'bucket 0 evacuated: keys split by one additional hash bit', nc:C.G},
+      {phase:'evac',   cl:23, desc:'nevacuate=2. Old buckets 0,1 done. Keys in buckets 2,3 still in oldbuckets. Lookups route correctly.', B:'3', nevac:'2', note:'incremental: each write pays bounded evacuation cost', nc:C.G},
+      {phase:'evac',   cl:23, desc:'nevacuate=3. One old bucket remaining. Growing transparently during normal map operations.', B:'3', nevac:'3', note:'evacuated() check on every lookup: if not done, use oldbuckets', nc:C.B},
+      {phase:'done',   cl:25, desc:'nevacuate=4=oldN. All evacuated. oldbuckets=nil. GC reclaims old array. B=3: 8 buckets, load=28/8=3.5.', B:'3', nevac:'4', note:'grow complete — no goroutine ever blocked during this process', nc:C.G},
+    ],
+  },
+  concurrent:{
+    label:'6. CONCURRENT',
+    cx:`<strong>Not goroutine-safe:</strong> concurrent writes or write+read = fatal()<br><strong>Detection:</strong> hmap.flags hashWriting bit — checked on every write entry<br><strong>Fatal, not panic:</strong> no recover(), no deferred cleanup, program dies<br><br><strong>Fix options:</strong><br>• sync.Mutex — simplest, works for all patterns<br>• sync.RWMutex — multiple concurrent readers allowed<br>• sync.Map — ONLY for read-mostly stable key sets`,
+    hw:`The fatal detection is intentional. A data race on a map can corrupt internal pointer fields (buckets, oldbuckets), causing silent memory corruption that would be very hard to debug. A crash is safer than silent corruption.<br><br>sync.Map uses a two-map design (read-only map + dirty map with a mutex). Reads from the read-only map are lock-free. This is optimal for a specific pattern: many goroutines reading the same stable set of keys. For any write-heavy or key-churn workload, the overhead of maintaining the dirty map makes sync.Map slower than a plain mutex + map.`,
+    gc:`<span class="wtag">FATAL</span> concurrent write: fatal error — recover() does NOT work<br><span class="gtag">RACE DETECTOR</span> go test -race: catches map data races with full stack trace<br><span class="wtag">TRAP</span> sync.Map is NOT faster than mutex+map for write-heavy loads<br><span class="gtag">sync.Map SWEET SPOT</span> read-mostly, stable keys, many goroutines reading simultaneously<br><span class="tag">Detection</span> hashWriting bit: one byte check at start of every write`,
+    code:[
+      '// Maps are NOT goroutine-safe.',
+      '// Concurrent write+write or write+read = FATAL',
+      '',
+      '// RACE (both bad):',
+      'go func() { m["a"] = 1 }()',
+      'go func() { m["b"] = 2 }()',
+      '// → fatal error: concurrent map writes',
+      '',
+      '// FIX 1: sync.Mutex (simple, universal)',
+      'var mu sync.Mutex',
+      'mu.Lock(); m[key] = val; mu.Unlock()',
+      'mu.Lock(); v := m[key]; mu.Unlock()',
+      '',
+      '// FIX 2: sync.RWMutex (read-heavy)',
+      'rw.Lock();   m[key] = val; rw.Unlock()',
+      'rw.RLock();  v := m[key]; rw.RUnlock()',
+      '',
+      '// FIX 3: sync.Map (read-mostly, stable keys)',
+      'var sm sync.Map',
+      'sm.Store(key, val)        // write',
+      'v, ok := sm.Load(key)     // read (lock-free)',
+      '',
+      '// sync.Map internals: read-only map + dirty map',
+      '// Reads: check read-only (lock-free atomic)',
+      '// Writes: lock dirty map, promote if miss ratio high',
+      '// Write-heavy: worse than sync.Mutex + map[K]V',
+    ],
+    steps:[
+      {phase:'init',   cl:1,  desc:'Concurrent map access is a fatal error in Go. Even concurrent reads + write is fatal.', g1:false, g2:false, g1op:'_ = m["a"]', g2op:'_ = m["b"]', conflict:false, crash:false, sol:null},
+      {phase:'hash',   cl:5,  desc:'Goroutine 1 starts m["a"]=1. Sets hashWriting flag in hmap.flags. Flag is now 1.', g1:true,  g2:false, g1op:'m["a"] = 1', g2op:'waiting...', conflict:false, crash:false, sol:null},
+      {phase:'crash',  cl:5,  desc:'Goroutine 2 tries m["b"]=2. Enters mapassign. Checks flags: hashWriting=1. Calls fatal() immediately.', g1:true,  g2:true,  g1op:'m["a"] = 1', g2op:'m["b"] = 2', conflict:true,  crash:true,  sol:null},
+      {phase:'warn',   cl:6,  desc:'fatal() — NOT panic(). No recover(). No deferred functions run. Use go test -race to catch before production.', g1:false, g2:false, g1op:'terminated', g2op:'terminated', conflict:false, crash:false, sol:null, note:'go test -race: race detector catches this at test time with full goroutine stacks', nc:C.O},
+      {phase:'insert', cl:9,  desc:'Fix 1: sync.Mutex. Lock before every read AND write. Simple, correct, minimal overhead for typical patterns.', g1:false, g2:false, g1op:'mu.Lock(); m["a"]=1', g2op:'mu.Lock(); m["b"]=2', conflict:false, crash:false, sol:'mutex'},
+      {phase:'lookup', cl:14, desc:'Fix 2: sync.RWMutex. Multiple goroutines can read simultaneously. Writer gets exclusive access.', g1:false, g2:false, g1op:'rw.RLock(); v=m["a"]', g2op:'rw.Lock(); m["b"]=2', conflict:false, crash:false, sol:'rw'},
+      {phase:'done',   cl:19, desc:'Fix 3: sync.Map — ONLY good for read-mostly stable keys. Write-heavy: use mutex+map instead.', g1:false, g2:false, g1op:'sm.Load("a")', g2op:'sm.Store("b",2)', conflict:false, crash:false, sol:'smap'},
+    ],
+  },
+};
+
+/* ─── PLAYBACK ─── */
+let SCENE='hmap';
+const PLAY={steps:[],idx:0,playing:false,timer:null,speed:800};
+
+function applyStep(step){
+  draw(step);
+  const b=document.getElementById('badge');
+  b.textContent=step.phase.toUpperCase();b.className='badge '+step.phase;
+  document.getElementById('dtxt').textContent=step.desc;
+  const tot=PLAY.steps.length;
+  document.getElementById('pbar').style.width=(tot>1?(PLAY.idx/(tot-1)*100):0)+'%';
+  document.getElementById('sc').textContent=(PLAY.idx+1)+'/'+tot;
+  // stats
+  document.getElementById('s-cnt').textContent=step.count||'—';
+  document.getElementById('s-b').textContent=step.B||'—';
+  const bv=parseInt(step.B||'0');
+  document.getElementById('s-bk').textContent=bv?Math.pow(2,bv):'—';
+  const lf=step.count&&step.B?(parseFloat(step.count)/Math.pow(2,bv)).toFixed(2):'—';
+  const lfEl=document.getElementById('s-lf');lfEl.textContent=lf;
+  lfEl.style.color=parseFloat(lf)>6.5?'var(--r)':parseFloat(lf)>5?'var(--o)':'var(--c)';
+  document.getElementById('s-ov').textContent=step.overflow?'yes':(step.noverfl||step.ov||'—');
+  // code
+  renderCode(SCENES[SCENE].code, step.cl>=0?step.cl:-1);
+  snd(step.phase);
+}
+function next(){if(PLAY.idx<PLAY.steps.length-1){PLAY.idx++;applyStep(PLAY.steps[PLAY.idx]);}}
+function prev(){if(PLAY.idx>0){PLAY.idx--;applyStep(PLAY.steps[PLAY.idx]);}}
+function togglePlay(){
+  if(PLAY.playing){clearInterval(PLAY.timer);PLAY.playing=false;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}
+  else{PLAY.playing=true;document.getElementById('pb').textContent='⏸ PAUSE';document.getElementById('pb').classList.add('pl');
+    PLAY.timer=setInterval(()=>{if(PLAY.idx<PLAY.steps.length-1)next();else{clearInterval(PLAY.timer);PLAY.playing=false;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}},PLAY.speed);}
+}
+function doReset(){if(PLAY.playing)togglePlay();PLAY.idx=0;if(PLAY.steps.length)applyStep(PLAY.steps[0]);}
+function setSpd(v){PLAY.speed=Math.round(2300-v*210);if(PLAY.playing){clearInterval(PLAY.timer);PLAY.timer=setInterval(()=>{if(PLAY.idx<PLAY.steps.length-1)next();else{clearInterval(PLAY.timer);PLAY.playing=false;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}},PLAY.speed);}}
+
+function selectScene(key){
+  if(PLAY.playing)togglePlay();
+  SCENE=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENES[key];
+  PLAY.steps=sc.steps;PLAY.idx=0;
+  document.getElementById('ri-cx').innerHTML=sc.cx;
+  document.getElementById('ri-hw').innerHTML=sc.hw;
+  document.getElementById('ri-gc').innerHTML=sc.gc;
+  renderCode(sc.code,-1);
+  applyStep(sc.steps[0]);
+}
+
+function buildTabs(){
+  const order=[['hmap','1. HMAP'],['bmap','2. BUCKET'],['lookup','3. LOOKUP'],['insert','4. INSERT'],['grow','5. GROW'],['concurrent','6. CONCURRENT']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  if(e.key==='ArrowRight')next();
+  else if(e.key==='ArrowLeft')prev();
+  else if(e.key===' '){e.preventDefault();togglePlay();}
+  else if(e.key==='r'||e.key==='R')doReset();
+  else if(e.key==='m'||e.key==='M')toggleMute();
+  else if(e.key==='1')selectScene('hmap');
+  else if(e.key==='2')selectScene('bmap');
+  else if(e.key==='3')selectScene('lookup');
+  else if(e.key==='4')selectScene('insert');
+  else if(e.key==='5')selectScene('grow');
+  else if(e.key==='6')selectScene('concurrent');
+});
+
+/* ─── BOOT ─── */
+(function boot(){
+  const term=document.getElementById('blog'),fill=document.getElementById('bfill');
+  const lines=[
+    ['Randomizing hash seed (fastrand)','0x5f3a1c2b'],
+    ['Allocating hmap header','56 bytes'],
+    ['Computing B from load hint','B=3 → 8 buckets'],
+    ['Initializing bmap tophash[]','emptyRest = 0'],
+    ['Loading evacuation engine','incremental'],
+    ['Calibrating load factor','threshold 6.5'],
+    ['MAP.VIZ READY',''],
+  ];
+  let i=0;
+  function nxt(){
+    if(i>=lines.length){setTimeout(start,350);return;}
+    const[msg,ok]=lines[i];
+    const d=document.createElement('div');d.className='bline';
+    d.innerHTML=`<span>${msg}</span><span class="bok">${ok||(i===lines.length-1?'<span class="bcur"></span>':'')}</span>`;
+    term.appendChild(d);setTimeout(()=>d.classList.add('v'),20);
+    fill.style.width=((i+1)/lines.length*100)+'%';
+    i++;setTimeout(nxt,i===lines.length?300:110);
+  }
+  setTimeout(nxt,200);
+})();
+
+function start(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  window.addEventListener('resize',resize);
+  resize();
+  setTimeout(()=>selectScene('hmap'),200);
+}
+</script>
+</body>
+</html>

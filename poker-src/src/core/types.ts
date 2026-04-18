@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type BettingStructure = 'nl' | 'pl' | 'fl'; // No-Limit, Pot-Limit, Fixed-Limit
-export type GameVariant = 'holdem' | 'omaha' | 'shortdeck' | 'pineapple' | 'crazypineapple' | 'irish';
+export type GameVariant = 'holdem' | 'omaha' | 'shortdeck' | 'pineapple' | 'crazypineapple' | 'irish' | 'joker';
 export type HoleCardCount = 2 | 3 | 4;
 
 export interface GameConfig {
@@ -50,8 +50,8 @@ export interface Action {
   discardIndices?: number[];
 }
 
-/** Numeric category of a 5-card hand, 0 (high card) through 8 (straight flush). */
-export type HandCategory = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+/** Numeric category of a 5-card hand, 0 (high card) through 9 (five of a kind). */
+export type HandCategory = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export interface HandRank {
   /** Packed integer — higher = better. Directly comparable. */
@@ -111,6 +111,13 @@ export interface GameState {
   folded: boolean[];
   /** Last raise size (delta, not total). Used to compute min-raise. */
   lastRaiseSize: number;
+
+  /**
+   * Optional per-hand blind override — set by the tournament layer before
+   * each hand to reflect the current blind level. When null, the engine
+   * falls back to SB_AMOUNT / BB_AMOUNT constants from rules.ts (cash mode).
+   */
+  blinds: { sb: number; bb: number; ante: number } | null;
 
   /** true once one player has all chips and nobody can play further. */
   gameOver: boolean;

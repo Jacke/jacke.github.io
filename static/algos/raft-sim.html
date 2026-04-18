@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFT.SIM v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;
+  --green:#4ade80;--red:#f43f5e;--purple:#a855f7;
+  --blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;
+  --font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.48) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber),0 0 80px rgba(255,178,41,.28);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}
+.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+
+/* HEADER */
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#scenario-tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}
+#scenario-tabs::-webkit-scrollbar{display:none;}
+.stab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.stab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,.05);}
+.stab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;background:var(--bg);overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+
+/* STEP */
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.election{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.08);}
+.pbadge.vote{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.08);}
+.pbadge.leader{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.heartbeat{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,.08);}
+.pbadge.replicate{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.08);}
+.pbadge.commit{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.1);}
+.pbadge.crash{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.09);}
+.pbadge.partition{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.08);}
+.pbadge.recover{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.08);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+
+/* STATS */
+#stats{display:flex;gap:14px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+
+/* CONTROLS */
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+
+/* RIGHT */
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:195px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.09);}
+.cline.active .cc{position:relative;}
+.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,.4),1px 0 1px rgba(50,80,255,.4);pointer-events:none;}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}
+.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+
+<div id="boot">
+  <div id="boot-logo">RAFT.SIM</div>
+  <div id="boot-tagline">CONSENSUS ALGORITHM VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+
+<div id="crt-wrap">
+<div id="main">
+  <div id="header">
+    <div id="logo">RAFT.SIM</div>
+    <div id="scenario-tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a scenario (tabs 1–5) to begin.</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">TERM</span><span class="sv" id="s-term">0</span></div>
+        <div class="si"><span class="sl">LEADER</span><span class="sv" id="s-leader" style="font-size:14px">—</span></div>
+        <div class="si"><span class="sl">LOG</span><span class="sv" id="s-log">0</span></div>
+        <div class="si"><span class="sl">COMMITTED</span><span class="sv" id="s-commit">0</span></div>
+        <div class="si"><span class="sl">NODES</span><span class="sv" id="s-nodes">5</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–5</span> Scenario</span>
+      </div>
+    </div>
+
+    <div id="right">
+      <div class="psec">
+        <div class="phdr">▸ GO SOURCE CODE</div>
+        <div id="code-scroll"></div>
+      </div>
+      <div id="r-scroll">
+        <div class="psec">
+          <div class="phdr">▸ COMPLEXITY</div>
+          <div id="cx-info" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ HOW IT WORKS</div>
+          <div id="how-info" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ INTERVIEW FACTS</div>
+          <div id="facts" class="info-block"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ══════ NOISE + GLITCH ══════ */
+(()=>{
+  const c=document.getElementById('noise'),x=c.getContext('2d');
+  const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);
+  const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();
+})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+
+/* ══════ AUDIO ══════ */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){
+  if(muted||!AC)return;
+  try{
+    const g=AC.createGain(),ws=AC.createWaveShaper();
+    const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}
+    ws.curve=cv;ws.connect(AC.destination);g.connect(ws);
+    const o=AC.createOscillator();o.connect(g);
+    const freqs={election:440,vote:380,leader:600,heartbeat:300,replicate:420,commit:560,crash:140,partition:200,recover:500,click:360};
+    const f=freqs[type]||360;const dur=type==='crash'?.15:type==='leader'?.12:.07;
+    o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';
+    g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+dur);
+    o.start(AC.currentTime);o.stop(AC.currentTime+dur+.02);
+  }catch(e){}
+}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ══════ SYNTAX ══════ */
+function hlGo(l){
+  let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');
+  s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+  s=s.replace(/\b(func|for|if|else|return|var|const|type|struct|int|bool|string|make|chan|go|select|case|default|nil|true|false|time|Timer|Reset)\b/g,'<span class="kw">$1</span>');
+  s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+  s=s.replace(/\b(\d+(?:\.\d+)?(?:ms)?)\b/g,'<span class="nm">$1</span>');
+  return s;
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ══════ NODE STATE TYPES ══════ */
+// roles: follower | candidate | leader | crashed | partitioned
+const COLORS={follower:'#60a5fa',candidate:'#f97316',leader:'#4ade80',crashed:'#374151',partitioned:'#f43f5e'};
+const ROLE_LABEL={follower:'FOLLOWER',candidate:'CANDIDATE',leader:'LEADER',crashed:'CRASHED',partitioned:'SPLIT'};
+
+/* ══════ SCENARIOS ══════ */
+const SCENARIOS={
+  election:{
+    label:'LEADER ELECTION',
+    code:[
+      '// Raft: Election timeout triggers candidacy',
+      'type State int',
+      'const (Follower State=iota; Candidate; Leader)',
+      '',
+      'func (n *Node) runElection() {',
+      '    n.currentTerm++',
+      '    n.state = Candidate',
+      '    n.votedFor = n.id',
+      '    votes := 1 // vote for self',
+      '    for _, peer := range n.peers {',
+      '        go func(p *Peer) {',
+      '            granted := p.RequestVote(n.currentTerm, n.id)',
+      '            if granted { votes++ }',
+      '            if votes > len(n.peers)/2 {',
+      '                n.becomeLeader()',
+      '            }',
+      '        }(peer)',
+      '    }',
+      '}',
+      '',
+      'func (n *Node) becomeLeader() {',
+      '    n.state = Leader',
+      '    go n.sendHeartbeats()',
+      '}',
+    ],
+    cx:`<strong>Election timeout</strong>: 150–300ms (randomized)<br>
+       <strong>Majority</strong>: (N/2)+1 votes needed<br>
+       <strong>Term</strong>: monotonically increasing integer<br>
+       <strong>Split vote</strong>: no majority → new election after timeout`,
+    how:`Raft uses randomized timeouts to avoid split votes.<br><br>
+       1. Follower sees no heartbeat → election timeout fires<br>
+       2. Increment term, become Candidate, vote for self<br>
+       3. Send RequestVote RPCs to all peers<br>
+       4. Collect votes — first to get majority becomes Leader<br>
+       5. Leader sends heartbeats to suppress new elections`,
+    facts:`<span class="rw-tag">Term</span> is like a logical clock — higher term always wins<br>
+           <span class="rw-tag">Voted for</span> stored on disk — survives crashes<br>
+           <span class="rw-tag">Split vote</span> all restart with new random timeout<br>
+           <span class="rw-tag">etcd</span> uses Raft, <span class="rw-tag">CockroachDB</span> uses Raft, <span class="rw-tag">TiKV</span> uses Raft`,
+  },
+  replication:{
+    label:'LOG REPLICATION',
+    code:[
+      '// Raft: Log replication after leader elected',
+      'type LogEntry struct {',
+      '    Term    int',
+      '    Command string',
+      '}',
+      '',
+      'func (n *Node) Propose(cmd string) {',
+      '    entry := LogEntry{n.currentTerm, cmd}',
+      '    n.log = append(n.log, entry)',
+      '    // send AppendEntries to all followers',
+      '    acks := 1',
+      '    for _, peer := range n.peers {',
+      '        ok := peer.AppendEntries(entry)',
+      '        if ok { acks++ }',
+      '    }',
+      '    // commit if majority ACKed',
+      '    if acks > len(n.peers)/2 {',
+      '        n.commitIndex++',
+      '        n.applyToStateMachine(entry)',
+      '    }',
+      '}',
+    ],
+    cx:`<strong>Write path</strong>: client → Leader → AppendEntries RPC → majority ACK → commit<br>
+       <strong>Log index</strong>: each entry has (term, index)<br>
+       <strong>Commit</strong>: only after majority stores entry<br>
+       <strong>Read path</strong>: Leader only (linearizable)`,
+    how:`<strong>Log entry</strong>: tuple of (term, index, command).<br><br>
+       Leader appends entry locally, then sends AppendEntries to all followers in parallel. Once majority ACKs, leader commits (advances commitIndex) and replies to client. Followers apply committed entries to state machine in order.`,
+    facts:`<span class="rw-tag">AppendEntries</span> doubles as heartbeat (empty payload)<br>
+           <span class="rw-tag">Prev log check</span> ensures log consistency before append<br>
+           <span class="rw-tag">Leader steps down</span> if it sees higher term<br>
+           <span class="rw-tag">Uncommitted</span> entries can be lost on leader crash`,
+  },
+  crash:{
+    label:'NODE CRASH',
+    code:[
+      '// Leader crash: follower detects timeout',
+      '',
+      'func (n *Node) heartbeatLoop() {',
+      '    ticker := time.NewTicker(50 * time.Millisecond)',
+      '    for range ticker.C {',
+      '        if n.state != Leader { return }',
+      '        for _, p := range n.peers {',
+      '            p.AppendEntries(nil) // empty heartbeat',
+      '        }',
+      '    }',
+      '}',
+      '',
+      'func (n *Node) electionTimeoutLoop() {',
+      '    t := randomTimeout(150, 300) // ms',
+      '    select {',
+      '    case <-n.heartbeatCh:',
+      '        t.Reset(randomTimeout(150,300))',
+      '    case <-t.C:',
+      '        n.runElection() // leader is dead',
+      '    }',
+      '}',
+    ],
+    cx:`<strong>Heartbeat interval</strong>: 50ms (typical)<br>
+       <strong>Election timeout</strong>: 150–300ms randomized<br>
+       <strong>Liveness</strong>: new leader elected in ~300ms<br>
+       <strong>Safety</strong>: no committed entry is ever lost`,
+    how:`When a leader crashes, followers stop receiving heartbeats. After election timeout (150–300ms), first follower triggers new election. The new leader must have all committed entries (guaranteed by vote restriction: candidate log must be at least as up-to-date as majority).`,
+    facts:`<span class="rw-tag">Re-election</span> takes 1–3 election timeouts typically<br>
+           <span class="rw-tag">Log repair</span> new leader walks back nextIndex until follower agrees<br>
+           <span class="rw-tag">Network hiccup</span> same as crash from Raft's perspective<br>
+           <span class="rw-tag">Brain split</span> old leader comes back → sees higher term → steps down`,
+  },
+  partition:{
+    label:'NETWORK PARTITION',
+    code:[
+      '// Network partition: split brain prevention',
+      '',
+      '// Old leader in minority partition:',
+      '// cannot get majority ACKs → writes stall',
+      '// (no committed entries on old side)',
+      '',
+      '// Majority side elects new leader:',
+      '// normal operation continues',
+      '',
+      'func (n *Node) AppendEntries(e LogEntry) bool {',
+      '    // term check: reject stale leaders',
+      '    if e.Term < n.currentTerm {',
+      '        return false // reject',
+      '    }',
+      '    n.resetElectionTimer()',
+      '    n.log = append(n.log, e)',
+      '    return true',
+      '}',
+      '',
+      '// On partition heal: old leader steps down',
+      '// because it sees higher term from new leader',
+    ],
+    cx:`<strong>Split-brain safe</strong>: minority partition cannot commit<br>
+       <strong>Majority partition</strong>: elects new leader, continues<br>
+       <strong>Heal</strong>: old leader sees higher term → steps down<br>
+       <strong>Log repair</strong>: diverged entries overwritten`,
+    how:`Partition divides cluster into minority (old leader) and majority (new leader elected). Old leader can accept writes but can't commit them (no majority). Majority side works normally. On heal, old leader sees higher term, reverts to follower, and its uncommitted entries are overwritten by new leader's log.`,
+    facts:`<span class="rw-tag">CP system</span> Raft is CP (consistent + partition tolerant, not available in minority)<br>
+           <span class="rw-tag">Split brain</span> impossible — majority gate prevents dual commit<br>
+           <span class="rw-tag">Stale reads</span> possible from old leader before it steps down<br>
+           <span class="rw-tag">etcd linearizable reads</span> use ReadIndex to confirm leadership`,
+  },
+  logrepair:{
+    label:'LOG REPAIR',
+    code:[
+      '// New leader repairs diverged follower logs',
+      '',
+      'func (n *Leader) replicateTo(peer *Peer) {',
+      '    nextIdx := n.nextIndex[peer.id]',
+      '    for {',
+      '        prevIdx  := nextIdx - 1',
+      '        prevTerm := n.log[prevIdx].Term',
+      '        entries  := n.log[nextIdx:]',
+      '        ok := peer.AppendEntries(',
+      '            n.currentTerm,',
+      '            prevIdx, prevTerm,',
+      '            entries,',
+      '        )',
+      '        if ok { break }',
+      '        nextIdx-- // back off one',
+      '    }',
+      '    n.nextIndex[peer.id] = len(n.log)',
+      '}',
+      '',
+      '// Follower rejects if log[prevIdx].Term != prevTerm',
+      '// Leader backs off until matching point found',
+    ],
+    cx:`<strong>nextIndex[]</strong>: per-follower cursor (optimistic, start at leader's last+1)<br>
+       <strong>matchIndex[]</strong>: highest confirmed replicated index<br>
+       <strong>Back-off</strong>: O(log n) with optimization, O(n) naive<br>
+       <strong>Consistency</strong>: Log Matching Property guarantees identical prefix`,
+    how:`After a new election, followers may have diverged logs (from a crashed leader). The new leader uses <strong>nextIndex</strong> per peer: starts optimistically at end, backs off one by one until follower agrees on prevLog match. Then streams all missing entries forward. Follower <strong>overwrites</strong> conflicting entries with leader's version.`,
+    facts:`<span class="rw-tag">Log Matching</span> if two logs agree at (term,index), they agree on all prior entries<br>
+           <span class="rw-tag">Leader Completeness</span> elected leader has all committed entries<br>
+           <span class="rw-tag">State Machine Safety</span> all nodes apply same log → same state<br>
+           <span class="rw-tag">Snapshot</span> log can be compacted to avoid unbounded growth`,
+  },
+};
+
+/* ══════ STEP GENERATION ══════ */
+function makeNodes(n,roles){
+  // positions arranged in a circle
+  return Array.from({length:n},(_,i)=>({
+    id:i,name:`N${i+1}`,
+    role:roles[i]||'follower',
+    term:0,log:[],commitIdx:0,
+    votedFor:null,crashed:false,partitioned:false,
+  }));
+}
+
+function buildScenarioSteps(key){
+  const steps=[];
+  function snap(phase,desc,cl,nodes,msgs=[],partition=null,term=0,leader=null,logLen=0,committed=0){
+    steps.push({phase,desc,cl,nodes:nodes.map(n=>({...n,log:[...n.log]})),msgs,partition,term,leader,logLen,committed});
+  }
+
+  if(key==='election'){
+    let nodes=makeNodes(5,['follower','follower','follower','follower','follower']);
+    snap('init','5-node Raft cluster starts. All nodes are FOLLOWERS. Waiting for heartbeats...',4,nodes,[],null,0,null,0,0);
+
+    // N3 election timeout fires
+    nodes[2]={...nodes[2],role:'candidate',term:1,votedFor:2};
+    snap('election','N3 election timeout fires! No heartbeat received. N3 → CANDIDATE, increments term to 1, votes for self.',6,nodes,[
+      {from:2,to:0,type:'vote_req',label:'RequestVote(term=1)'},
+      {from:2,to:1,type:'vote_req',label:'RequestVote(term=1)'},
+      {from:2,to:3,type:'vote_req',label:'RequestVote(term=1)'},
+      {from:2,to:4,type:'vote_req',label:'RequestVote(term=1)'},
+    ],null,1,null,0,0);
+
+    // votes granted
+    nodes[0]={...nodes[0],term:1,votedFor:2};
+    nodes[1]={...nodes[1],term:1,votedFor:2};
+    snap('vote','N1 and N2 grant vote (their log is no newer). N4 and N5 also grant. N3 has 5/5 votes — majority!',11,nodes,[
+      {from:0,to:2,type:'vote_ack',label:'granted'},
+      {from:1,to:2,type:'vote_ack',label:'granted'},
+      {from:3,to:2,type:'vote_ack',label:'granted'},
+      {from:4,to:2,type:'vote_ack',label:'granted'},
+    ],null,1,null,0,0);
+
+    // N3 becomes leader
+    nodes[2]={...nodes[2],role:'leader'};
+    snap('leader','N3 wins election! Becomes LEADER for term 1. Immediately sends heartbeats to assert leadership.',20,nodes,[
+      {from:2,to:0,type:'heartbeat',label:'heartbeat'},
+      {from:2,to:1,type:'heartbeat',label:'heartbeat'},
+      {from:2,to:3,type:'heartbeat',label:'heartbeat'},
+      {from:2,to:4,type:'heartbeat',label:'heartbeat'},
+    ],null,1,'N3',0,0);
+
+    snap('heartbeat','All followers ACK heartbeat. Election complete. N3 will send heartbeats every 50ms to suppress new elections.',20,nodes,[],null,1,'N3',0,0);
+  }
+
+  else if(key==='replication'){
+    let nodes=makeNodes(5,['follower','follower','leader','follower','follower']);
+    nodes[2]={...nodes[2],term:1};
+    snap('init','N3 is LEADER (term 1). Client sends write: SET x=42. Leader appends to local log.',6,nodes,[
+      {from:'client',to:2,type:'client',label:'SET x=42'},
+    ],null,1,'N3',0,0);
+
+    nodes[2]={...nodes[2],log:['SET x=42']};
+    snap('replicate','Leader appends entry to own log at index 1. Sends AppendEntries RPCs to all followers in parallel.',10,nodes,[
+      {from:2,to:0,type:'replicate',label:'AppendEntries[1]'},
+      {from:2,to:1,type:'replicate',label:'AppendEntries[1]'},
+      {from:2,to:3,type:'replicate',label:'AppendEntries[1]'},
+      {from:2,to:4,type:'replicate',label:'AppendEntries[1]'},
+    ],null,1,'N3',1,0);
+
+    nodes[0]={...nodes[0],log:['SET x=42']};
+    nodes[1]={...nodes[1],log:['SET x=42']};
+    nodes[3]={...nodes[3],log:['SET x=42']};
+    nodes[4]={...nodes[4],log:['SET x=42']};
+    snap('replicate','All 4 followers appended entry. Send ACK to leader. Majority (5/5) acknowledged.',13,nodes,[
+      {from:0,to:2,type:'ack',label:'ACK'},
+      {from:1,to:2,type:'ack',label:'ACK'},
+      {from:3,to:2,type:'ack',label:'ACK'},
+      {from:4,to:2,type:'ack',label:'ACK'},
+    ],null,1,'N3',1,0);
+
+    nodes[2]={...nodes[2],commitIdx:1};
+    snap('commit','Majority ACKed. Leader commits: commitIndex=1. Applies to state machine. Replies OK to client.',16,nodes,[
+      {from:2,to:'client',type:'ack',label:'OK'},
+      {from:2,to:0,type:'heartbeat',label:'commitIdx=1'},
+      {from:2,to:1,type:'heartbeat',label:'commitIdx=1'},
+    ],null,1,'N3',1,1);
+
+    nodes[0]={...nodes[0],commitIdx:1};nodes[1]={...nodes[1],commitIdx:1};
+    nodes[3]={...nodes[3],commitIdx:1};nodes[4]={...nodes[4],commitIdx:1};
+    snap('commit','Followers learn commit via next heartbeat. All state machines now have x=42. Strong consistency achieved.',17,nodes,[],null,1,'N3',1,1);
+  }
+
+  else if(key==='crash'){
+    let nodes=makeNodes(5,['follower','follower','leader','follower','follower']);
+    nodes[2]={...nodes[2],term:2,log:['cmd1','cmd2']};
+    [0,1,3,4].forEach(i=>nodes[i]={...nodes[i],term:2,log:['cmd1','cmd2'],commitIdx:2});
+    snap('init','N3 is LEADER (term 2). Log has 2 committed entries. Cluster operating normally.',3,nodes,[],null,2,'N3',2,2);
+
+    nodes[2]={...nodes[2],role:'crashed',crashed:true};
+    snap('crash','N3 CRASHES! Leader is gone. Followers stop receiving heartbeats. Election timers start counting.',2,nodes,[],null,2,null,2,2);
+    triggerCA&&triggerCA();
+
+    nodes[0]={...nodes[0],role:'candidate',term:3,votedFor:0};
+    snap('election','N1 election timeout fires first (random). N1 → CANDIDATE, term=3. Sends RequestVote to all alive peers.',6,nodes,[
+      {from:0,to:1,type:'vote_req',label:'RequestVote(3)'},
+      {from:0,to:3,type:'vote_req',label:'RequestVote(3)'},
+      {from:0,to:4,type:'vote_req',label:'RequestVote(3)'},
+    ],null,3,null,2,2);
+
+    nodes[1]={...nodes[1],term:3,votedFor:0};
+    nodes[3]={...nodes[3],term:3,votedFor:0};
+    snap('vote','N2, N4, N5 grant vote (logs are equal). N1 gets 4 votes — majority of alive nodes (3/4 needed).',11,nodes,[
+      {from:1,to:0,type:'vote_ack',label:'granted'},
+      {from:3,to:0,type:'vote_ack',label:'granted'},
+      {from:4,to:0,type:'vote_ack',label:'granted'},
+    ],null,3,null,2,2);
+
+    nodes[0]={...nodes[0],role:'leader'};
+    snap('leader','N1 becomes new LEADER for term 3. Sends heartbeats. Cluster recovers. Committed log is intact.',20,nodes,[
+      {from:0,to:1,type:'heartbeat',label:'hb t=3'},
+      {from:0,to:3,type:'heartbeat',label:'hb t=3'},
+      {from:0,to:4,type:'heartbeat',label:'hb t=3'},
+    ],null,3,'N1',2,2);
+
+    snap('heartbeat','Re-election complete in ~1 election timeout. All 2 committed entries preserved. New leader will repair any gaps.',20,nodes,[],null,3,'N1',2,2);
+  }
+
+  else if(key==='partition'){
+    let nodes=makeNodes(5,['leader','follower','follower','follower','follower']);
+    nodes[0]={...nodes[0],term:1,log:['cmd1','cmd2'],commitIdx:2};
+    [1,2,3,4].forEach(i=>nodes[i]={...nodes[i],term:1,log:['cmd1','cmd2'],commitIdx:2});
+    snap('init','N1 is LEADER (term 1). 5-node cluster with 2 committed entries.',4,nodes,[],null,1,'N1',2,2);
+
+    snap('partition','NETWORK PARTITION! N1+N2 isolated in minority (2 nodes). N3+N4+N5 in majority partition (3 nodes).',5,nodes,[],{minority:[0,1],majority:[2,3,4]},1,'N1',2,2);
+
+    // minority: old leader tries to write, can't commit
+    nodes[0]={...nodes[0],log:['cmd1','cmd2','cmd3_stale']};
+    nodes[1]={...nodes[1],log:['cmd1','cmd2','cmd3_stale']};
+    snap('partition','N1 accepts client write "cmd3" and replicates to N2. But can only get 2/5 ACKs — NO MAJORITY. Write stalls (not committed).',10,nodes,[
+      {from:0,to:1,type:'replicate',label:'cmd3(stale)'},
+      {from:0,to:'x',type:'replicate',label:'BLOCKED'},
+    ],{minority:[0,1],majority:[2,3,4]},1,'N1',3,2);
+
+    // majority elects new leader
+    nodes[2]={...nodes[2],role:'candidate',term:2,votedFor:2};
+    snap('election','Majority partition: N3 election timeout fires. Starts election for term 2.',6,nodes,[
+      {from:2,to:3,type:'vote_req',label:'RequestVote(2)'},
+      {from:2,to:4,type:'vote_req',label:'RequestVote(2)'},
+    ],{minority:[0,1],majority:[2,3,4]},2,null,3,2);
+
+    nodes[2]={...nodes[2],role:'leader'};
+    nodes[3]={...nodes[3],term:2};nodes[4]={...nodes[4],term:2};
+    snap('leader','N3 elected LEADER of majority partition (term 2). Normal operations continue for majority.',20,nodes,[
+      {from:2,to:3,type:'heartbeat',label:'hb t=2'},
+      {from:2,to:4,type:'heartbeat',label:'hb t=2'},
+    ],{minority:[0,1],majority:[2,3,4]},2,'N3',2,2);
+
+    // heal partition
+    nodes[0]={...nodes[0],role:'follower',log:['cmd1','cmd2'],term:2,commitIdx:2};
+    nodes[1]={...nodes[1],term:2,log:['cmd1','cmd2'],commitIdx:2};
+    snap('recover','PARTITION HEALED. N1 receives heartbeat from N3 with term=2 > own term=1. N1 immediately steps down → FOLLOWER. Stale cmd3 overwritten.',12,nodes,[
+      {from:2,to:0,type:'heartbeat',label:'hb t=2 (higher!)'},
+      {from:2,to:1,type:'heartbeat',label:'hb t=2'},
+    ],null,2,'N3',2,2);
+
+    snap('recover','Cluster fully healed. N3 is sole leader. N1\'s uncommitted cmd3 discarded. No committed entries were lost — Raft safety guarantee holds.',14,nodes,[],null,2,'N3',2,2);
+  }
+
+  else if(key==='logrepair'){
+    let nodes=makeNodes(5,['leader','follower','follower','follower','follower']);
+    // N3 was a candidate and has extra entries that were never committed
+    nodes[0]={...nodes[0],term:3,log:['A','B','C','D'],commitIdx:4};
+    nodes[1]={...nodes[1],term:3,log:['A','B','C','D'],commitIdx:4};
+    nodes[2]={...nodes[2],term:2,log:['A','B','X','Y'],commitIdx:2}; // diverged
+    nodes[3]={...nodes[3],term:3,log:['A','B','C','D'],commitIdx:4};
+    nodes[4]={...nodes[4],term:1,log:['A'],commitIdx:1}; // lagging
+    snap('init','N1 is new LEADER (term 3). N3 has diverged log (was candidate in old term). N5 is lagging. Log repair needed.',4,nodes,[],null,3,'N1',4,4);
+
+    snap('replicate','Leader initializes nextIndex[all] = 5 (leader log length+1). Sends AppendEntries to N3 with prevLog=(idx=4,term=3).',8,nodes,[
+      {from:0,to:2,type:'replicate',label:'AE prevIdx=4 term=3'},
+      {from:0,to:4,type:'replicate',label:'AE prevIdx=4 term=3'},
+    ],null,3,'N1',4,4);
+
+    snap('crash','N3 REJECTS: its log[4] has term=2, not term=3. Leader backs off: tries prevIdx=3.',11,nodes,[
+      {from:2,to:0,type:'ack',label:'REJECT (mismatch)'},
+      {from:4,to:0,type:'ack',label:'REJECT (missing)'},
+    ],null,3,'N1',4,4);
+
+    snap('replicate','Leader tries prevIdx=3: N3 log[3]="B" matches. N3 accepts! Overwrites entries from idx=3 onward with leader\'s log.',13,nodes,[
+      {from:0,to:2,type:'replicate',label:'AE prevIdx=2 → match!'},
+    ],null,3,'N1',4,4);
+
+    nodes[2]={...nodes[2],log:['A','B','C','D'],commitIdx:4,term:3};
+    nodes[4]={...nodes[4],log:['A','B','C','D'],commitIdx:4,term:3};
+    snap('commit','N3 log repaired: [A,B,X,Y] → [A,B,C,D]. N5 caught up similarly. All logs now match leader.',16,nodes,[
+      {from:0,to:2,type:'replicate',label:'entries C,D'},
+      {from:0,to:4,type:'replicate',label:'entries B,C,D'},
+    ],null,3,'N1',4,4);
+
+    snap('commit','Log repair complete. All 5 nodes have identical logs. State Machine Safety property holds: same log → same state.',17,nodes,[],null,3,'N1',4,4);
+  }
+
+  return steps;
+}
+
+/* ══════ CANVAS ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){
+  const wrap=document.getElementById('viz-wrap');
+  CW=canvas.width=wrap.clientWidth;CH=canvas.height=wrap.clientHeight;
+  if(ST.steps.length)renderFrame(ST.steps[ST.idx]);
+}
+
+/* Node layout: 5 nodes in a circle */
+function nodePos(i,n,cx,cy,R){
+  const a=((Math.PI*2*i)/n)-Math.PI/2;
+  return{x:cx+Math.cos(a)*R,y:cy+Math.sin(a)*R};
+}
+
+function drawMessage(x1,y1,x2,y2,type,label,t){
+  const col={vote_req:'#f97316',vote_ack:'#a855f7',heartbeat:'#60a5fa',replicate:'#22d3ee',ack:'#4ade80',client:'#fbbf24'}[type]||'#aaa';
+  ctx.save();
+  ctx.strokeStyle=col+'88';ctx.lineWidth=1;ctx.setLineDash([3,4]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.setLineDash([]);
+  // arrow tip
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.fillStyle=col;
+  ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-9*Math.cos(ang-.35),y2-9*Math.sin(ang-.35));ctx.lineTo(x2-9*Math.cos(ang+.35),y2-9*Math.sin(ang+.35));ctx.closePath();ctx.fill();
+  // label midpoint
+  const mx=(x1+x2)/2,my=(y1+y2)/2;
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(label,mx,my-8);
+  ctx.restore();
+}
+
+function drawLog(x,y,log,commitIdx,role,nodeR){
+  if(!log||!log.length)return;
+  const EW=22,EH=14,gap=2;
+  const startX=x-((log.length*(EW+gap))-gap)/2;
+  log.forEach((e,i)=>{
+    const ex=startX+i*(EW+gap);
+    const ey=y+nodeR+8;
+    const committed=i<commitIdx;
+    ctx.fillStyle=committed?'rgba(74,222,128,0.18)':'rgba(251,191,36,0.09)';
+    ctx.strokeStyle=committed?'#4ade8066':'#fbbf2455';
+    ctx.lineWidth=1;
+    ctx.fillRect(ex,ey,EW,EH);ctx.strokeRect(ex,ey,EW,EH);
+    ctx.font=`8px 'IBM Plex Mono'`;ctx.fillStyle=committed?'#86efac':'rgba(255,178,41,0.6)';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(String(e).slice(0,3),ex+EW/2,ey+EH/2);
+  });
+}
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+  const{nodes,msgs,partition}=step;
+  const N=nodes.length;
+  const cx=CW/2,cy=CH/2;
+  const R=Math.min(CW,CH)*0.3;
+  const nodeR=28;
+
+  // partition overlay
+  if(partition){
+    ctx.save();
+    // minority zone
+    ctx.fillStyle='rgba(244,63,94,0.04)';
+    ctx.strokeStyle='rgba(244,63,94,0.2)';ctx.lineWidth=1;ctx.setLineDash([6,4]);
+    const minPts=partition.minority.map(i=>nodePos(i,N,cx,cy,R));
+    const majPts=partition.majority.map(i=>nodePos(i,N,cx,cy,R));
+    // draw partition line
+    ctx.setLineDash([8,6]);ctx.strokeStyle='rgba(249,115,22,0.6)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,CH);ctx.stroke();
+    ctx.setLineDash([]);
+    // labels
+    ctx.font=`14px 'VT323'`;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillStyle='rgba(244,63,94,0.5)';ctx.fillText('MINORITY',cx*0.5,10);
+    ctx.fillStyle='rgba(74,222,128,0.5)';ctx.fillText('MAJORITY',cx*1.5,10);
+    ctx.restore();
+  }
+
+  // draw edges (connections between all nodes)
+  nodes.forEach((n,i)=>{
+    if(n.crashed)return;
+    nodes.forEach((m,j)=>{
+      if(j<=i||m.crashed)return;
+      // check partition
+      if(partition){
+        const inMin=(i)=>partition.minority.includes(i);
+        if((inMin(i)&&!inMin(j))||(inMin(j)&&!inMin(i))){return;}// skip cross-partition edges
+      }
+      const p1=nodePos(i,N,cx,cy,R);const p2=nodePos(j,N,cx,cy,R);
+      ctx.save();ctx.strokeStyle='rgba(255,178,41,0.08)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();ctx.restore();
+    });
+  });
+
+  // draw messages
+  if(msgs){
+    msgs.forEach(msg=>{
+      const isClient=msg.from==='client'||msg.to==='client'||msg.to==='x';
+      let x1,y1,x2,y2;
+      if(msg.from==='client'){x1=30;y1=CH/2;}
+      else if(typeof msg.from==='number'){const p=nodePos(msg.from,N,cx,cy,R);x1=p.x;y1=p.y;}
+      else{x1=cx;y1=cy;}
+      if(msg.to==='client'){x2=30;y2=CH/2-20;}
+      else if(msg.to==='x'){x2=cx+R*0.1;y2=cy-20;}
+      else if(typeof msg.to==='number'){const p=nodePos(msg.to,N,cx,cy,R);x2=p.x;y2=p.y;}
+      else{x2=cx;y2=cy;}
+      // shorten to not overlap node circle
+      const dx=x2-x1,dy=y2-y1,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>nodeR*2){
+        const sx=(nodeR/d),ex=1-(nodeR/d);
+        drawMessage(x1+dx*sx,y1+dy*sx,x1+dx*ex,y1+dy*ex,msg.type,msg.label);
+      }
+    });
+  }
+
+  // draw nodes
+  nodes.forEach((node,i)=>{
+    const{x,y}=nodePos(i,N,cx,cy,R);
+    const col=COLORS[node.role]||COLORS.follower;
+    const isLeader=node.role==='leader';
+    ctx.save();
+    if(isLeader){ctx.shadowColor=col;ctx.shadowBlur=20;}
+    if(node.crashed){ctx.globalAlpha=0.35;}
+    // outer ring for leader
+    if(isLeader){
+      ctx.strokeStyle=col+'66';ctx.lineWidth=4;
+      ctx.beginPath();ctx.arc(x,y,nodeR+6,0,Math.PI*2);ctx.stroke();
+    }
+    // node circle
+    ctx.fillStyle=`${col}22`;
+    ctx.strokeStyle=col;ctx.lineWidth=node.crashed?1:2;
+    ctx.beginPath();ctx.arc(x,y,nodeR,0,Math.PI*2);ctx.fill();ctx.stroke();
+    // name
+    ctx.font=`18px 'VT323'`;ctx.fillStyle=node.crashed?'#4b5563':col;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(node.name,x,y-5);
+    // role
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=node.crashed?'#4b5563':col+'cc';
+    ctx.fillText(ROLE_LABEL[node.role]||node.role.toUpperCase(),x,y+9);
+    // term badge
+    if(!node.crashed){
+      ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle='rgba(255,178,41,0.4)';
+      ctx.fillText(`t=${node.term||0}`,x,y+nodeR+12);
+    }
+    ctx.restore();
+    // log
+    if(!node.crashed)drawLog(x,y,node.log,node.commitIdx,node.role,nodeR);
+    // crash X
+    if(node.crashed){
+      ctx.save();ctx.strokeStyle='#f43f5e88';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(x-12,y-12);ctx.lineTo(x+12,y+12);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x+12,y-12);ctx.lineTo(x-12,y+12);ctx.stroke();
+      ctx.restore();
+    }
+  });
+
+  // client node
+  if(msgs&&msgs.some(m=>m.from==='client'||m.to==='client')){
+    ctx.save();ctx.strokeStyle='#fbbf24';ctx.fillStyle='rgba(251,191,36,0.1)';ctx.lineWidth=1;
+    ctx.strokeRect(5,CH/2-20,50,28);ctx.fillRect(5,CH/2-20,50,28);
+    ctx.font=`12px 'VT323'`;ctx.fillStyle='#fbbf24';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('CLIENT',30,CH/2-6);ctx.restore();
+  }
+}
+
+/* ══════ PLAYBACK ══════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:520};
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  badge.className='pbadge '+(step.phase||'init');
+  badge.textContent=(step.phase||'INIT').toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-term').textContent=step.term||0;
+  document.getElementById('s-leader').textContent=step.leader||'—';
+  document.getElementById('s-log').textContent=step.logLen||0;
+  document.getElementById('s-commit').textContent=step.committed||0;
+  document.getElementById('s-nodes').textContent=(step.nodes||[]).filter(n=>!n.crashed).length;
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SCENARIOS[curScene].code,step.cl>=0?step.cl:-1);
+  if(step.phase&&step.phase!=='init'){snd(step.phase);}
+  if(step.phase==='crash'||step.phase==='partition')triggerCA();
+}
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){
+  if(!ST.steps.length)return;
+  if(ST.idx>=ST.steps.length-1)ST.idx=0;
+  ST.playing=true;
+  document.getElementById('play-btn').textContent='⏸ PAUSE';
+  document.getElementById('play-btn').classList.add('playing');
+  ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);
+}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+/* ══════ KEYBOARD ══════ */
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectScene('election');break;case'2':selectScene('replication');break;
+    case'3':selectScene('crash');break;case'4':selectScene('partition');break;case'5':selectScene('logrepair');break;
+  }
+});
+
+/* ══════ SCENE SELECT ══════ */
+let curScene='election';
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.stab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENARIOS[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  if(ST.playing)pause();
+  ST.steps=buildScenarioSteps(key);
+  ST.idx=0;
+  if(ST.steps.length){applyStep(ST.steps[0]);setTimeout(()=>play(),300);}
+  snd('click');
+}
+function buildTabs(){
+  const order=[['election','1. ELECTION'],['replication','2. REPLICATION'],['crash','3. CRASH'],['partition','4. PARTITION'],['logrepair','5. LOG REPAIR']];
+  document.getElementById('scenario-tabs').innerHTML=order.map(([k,l])=>
+    `<button class="stab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`
+  ).join('');
+}
+
+/* ══════ BOOT ══════ */
+function boot(){
+  const term=document.getElementById('boot-terminal');
+  const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'RAFT.SIM v1.0 — INITIALIZING...',s:'',d:180},
+    {t:'LOADING: CONSENSUS_ENGINE.MOD (leader election)',s:'OK',d:130},
+    {t:'LOADING: LOG_REPLICATION.MOD (AppendEntries RPC)',s:'OK',d:130},
+    {t:'LOADING: CRASH_RECOVERY.MOD',s:'OK',d:130},
+    {t:'LOADING: PARTITION_HANDLER.MOD (split brain)',s:'OK',d:140},
+    {t:'LOADING: LOG_REPAIR.MOD (nextIndex backoff)',s:'OK',d:130},
+    {t:'MOUNTING CANVAS RENDERER...',s:'DONE',d:150},
+    {t:'CLUSTER: 5 NODES ONLINE. TERM: 0.',s:'',d:250},
+  ];
+  let li=0;
+  function al(){
+    if(li>=lines.length){setTimeout(sa,300);return;}
+    const bl=lines[li];
+    const div=document.createElement('div');div.className='bl';
+    div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;
+    term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));
+    fill.style.width=Math.round((li/lines.length)*100)+'%';
+    li++;setTimeout(al,bl.d);
+  }al();
+}
+function sa(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  selectScene('election');
+}
+boot();
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@ import {
   type Difficulty,
 } from './bot.js';
 
-const DIFFS: Difficulty[] = ['easy', 'medium', 'hard'];
+const DIFFS: Difficulty[] = ['easy', 'medium', 'hard', 'grandmaster'];
 
 // ═══════════════════════════════════════════════════════════════════════
 // Deck rigging helper (same utility as engine tests)

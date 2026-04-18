@@ -1,16 +1,21 @@
 import type { Card, GameState } from '../core/types.js';
 import { IDS, maybe$ } from './dom.js';
 import { makeCardEl } from './cards-view.js';
+import { syncCardRow } from './card-row.js';
 import { bumpPot } from './log.js';
 import { chipStackHtml } from './chips.js';
 import { callAmount, minRaiseAmount } from '../core/rules.js';
 import { legalActions } from '../core/engine.js';
+import { opponentModel } from '../bot/opponent-model.js';
 
 const PHASE_LABELS: Record<GameState['phase'], string> = {
   idle: '—',
   preflop: 'PRE-FLOP',
+  'discard-preflop': 'DISCARD',
   flop: 'FLOP',
+  'discard-postflop': 'DISCARD',
   turn: 'TURN',
+  'discard-post-turn': 'DISCARD',
   river: 'RIVER',
   showdown: 'SHOWDOWN',
 };
@@ -58,6 +63,7 @@ function ensureSeats(state: GameState): void {
           <span class="seat-chip-stack" data-role="chip-stack"></span>
           <span class="seat-chips" data-role="chips"></span>
         </div>
+        <div class="seat-hud" data-role="hud"></div>
         <div class="seat-bet-area" data-role="bet"></div>
       </div>`;
     container.appendChild(seat);
@@ -81,53 +87,6 @@ function layoutSeatsAroundTable(state: GameState): void {
     const rel = (i - state.myIndex + state.numPlayers) % state.numPlayers;
     el.dataset['relpos'] = String(rel);
     el.dataset['seatOfTotal'] = `${rel}-${state.numPlayers}`;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Card row diff-rendering — preserves existing DOM, avoids animation replay
-// ═══════════════════════════════════════════════════════════════════════
-
-function syncCardRow(
-  container: HTMLElement,
-  cards: Card[] | null,
-  faceUp: boolean,
-  dealStepMs: number,
-  placeholderCount = 0,
-): void {
-  const desired = cards ?? [];
-
-  for (const ph of Array.from(container.querySelectorAll('.card-placeholder'))) {
-    ph.remove();
-  }
-
-  const existing = Array.from(container.children) as HTMLElement[];
-
-  let matched = 0;
-  while (matched < existing.length && matched < desired.length) {
-    const el = existing[matched]!;
-    if (
-      el.dataset['cardStr'] === desired[matched] &&
-      el.dataset['faceUp'] === (faceUp ? '1' : '0')
-    ) {
-      matched++;
-    } else {
-      break;
-    }
-  }
-
-  for (let i = existing.length - 1; i >= matched; i--) {
-    existing[i]!.remove();
-  }
-
-  for (let i = matched; i < desired.length; i++) {
-    container.appendChild(makeCardEl(desired[i]!, faceUp, (i - matched) * dealStepMs, container));
-  }
-
-  for (let i = desired.length; i < placeholderCount; i++) {
-    const ph = document.createElement('div');
-    ph.className = 'card-placeholder';
-    container.appendChild(ph);
   }
 }
 
@@ -197,8 +156,39 @@ function renderSeat(state: GameState, idx: number, revealAll: boolean): void {
   if (cardsEl) {
     const hole = state.holeCards[idx];
     const faceUp = idx === state.myIndex || revealAll || state.phase === 'showdown';
-    const cards = hole && !state.folded[idx] ? [hole[0], hole[1]] : null;
-    syncCardRow(cardsEl, cards, faceUp, 80);
+    // Use whatever hole cards the variant gave this player (2 for hold'em,
+    // 3 for Pineapple, 4 for Omaha).
+    const cards = hole && !state.folded[idx]
+      ? hole.filter((c): c is string => typeof c === 'string')
+      : null;
+    syncCardRow(cardsEl, cards, faceUp, { dealStepMs: 80 });
+  }
+
+  // HUD: VPIP / PFR / AF read from the opponent model. Hidden for hero and
+  // for seats we haven't seen enough hands from yet (<6).
+  const hud = seat.querySelector<HTMLElement>('[data-role="hud"]');
+  if (hud) {
+    if (idx === state.myIndex) {
+      hud.textContent = '';
+      hud.classList.remove('has-stats');
+    } else {
+      const hs = opponentModel.handsSeen(idx);
+      if (hs < 6) {
+        hud.textContent = hs === 0 ? '' : `${hs}h`;
+        hud.classList.remove('has-stats');
+      } else {
+        const v = opponentModel.vpip(idx);
+        const p = opponentModel.pfr(idx);
+        const af = opponentModel.af(idx);
+        const arch = opponentModel.archetype(idx);
+        const vStr = v !== null ? Math.round(v * 100) : '—';
+        const pStr = p !== null ? Math.round(p * 100) : '—';
+        const afStr = af !== null ? af.toFixed(1) : '—';
+        const archTag = arch !== 'unknown' ? ` · ${arch}` : '';
+        hud.textContent = `${vStr}/${pStr} · AF ${afStr}${archTag} · ${hs}h`;
+        hud.classList.add('has-stats');
+      }
+    }
   }
 }
 
@@ -213,7 +203,7 @@ function isActionPhase(state: GameState): boolean {
 export function renderCommunity(state: GameState): void {
   const el = maybe$(IDS.communityCards);
   if (!el) return;
-  syncCardRow(el, state.community.slice(), true, 100, 5);
+  syncCardRow(el, state.community.slice(), true, { dealStepMs: 100, placeholderCount: 5 });
 }
 
 export function renderPhaseLabel(state: GameState): void {

@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MAP.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--a:#ffb229;--ad:#a06800;
+  --g:#4ade80;--r:#f43f5e;--p:#a855f7;
+  --b:#60a5fa;--c:#22d3ee;--o:#f97316;--dim:rgba(255,178,41,.15);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--a);font-family:'Share Tech Mono',monospace;}
+@keyframes flicker{0%,93%{filter:brightness(1);}94%{filter:brightness(.6);}95%{filter:brightness(1);}}
+@keyframes scan{from{top:0}to{top:100vh}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+#crt{width:100vw;height:100vh;display:flex;flex-direction:column;animation:flicker .22s steps(1) infinite;}
+#scanline{position:fixed;top:0;left:0;right:0;height:2px;background:rgba(255,178,41,.04);pointer-events:none;z-index:999;animation:scan 8s linear infinite;}
+#vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 57%,rgba(0,0,0,.74) 100%);pointer-events:none;z-index:998;}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:997;opacity:.027;}
+#ca{position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:0;transition:opacity .04s;}
+#ca.on{opacity:1;box-shadow:inset -7px 0 0 rgba(255,0,0,.38),inset 7px 0 0 rgba(0,60,255,.33);}
+
+/* ── BOOT ── */
+#boot{position:fixed;inset:0;background:var(--bg);z-index:900;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#bl{font-family:'VT323';font-size:104px;color:var(--a);text-shadow:0 0 50px var(--a),0 0 100px rgba(255,178,41,.26);letter-spacing:10px;}
+#bs{font-size:11px;letter-spacing:7px;color:var(--ad);margin-bottom:44px;}
+#blog{width:640px;max-width:92vw;font-size:12px;line-height:2.1;}
+.bline{opacity:0;display:flex;justify-content:space-between;gap:16px;}.bline.v{opacity:1;}.bok{color:var(--g);}
+#bprog{width:640px;max-width:92vw;height:2px;background:rgba(255,178,41,.1);margin-top:22px;}
+#bfill{height:100%;width:0;background:var(--a);box-shadow:0 0 8px var(--a);transition:width .1s;}
+@keyframes blink{50%{opacity:0}}.bcur{display:inline-block;width:8px;height:13px;background:var(--a);animation:blink .7s step-end infinite;vertical-align:middle;}
+
+/* ── MAIN ── */
+#main{display:none;flex:1;flex-direction:column;height:100vh;}
+#main.show{display:flex;animation:fadein .4s ease;}
+
+/* HEADER */
+#hdr{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid rgba(255,178,41,.2);background:rgba(0,0,0,.7);flex-shrink:0;}
+#logo{font-family:'VT323';font-size:30px;color:var(--a);text-shadow:0 0 16px var(--a);letter-spacing:4px;}
+#tabs{display:flex;gap:3px;flex:1;overflow-x:auto;}
+#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 10px;border:1px solid rgba(255,178,41,.2);color:var(--ad);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .1s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--a);color:var(--a);background:rgba(255,178,41,.08);}
+#snd{font-size:14px;background:transparent;border:1px solid rgba(255,178,41,.18);color:var(--a);padding:2px 7px;cursor:pointer;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+
+/* ━━━━━━━━━━━━━━━ LEFT (canvas) 36% ━━━━━━━━━━━━━━━ */
+#left{width:36%;min-width:320px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz{flex:1;overflow:hidden;position:relative;}
+#vc{display:block;width:100%;height:100%;}
+#pbar-wrap{height:2px;background:rgba(255,178,41,.06);flex-shrink:0;}
+#pbar{height:100%;width:0;background:var(--a);transition:width .18s;}
+/* stats */
+#stats{display:flex;gap:10px;padding:4px 10px;border-top:1px solid rgba(255,178,41,.08);background:rgba(0,0,0,.3);flex-shrink:0;flex-wrap:wrap;}
+.si{display:flex;gap:4px;align-items:baseline;}
+.sl{font-size:7px;color:var(--ad);letter-spacing:1.5px;}
+.sv{font-family:'VT323';font-size:18px;color:var(--a);}
+/* controls */
+#ctrl{display:flex;align-items:center;gap:5px;padding:4px 10px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.35);flex-shrink:0;flex-wrap:wrap;}
+.cb{font-family:'VT323';font-size:13px;padding:2px 9px;border:1px solid rgba(255,178,41,.28);background:transparent;color:var(--a);cursor:pointer;transition:.1s;white-space:nowrap;}
+.cb:hover{background:rgba(255,178,41,.07);}
+#pb.pl{color:var(--r);border-color:var(--r);}
+.csep{width:1px;height:14px;background:rgba(255,178,41,.1);}
+input[type=range]{-webkit-appearance:none;width:52px;height:2px;background:rgba(255,178,41,.2);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--a);cursor:pointer;}
+#sc{font-family:'VT323';font-size:13px;color:var(--ad);}
+#kb{display:flex;gap:8px;padding:2px 10px;background:rgba(0,0,0,.4);border-top:1px solid rgba(255,178,41,.05);flex-shrink:0;flex-wrap:wrap;}
+.kh{font-size:7px;color:rgba(255,178,41,.22);}.kk{border:1px solid rgba(255,178,41,.12);padding:0 3px;font-size:7px;}
+
+/* ━━━━━━━━━━━━━━━ RIGHT 64% ━━━━━━━━━━━━━━━ */
+#right{flex:1;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.12);}
+
+/* ── CODE SECTION (always visible, big) ── */
+#code-section{flex:0 0 52%;display:flex;flex-direction:column;border-bottom:2px solid rgba(255,178,41,.18);overflow:hidden;}
+#code-hdr{height:28px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(0,0,0,.55);border-bottom:1px solid rgba(255,178,41,.12);flex-shrink:0;}
+#code-hdr-title{font-size:9px;letter-spacing:3px;color:var(--ad);}
+#code-hdr-file{font-size:9px;color:rgba(255,178,41,.25);margin-left:auto;font-family:'IBM Plex Mono';}
+#code-area{flex:1;overflow-y:auto;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.9;padding:4px 0;}
+#code-area::-webkit-scrollbar{width:4px;}
+#code-area::-webkit-scrollbar-thumb{background:rgba(255,178,41,.18);}
+.cl{display:flex;padding:1px 6px 1px 0;white-space:pre;border-left:3px solid transparent;}
+.cl.act{background:rgba(255,178,41,.09);border-left-color:var(--a);}
+.cl:hover{background:rgba(255,178,41,.035);}
+.ln{color:rgba(255,178,41,.2);width:28px;text-align:right;margin-right:12px;user-select:none;flex-shrink:0;font-size:11px;}
+.cl.act .ln{color:rgba(255,178,41,.55);}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4a5e6a;font-style:italic;}.op{color:#56b6c2;}.tp{color:#e5c07b;}
+
+/* ── BOTTOM SECTION ── */
+#bottom-section{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* Step explanation — ALWAYS VISIBLE, PROMINENT */
+#explain-bar{flex:0 0 auto;border-bottom:1px solid rgba(255,178,41,.14);background:rgba(0,0,0,.38);overflow:hidden;}
+#explain-inner{padding:12px 18px 14px;}
+.expl-row1{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.badge{font-family:'VT323';font-size:14px;padding:2px 10px;border:1px solid;letter-spacing:3px;flex-shrink:0;}
+.badge.init{color:var(--ad);border-color:var(--ad);}
+.badge.hash{color:var(--b);border-color:var(--b);background:rgba(96,165,250,.08);}
+.badge.insert{color:var(--g);border-color:var(--g);background:rgba(74,222,128,.07);}
+.badge.lookup{color:var(--c);border-color:var(--c);background:rgba(34,211,238,.07);}
+.badge.grow{color:var(--o);border-color:var(--o);background:rgba(249,115,22,.08);}
+.badge.evac{color:var(--p);border-color:var(--p);background:rgba(168,85,247,.07);}
+.badge.crash{color:var(--r);border-color:var(--r);background:rgba(244,63,94,.1);}
+.badge.warn{color:var(--o);border-color:var(--o);}
+.badge.done{color:var(--g);border-color:var(--g);}
+#expl-step{font-size:9px;color:var(--ad);}
+#expl-title{font-family:'VT323';font-size:22px;color:var(--a);letter-spacing:2px;}
+#expl-body{font-size:13px;line-height:1.75;color:rgba(255,178,41,.82);}
+#expl-insight{margin-top:9px;padding:7px 12px;border:1px solid rgba(255,178,41,.2);background:rgba(255,178,41,.03);font-size:11.5px;color:rgba(255,178,41,.6);line-height:1.6;border-left:3px solid var(--a);}
+#expl-insight strong{color:var(--a);}
+#expl-insight code{font-family:'IBM Plex Mono';font-size:11px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+
+/* Tabs panel below explanation */
+#bot-tabs-bar{display:flex;border-bottom:1px solid rgba(255,178,41,.12);background:rgba(0,0,0,.5);flex-shrink:0;}
+.btab{flex:1;font-size:9px;padding:5px 4px;text-align:center;letter-spacing:1.5px;color:var(--ad);cursor:pointer;border-right:1px solid rgba(255,178,41,.07);transition:.1s;}
+.btab:last-child{border-right:none;}
+.btab:hover,.btab.active{color:var(--a);background:rgba(255,178,41,.06);}
+.btab.active{border-bottom:2px solid var(--a);}
+#bot-panels{flex:1;overflow:hidden;position:relative;}
+.bpanel{position:absolute;inset:0;display:none;overflow-y:auto;flex-direction:column;}
+.bpanel.active{display:flex;}
+.bpanel::-webkit-scrollbar{width:4px;}
+.bpanel::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+
+/* ── USAGE EXAMPLES ── */
+.uex{border-bottom:1px solid rgba(255,178,41,.08);}
+.uex-hdr{padding:8px 16px 3px;background:rgba(74,222,128,.03);border-left:3px solid var(--g);}
+.uex-num{font-size:9px;color:rgba(74,222,128,.4);letter-spacing:1px;}
+.uex-title{font-size:12.5px;color:var(--g);letter-spacing:.5px;margin-top:1px;}
+.uex-sub{font-size:10px;color:rgba(74,222,128,.45);margin-top:1px;}
+.uex-code{font-family:'IBM Plex Mono';font-size:11.5px;line-height:1.72;padding:9px 16px 10px;color:rgba(255,178,41,.78);white-space:pre;}
+.uex-note{font-size:10.5px;color:rgba(255,178,41,.35);padding:0 16px 9px;font-style:italic;border-bottom:none;}
+
+/* ── INFO: CONCEPTS ── */
+.icon-row{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,178,41,.07);}
+.icon-row strong{color:#ffcc55;display:block;font-size:11px;margin-bottom:2px;}
+.icon-row p{font-size:11.5px;line-height:1.7;color:rgba(255,178,41,.72);}
+.icon-row code{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+.info-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.info-section{padding:10px 16px;border-bottom:1px solid rgba(255,178,41,.07);}
+.info-section h3{font-family:'VT323';font-size:14px;letter-spacing:3px;color:var(--a);margin-bottom:6px;}
+.info-section p{font-size:12px;line-height:1.75;color:rgba(255,178,41,.72);}
+.info-section code{font-family:'IBM Plex Mono';font-size:11px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+
+/* ── GOTCHAS ── */
+.trap{margin:8px 12px;padding:10px 12px;border:1px solid;font-size:12px;line-height:1.7;display:flex;gap:10px;}
+.trap.warn{border-color:rgba(244,63,94,.35);background:rgba(244,63,94,.04);}
+.trap.ok{border-color:rgba(74,222,128,.28);background:rgba(74,222,128,.03);}
+.trap.info{border-color:rgba(255,178,41,.18);background:rgba(255,178,41,.02);}
+.trap.note{border-color:rgba(96,165,250,.28);background:rgba(96,165,250,.03);}
+.trap-icon{font-size:16px;flex-shrink:0;}
+.trap-body strong{color:#ffcc55;display:block;margin-bottom:2px;font-size:11px;letter-spacing:.5px;}
+.trap-body{font-size:11.5px;color:rgba(255,178,41,.75);}
+.trap-body code{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+
+/* syntax in uex */
+.uex-code .kw{color:#c678dd;}.uex-code .str{color:#98c379;}.uex-code .nm{color:#d19a66;}
+.uex-code .fn{color:#61afef;}.uex-code .cm{color:#4a5e6a;font-style:italic;}
+.uex-code .r{color:var(--r);}.uex-code .g{color:var(--g);}.uex-code .o{color:var(--o);}
+
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scanline"></div>
+<div id="vignette"></div>
+<div id="ca"></div>
+
+<div id="boot">
+  <div id="bl">MAP.VIZ</div>
+  <div id="bs">GO RUNTIME HASHMAP — УСТРОЙСТВО ИЗНУТРИ</div>
+  <div id="blog"></div>
+  <div id="bprog"><div id="bfill"></div></div>
+</div>
+
+<div id="crt"><div id="main">
+  <div id="hdr">
+    <div id="logo">MAP.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+
+    <!-- LEFT -->
+    <div id="left">
+      <div id="viz"><canvas id="vc"></canvas></div>
+      <div id="pbar-wrap"><div id="pbar"></div></div>
+      <div id="stats">
+        <div class="si"><span class="sl">COUNT</span><span class="sv" id="s-cnt">—</span></div>
+        <div class="si"><span class="sl">B</span><span class="sv" id="s-b" style="color:var(--b)">—</span></div>
+        <div class="si"><span class="sl">BUCKETS</span><span class="sv" id="s-bk" style="color:var(--o)">—</span></div>
+        <div class="si"><span class="sl">LOAD</span><span class="sv" id="s-lf" style="color:var(--c)">—</span></div>
+        <div class="si"><span class="sl">GROW</span><span class="sv" id="s-gr">—</span></div>
+      </div>
+      <div id="ctrl">
+        <button class="cb" onclick="prev()">◀ PREV</button>
+        <button class="cb" id="pb" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cb" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cb" onclick="doReset()">↺</button>
+        <div class="csep"></div>
+        <span style="font-size:7.5px;color:var(--ad)">SPD</span>
+        <input type="range" id="spd" min="1" max="10" value="4" oninput="setSpd(this.value)">
+        <span id="sc">1/1</span>
+      </div>
+      <div id="kb">
+        <span class="kh"><span class="kk">←→</span>step</span>
+        <span class="kh"><span class="kk">SPC</span>play</span>
+        <span class="kh"><span class="kk">R</span>reset</span>
+        <span class="kh"><span class="kk">M</span>mute</span>
+        <span class="kh"><span class="kk">1–6</span>scene</span>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div id="right">
+
+      <!-- CODE — ALWAYS VISIBLE, LARGE -->
+      <div id="code-section">
+        <div id="code-hdr">
+          <span id="code-hdr-title">▸ ИСХОДНИК</span>
+          <span id="code-hdr-file">runtime/map.go</span>
+        </div>
+        <div id="code-area"></div>
+      </div>
+
+      <!-- BOTTOM: explanation + tabs -->
+      <div id="bottom-section">
+        <div id="explain-bar">
+          <div id="explain-inner">
+            <div class="expl-row1">
+              <span class="badge init" id="badge">INIT</span>
+              <span id="expl-title">ВЫБЕРИ СЦЕНУ</span>
+              <span id="expl-step" style="margin-left:auto">—</span>
+            </div>
+            <div id="expl-body">Нажми 1–6 чтобы выбрать сцену. ← → для перехода между шагами.</div>
+            <div id="expl-insight" style="display:none"></div>
+          </div>
+        </div>
+        <div id="bot-tabs-bar">
+          <div class="btab active" onclick="showBTab('usage')" id="bt-usage">▸ ПРИМЕРЫ</div>
+          <div class="btab" onclick="showBTab('concepts')" id="bt-concepts">▸ КОНЦЕПЦИИ</div>
+          <div class="btab" onclick="showBTab('traps')" id="bt-traps">▸ ЛОВУШКИ</div>
+        </div>
+        <div id="bot-panels">
+          <div class="bpanel active" id="bp-usage"></div>
+          <div class="bpanel" id="bp-concepts"></div>
+          <div class="bpanel" id="bp-traps"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div></div>
+
+<script>
+/* ── NOISE ── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');
+function r(){c.width=innerWidth;c.height=innerHeight;}r();window.addEventListener('resize',r);
+function d(){const id=x.createImageData(c.width,c.height),da=id.data;
+for(let i=0;i<da.length;i+=4){const v=Math.random()>.97?200:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?80:0;}
+x.putImageData(id,0,0);requestAnimationFrame(d);}d();})();
+function sGlitch(){setTimeout(()=>{const e=document.getElementById('crt');e.style.filter='brightness(.1)';setTimeout(()=>{e.style.filter='';sGlitch();},12+Math.random()*14);},6000+Math.random()*10000);}sGlitch();
+function flashCA(d=240){const e=document.getElementById('ca');e.classList.add('on');setTimeout(()=>e.classList.remove('on'),d);}
+
+/* ── AUDIO ── */
+let AC=null,muted=false;
+function snd(t){if(muted||!AC)return;try{
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.connect(g);g.connect(AC.destination);
+  const f={hash:440,insert:570,lookup:510,grow:310,evac:390,crash:100,warn:220,done:630,init:360};
+  o.frequency.setValueAtTime(f[t]||380,AC.currentTime);
+  o.type=t==='crash'?'sawtooth':'triangle';
+  g.gain.setValueAtTime(.052,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.16);
+  o.start();o.stop(AC.currentTime+.18);
+}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd').textContent=muted?'🔇':'🔊';if(!muted)snd('insert');}
+
+/* ── BOTTOM TABS ── */
+function showBTab(id){
+  document.querySelectorAll('.bpanel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.btab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('bp-'+id).classList.add('active');
+  document.getElementById('bt-'+id).classList.add('active');
+}
+
+/* ── SYNTAX HIGHLIGHT ── */
+function hlLine(line){
+  const ci=line.indexOf('//');
+  const raw=ci>=0?line.slice(0,ci):line;
+  const cmt=ci>=0?line.slice(ci):'';
+  function p(s){
+    s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/`([^`]*)`/g,'<span class="str">`$1`</span>');
+    s=s.replace(/\b(func|go|var|type|struct|const|return|if|else|for|range|defer|make|delete|true|false|nil|unsafe|interface|chan|select|case|default|goto|import|package)\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d[\d_]*)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&amp;&amp;|\|\||&lt;&lt;|&gt;&gt;)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return p(raw)+(cmt?`<span class="cm">${cmt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`:'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-area');
+  el.innerHTML=lines.map((l,i)=>`<div class="cl${i===active?' act':''}"><span class="ln">${i+1}</span><span>${hlLine(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cl')[active];if(a)setTimeout(()=>a.scrollIntoView({block:'nearest'}),50);}
+}
+function hlUsage(code){
+  return code.split('\n').map(line=>{
+    const ci=line.indexOf('//');
+    const raw=ci>=0?line.slice(0,ci):line;
+    const cmt=ci>=0?line.slice(ci):'';
+    function p(s){
+      s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+      s=s.replace(/`([^`]*)`/g,'<span class="str">`$1`</span>');
+      s=s.replace(/\b(func|go|var|type|struct|const|return|if|else|for|range|defer|make|delete|true|false|nil|import|package|chan|select|case|default|interface)\b/g,'<span class="kw">$1</span>');
+      s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+      s=s.replace(/\b(\d[\d_]*)\b/g,'<span class="nm">$1</span>');
+      return s;
+    }
+    return p(raw)+(cmt?`<span class="cm">${cmt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`:'');
+  }).join('\n');
+}
+
+/* ── CANVAS ── */
+const cv=document.getElementById('vc'),cx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){const el=document.getElementById('viz');W=cv.width=el.clientWidth;H=cv.height=el.clientHeight;if(PLAY.steps.length)draw(PLAY.steps[PLAY.idx]);}
+window.addEventListener('resize',resize);
+const C={A:'#ffb229',G:'#4ade80',R:'#f43f5e',B:'#60a5fa',N:'#22d3ee',O:'#f97316',P:'#a855f7',D:'rgba(255,178,41,.14)'};
+function box(x,y,w,h,stroke,fill,glow,lw){
+  cx.save();if(glow){cx.shadowColor=stroke;cx.shadowBlur=16;}
+  cx.lineWidth=lw||1.5;cx.strokeStyle=stroke;cx.fillStyle=fill||stroke+'14';
+  cx.fillRect(x,y,w,h);cx.strokeRect(x,y,w,h);cx.restore();
+}
+function txt(s,x,y,font,col,align,base){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.textAlign=align||'center';cx.textBaseline=base||'middle';cx.fillText(s,x,y);cx.restore();
+}
+function glowtxt(s,x,y,font,col){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.shadowColor=col;cx.shadowBlur=18;cx.textAlign='center';cx.textBaseline='middle';cx.fillText(s,x,y);cx.restore();
+}
+function arrow(x1,y1,x2,y2,col,label,dashed){
+  cx.save();cx.strokeStyle=col;cx.lineWidth=1.5;cx.shadowColor=col;cx.shadowBlur=5;
+  if(dashed)cx.setLineDash([4,3]);
+  cx.beginPath();cx.moveTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();cx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1);
+  cx.fillStyle=col;cx.shadowBlur=0;
+  cx.beginPath();cx.moveTo(x2,y2);cx.lineTo(x2-8*Math.cos(a-.32),y2-8*Math.sin(a-.32));cx.lineTo(x2-8*Math.cos(a+.32),y2-8*Math.sin(a+.32));cx.closePath();cx.fill();
+  if(label){cx.font="9px 'Share Tech Mono'";cx.fillStyle=col;cx.textAlign='center';cx.textBaseline='bottom';cx.shadowBlur=0;cx.fillText(label,(x1+x2)/2,(y1+y2)/2-4);}
+  cx.restore();
+}
+function ann(s,x,y,col){cx.save();cx.font="9px 'Share Tech Mono'";cx.fillStyle=col||'rgba(255,178,41,.45)';cx.textAlign='center';cx.textBaseline='top';cx.fillText(s,x,y);cx.restore();}
+function scHdr(s){cx.save();cx.font="9px 'Share Tech Mono'";cx.fillStyle='rgba(255,178,41,.13)';cx.textAlign='center';cx.textBaseline='top';cx.fillText(s,W/2,4);cx.restore();}
+
+/* ═══════════════════ RENDERERS ═══════════════════ */
+
+function drawHmap(s){
+  scHdr('VAR m map[K]V  ——  УКАЗАТЕЛЬ НА 56-БАЙТОВЫЙ HMAP В КУЧЕ');
+  const fields=[
+    {n:'count',      t:'int',            sz:'8B',  v:s.count||'0',    c:C.A},
+    {n:'flags',      t:'uint8',          sz:'1B',  v:s.flags||'0x00', c:C.O},
+    {n:'B',          t:'uint8',          sz:'1B',  v:s.B||'0',        c:C.B},
+    {n:'noverflow',  t:'uint16',         sz:'2B',  v:s.noverfl||'0',  c:C.P},
+    {n:'hash0',      t:'uint32',         sz:'4B',  v:s.hash0||'...',  c:C.N},
+    {n:'buckets',    t:'unsafe.Pointer', sz:'8B',  v:s.bptr||'nil',   c:C.G},
+    {n:'oldbuckets', t:'unsafe.Pointer', sz:'8B',  v:s.oldptr||'nil', c:s.growing?C.O:'rgba(255,178,41,.2)'},
+    {n:'nevacuate',  t:'uintptr',        sz:'8B',  v:s.nevac||'0',    c:s.growing?C.P:'rgba(255,178,41,.2)'},
+  ];
+  const fh=Math.min(H*.09,(H*.82)/fields.length);
+  const fw=W*.76,fx=W*.18,fy=H*.09;
+
+  // struct label left
+  txt('hmap{',fx-6,fy-10,"10px 'Share Tech Mono'",'rgba(255,178,41,.25)','right');
+  // stack variable
+  box(W*.02,fy+fh*2.5,W*.12,fh*2,C.A+'55','transparent');
+  glowtxt('m',W*.02+W*.06,fy+fh*3.5,"14px 'VT323'",C.A+'66');
+  ann('stack var\n(*hmap)',W*.02+W*.06,fy+fh*5.5+4,'rgba(255,178,41,.3)');
+  if(s.B)arrow(W*.14,fy+fh*3.5,fx,fy+fh*2.5+fh,C.A+'44','ptr');
+
+  fields.forEach((f,i)=>{
+    const y=fy+i*fh;
+    const hi=s.hi===f.n;
+    const col=f.c;
+    const isActive=typeof col==='string'&&!col.startsWith('rgba');
+    box(fx,y,fw,fh,hi?col:isActive?col+'55':'rgba(255,178,41,.12)',hi?col+'16':isActive?col+'06':'transparent',hi);
+    txt(f.n,fx+10,y+fh/2,"11px 'IBM Plex Mono'",hi?col:isActive?col+'cc':'rgba(255,178,41,.3)','left');
+    txt(f.t,fx+fw*.46,y+fh/2,"9px 'Share Tech Mono'",hi?'rgba(255,178,41,.6)':'rgba(255,178,41,.18)','center');
+    txt(f.sz,fx+fw*.68,y+fh/2,"9px 'Share Tech Mono'",hi?'rgba(255,178,41,.5)':'rgba(255,178,41,.15)','center');
+    txt(f.v,fx+fw-8,y+fh/2,"13px 'VT323'",hi?col:isActive?col+'88':'rgba(255,178,41,.2)','right');
+  });
+  txt('}',fx-6,fy+fh*fields.length+6,"10px 'Share Tech Mono'",'rgba(255,178,41,.25)','right');
+
+  if(s.B&&parseInt(s.B)>0){
+    const nb=1<<parseInt(s.B),show=Math.min(nb,5);
+    const bw=Math.min(40,(W*.76)/(show+1));
+    const bx=fx+fw+12,by=fy+H*.27;
+    ann('buckets  2^'+s.B+'='+nb,bx+show*(bw+2)/2,by-14,C.G+'77');
+    for(let i=0;i<show;i++){
+      box(bx+i*(bw+2),by,bw,26,C.G+'44',C.G+'08');
+      txt(i,bx+i*(bw+2)+bw/2,by+13,"11px 'VT323'",C.G+'55');
+    }
+    if(nb>5)txt('…',bx+show*(bw+2)+4,by+13,"9px 'VT323'",C.G+'33','left');
+    const fi=fields.findIndex(f=>f.n==='buckets');
+    arrow(fx+fw,fy+fi*fh+fh/2,bx,by+13,C.G+'55','');
+  }
+  if(s.note)glowtxt(s.note,W*.5,H*.92,"11px 'VT323'",s.nc||C.A);
+}
+
+function drawBmap(s){
+  scHdr('[8]tophash  [8]keys  [8]values  overflow*bmap');
+  const N=8,SLOT=s.slot>=0?s.slot:-1;
+  const colW=(W*.9)/N,sx=W*.05;
+
+  const sec=[[W*.1,'tophash[8]','uint8×8',C.B],[W*.36,'keys[8]','K×8',C.G],[W*.36,'values[8]','V×8',C.O],[W*.08,'overflow','*bmap',C.P]];
+  let px=sx;
+  sec.forEach(([w,lbl,sub,col])=>{
+    box(px,H*.07,w*W,H*.1,col,col+'0e');
+    txt(lbl,px+w*W/2,H*.07+H*.05*.7,"9px 'Share Tech Mono'",col);
+    txt(sub,px+w*W/2,H*.07+H*.1*.8,"8px 'Share Tech Mono'",col+'55');
+    px+=w*W;
+  });
+
+  if(SLOT>=0){
+    cx.save();cx.fillStyle='rgba(255,178,41,.02)';cx.fillRect(sx+SLOT*colW,H*.22,colW,H*.58);cx.restore();
+    box(sx+SLOT*colW,H*.22,colW,H*.58,'rgba(255,178,41,.08)','transparent');
+    ann('slot '+SLOT,sx+SLOT*colW+colW/2,H*.225,C.A+'88');
+  }
+
+  const rows=[
+    {lbl:'tophash',y:H*.27,h:H*.13,vals:s.th||Array(N).fill('0x00'),col:C.B},
+    {lbl:'key',    y:H*.44,h:H*.15,vals:s.ks||Array(N).fill('—'),   col:C.G},
+    {lbl:'value',  y:H*.63,h:H*.13,vals:s.vs||Array(N).fill('—'),   col:C.O},
+  ];
+  rows.forEach(row=>{
+    txt(row.lbl,sx-4,row.y+row.h/2,"9px 'Share Tech Mono'",row.col+'77','right');
+    for(let i=0;i<N;i++){
+      const act=i===SLOT,filled=row.vals[i]!=='—'&&row.vals[i]!=='0x00';
+      const col=row.col;
+      box(sx+i*colW+1,row.y,colW-3,row.h,act?col:filled?col+'55':col+'18',act?col+'16':filled?col+'09':'transparent',act);
+      txt(row.vals[i],sx+i*colW+colW/2,row.y+row.h/2,"11px 'VT323'",act?col:filled?col+'bb':col+'28');
+    }
+  });
+
+  const ovY=H*.83,ovC=s.ov&&s.ov!=='nil'?C.P:C.D;
+  box(sx,ovY,W*.9,H*.075,ovC,ovC+'09');
+  txt('overflow → '+(s.ov||'nil'),W*.5,ovY+H*.037,"11px 'Share Tech Mono'",ovC);
+  if(s.note)ann(s.note,W*.5,H*.94,s.nc||C.B+'88');
+}
+
+function drawLookup(s){
+  scHdr('mapaccess1: hash(key,seed) → bucket[low B bits] → сканирование tophash → key.equal');
+  const B=parseInt(s.B||'3');
+  const step=s.step||0;
+
+  // pipeline steps
+  const pipe=['1.hash(key,seed)','2.bucket=hash&mask','3.tophash=hash>>56','4.scan tophash[8]','5.key.equal()'];
+  const sw=(W*.9)/pipe.length,sy=H*.07;
+  pipe.forEach((st,i)=>{
+    const done=step>i,cur=step===i;
+    const col=cur?C.A:done?C.G+'88':'rgba(255,178,41,.18)';
+    box(W*.05+i*sw,sy,sw-3,26,col,cur?col+'16':done?C.G+'07':'transparent',cur);
+    txt(st,W*.05+i*sw+(sw-3)/2,sy+13,"8px 'Share Tech Mono'",col);
+    if(i<pipe.length-1){
+      const ax=W*.05+(i+1)*sw-3;
+      cx.save();cx.fillStyle=done||cur?C.G+'55':'rgba(255,178,41,.12)';
+      cx.beginPath();cx.moveTo(ax,sy+6);cx.lineTo(ax+4,sy+13);cx.lineTo(ax,sy+20);cx.fill();cx.restore();
+    }
+  });
+
+  // hash bar
+  if(step>=1){
+    const bx=W*.05,by=H*.23,bw=W*.9,bh=H*.1;
+    const tp=8/64,bp=B/64,mp=1-tp-bp;
+    ann('64-bit hash = 0x'+(s.hashval||'8FC3'+(s.bucket!==undefined?s.bucket.toString(16).padStart(2,'0'):'02')+'1A'),W*.5,by-14,C.A+'55');
+    box(bx,by,bw*tp,bh,C.B,C.B+'18',step===2||step===0);
+    txt('top 8 bits',bx+bw*tp/2,by+bh*.35,"8px 'Share Tech Mono'",C.B);
+    txt('0x'+(s.top||'8F'),bx+bw*tp/2,by+bh*.72,"14px 'VT323'",C.B);
+    box(bx+bw*tp,by,bw*mp,bh,'rgba(255,178,41,.1)','transparent');
+    txt('middle '+(64-B-8)+' bits',bx+bw*tp+bw*mp/2,by+bh/2,"8px 'Share Tech Mono'",'rgba(255,178,41,.18)');
+    box(bx+bw*(tp+mp),by,bw*bp,bh,C.G,C.G+'18',step===1);
+    txt('low '+B+' bits',bx+bw*(tp+mp)+bw*bp/2,by+bh*.35,"8px 'Share Tech Mono'",C.G);
+    txt(s.bucket!==undefined?'→ bucket #'+s.bucket:'→ bucket',bx+bw*(tp+mp)+bw*bp/2,by+bh*.72,"12px 'VT323'",C.G);
+  }
+
+  // bucket array
+  if(step>=2){
+    const nb=1<<B,show=Math.min(nb,8);
+    const bkw=Math.min(52,W*.86/show);
+    const bkx=(W-show*bkw)/2,bky=H*.42;
+    ann('bucket array [0..'+(nb-1)+']',W*.5,bky-13,C.G+'55');
+    for(let i=0;i<show;i++){
+      const sel=i===s.bucket;
+      box(bkx+i*bkw,bky,bkw-2,34,sel?C.G:C.G+'28',sel?C.G+'14':'transparent',sel);
+      txt(i,bkx+i*bkw+(bkw-2)/2,bky+17,"12px 'VT323'",sel?C.G:C.G+'28');
+    }
+    if(nb>8)txt('…',bkx+show*bkw+4,bky+17,"10px",C.G+'28','left');
+    if(s.bucket!==undefined){
+      const bx=W*.05,bw=W*.9,by=H*.23,bh=H*.1,tp=8/64,bp=B/64,mp=1-tp-bp;
+      arrow(bx+bw*(tp+mp)+bw*bp/2,by+bh,bkx+s.bucket*bkw+(bkw-2)/2,bky,C.G+'66','');
+    }
+  }
+
+  // tophash scan
+  if(step>=3){
+    const N=8,slw=W*.88/N,slx=W*.06,sly=H*.61;
+    ann('scanning tophash[8] in bucket #'+(s.bucket||0)+' — target: 0x'+(s.top||'8F'),W*.5,sly-13,C.B+'66');
+    const ths=s.tophash||['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'];
+    ths.forEach((v,i)=>{
+      const match=v==='0x'+(s.top||'8F')&&v!=='0x00';
+      const scanning=i===(s.scanAt||0)&&step===3;
+      const col=match?(step>=4?C.G:C.B):(scanning?C.A:C.B+'28');
+      const act=match||scanning;
+      box(slx+i*slw,sly,slw-2,36,col,act?col+'12':'transparent',act);
+      txt(v,slx+i*slw+(slw-2)/2,sly+18,"11px 'VT323'",act?col:col);
+      if(match&&step>=4)glowtxt('✓',slx+i*slw+(slw-2)/2,sly+44,"10px 'Share Tech Mono'",C.G);
+      if(scanning)ann('checking',slx+i*slw+(slw-2)/2,sly+42,C.A+'66');
+    });
+  }
+  if(s.result)glowtxt(s.result,W*.5,H*.87,"13px 'VT323'",s.rc||C.G);
+}
+
+function drawInsert(s){
+  scHdr('mapassign: ФЛАГ → СКАН БАКЕТА → ЗАПИСЬ/ОБНОВЛЕНИЕ → ПРОВЕРКА РОСТА');
+  const flagSet=s.flagSet||s.crash;
+  const fc=s.crash?C.R:flagSet?C.O:C.D;
+
+  // write flag
+  const fw=W*.7,fh=38,fx=(W-fw)/2,fy=H*.07;
+  box(fx,fy,fw,fh,fc,fc+(s.crash?'14':flagSet?'08':'03'),flagSet||s.crash);
+  txt('hmap.flags  hashWriting = '+(flagSet?'1':'0'),fx+fw/2,fy+14,"11px 'Share Tech Mono'",fc);
+  txt(s.crash?'FATAL: concurrent map write — fatal(), not panic() — no recover()':(flagSet?'write in progress — concurrent write here → fatal()':'flag clear — safe to proceed'),fx+fw/2,fy+27,"9px 'Share Tech Mono'",fc+'99');
+
+  // 8 slots
+  const N=8,slh=42,slw=W*.9/N,slx=W*.05,sly=H*.3;
+  ann('bucket #'+(s.bucket||0)+' — 8 slots',W*.5,sly-13,'rgba(255,178,41,.38)');
+  const slots=s.slots||Array(N).fill('empty');
+  slots.forEach((state,i)=>{
+    const col=state==='empty'?'rgba(255,178,41,.16)':state==='target'?C.G:state==='match'||state==='update'?C.B:state==='full'?C.O+'66':C.A+'22';
+    const act=state==='target'||state==='match'||state==='update';
+    box(slx+i*slw+1,sly,slw-3,slh,col,act?col+'16':'transparent',act);
+    const lbl=state==='empty'?'—':state==='target'?(s.key||'new'):state==='match'?'KEY✓':state==='update'?'UPDATE':state==='full'?'kv'+i:'?';
+    txt(lbl,slx+i*slw+slw/2,sly+21,"11px 'VT323'",act?col:(typeof col==='string'&&col.startsWith('rgba')?col:'rgba(255,178,41,.25)'));
+    const th=state==='empty'?'0x00':'0x'+( s.top||'??');
+    ann(th,slx+i*slw+slw/2,sly+slh+4,col+(typeof col==='string'&&col.startsWith('#')?'55':''));
+  });
+
+  // load gauge
+  const count=parseFloat(s.count||'0');
+  const Bv=parseInt(s.B||'1');
+  const bkts=Math.pow(2,Bv);
+  const lf=count>0?(count/bkts).toFixed(2):'0.00';
+  const gx=W*.06,gy=H*.59,gw=W*.88,gh=16;
+  ann('LOAD: '+count+'/'+bkts+' = '+lf+'  [threshold 6.5]',W*.5,gy-13,'rgba(255,178,41,.45)');
+  box(gx,gy,gw,gh,'rgba(255,178,41,.1)','transparent');
+  const pct=Math.min(parseFloat(lf)/10,1);
+  const gc=parseFloat(lf)>6.5?C.R:parseFloat(lf)>5?C.O:C.G;
+  cx.save();cx.fillStyle=gc+'cc';cx.fillRect(gx,gy,gw*pct,gh);cx.restore();
+  box(gx,gy,gw,gh,'rgba(255,178,41,.1)','transparent');
+  const tx=gx+gw*(6.5/10);
+  cx.save();cx.strokeStyle=C.R+'aa';cx.lineWidth=2;cx.setLineDash([4,3]);cx.beginPath();cx.moveTo(tx,gy-7);cx.lineTo(tx,gy+gh+7);cx.stroke();cx.setLineDash([]);cx.restore();
+  txt('6.5',tx,gy-11,"9px 'Share Tech Mono'",C.R);
+
+  if(s.overflow)glowtxt('АЛЛОЦИРОВАН OVERFLOW-БАКЕТ',W*.5,H*.78,"13px 'VT323'",C.P);
+  if(s.growTrig)glowtxt('hashGrow()  B:'+Bv+'→'+(Bv+1)+'  double buckets',W*.5,H*.84,"13px 'VT323'",C.O);
+  if(s.note&&!s.growTrig&&!s.overflow)ann(s.note,W*.5,H*.82,s.nc||C.A);
+}
+
+function drawGrow(s){
+  scHdr('ИНКРЕМЕНТАЛЬНО: каждая запись эвакуирует 1–2 старых бакета. без STW.');
+  const B=parseInt(s.B||'3');
+  const oldN=1<<(B-1),newN=1<<B;
+  const evac=parseInt(s.nevac||'0');
+  const mo=Math.min(oldN,7),mn=Math.min(newN,7);
+
+  const oh=46,obw=(W*.46-8)/mo,ox=W*.03,oy=H*.18;
+  ann('oldbuckets  [B='+(B-1)+']  '+oldN+' buckets',ox+W*.23,oy-15,C.O+'77');
+  for(let i=0;i<mo;i++){
+    const done=i<evac;
+    const col=done?'rgba(255,178,41,.13)':C.O;
+    box(ox+i*(obw+2),oy,obw,oh,col,done?'transparent':C.O+'11',!done);
+    txt(i,ox+i*(obw+2)+obw/2,oy+oh*.42,"13px 'VT323'",done?'rgba(255,178,41,.2)':C.O);
+    if(done){
+      cx.save();cx.strokeStyle=C.O+'3a';cx.lineWidth=1.5;
+      cx.beginPath();cx.moveTo(ox+i*(obw+2)+5,oy+oh*.5);cx.lineTo(ox+i*(obw+2)+obw*.38,oy+oh*.78);cx.lineTo(ox+i*(obw+2)+obw*.88,oy+oh*.18);cx.stroke();cx.restore();
+    }
+  }
+
+  // progress bar
+  const pw=W*.56,px=W*.22,py=H*.42;
+  const pct=evac/Math.max(oldN,1);
+  ann('nevacuate = '+evac+' / '+oldN+'  (evacuation progress)',W*.5,py-13,C.P+'88');
+  box(px,py,pw,10,'rgba(168,85,247,.2)','transparent');
+  cx.save();cx.fillStyle=C.P;cx.fillRect(px,py,pw*pct,10);cx.restore();
+  box(px,py,pw,10,'rgba(168,85,247,.2)','transparent');
+
+  ann('bit '+(B-1)+'=0 → X (same idx)',W*.26,py+18,C.G+'66');
+  ann('bit '+(B-1)+'=1 → Y (idx+'+oldN+')',W*.74,py+18,C.B+'66');
+
+  for(let i=0;i<Math.min(evac,mo);i++){
+    const midX=ox+i*(obw+2)+obw/2;
+    arrow(midX,oy+oh,midX-obw*.28,H*.55,C.G+'33','X',true);
+    arrow(midX,oy+oh,midX+obw*.48,H*.55,C.B+'33','Y',true);
+  }
+
+  const nh=46,nbw=(W*.46-8)/mn,nx=W*.51,ny=H*.57;
+  ann('buckets  [B='+B+']  '+newN+' buckets',nx+W*.23,ny-15,C.G+'77');
+  for(let i=0;i<mn;i++){
+    const isX=i<evac,isY=i>=oldN&&i<oldN+evac;
+    const col=isX?C.G:isY?C.B:C.G+'1a';
+    box(nx+i*(nbw+2),ny,nbw,nh,col,col+(isX||isY?'10':'03'),isX||isY);
+    txt(i,nx+i*(nbw+2)+nbw/2,ny+nh*.42,"12px 'VT323'",(isX||isY)?col:C.G+'22');
+    if(isX)ann('X',nx+i*(nbw+2)+nbw/2,ny+nh*.75,C.G+'77');
+    if(isY)ann('Y',nx+i*(nbw+2)+nbw/2,ny+nh*.75,C.B+'77');
+  }
+
+  if(s.note)glowtxt(s.note,W*.5,H*.9,"12px 'VT323'",s.nc||C.G);
+}
+
+function drawConcurrent(s){
+  scHdr('НЕ ПОТОКОБЕЗОПАСНО — параллельная запись = fatal(), не panic()');
+  const gw=W*.27,gh=50,gy=H*.1;
+  const g1x=W*.04,g2x=W*.69;
+  const G1c=s.g1?C.B:C.B+'33',G2c=s.g2?C.O:C.O+'33';
+
+  box(g1x,gy,gw,gh,G1c,C.B+(s.g1?'0c':'03'),s.g1);
+  glowtxt('goroutine 1',g1x+gw/2,gy+18,"11px 'VT323'",G1c);
+  txt(s.g1op||'_ = m["a"]',g1x+gw/2,gy+36,"9px 'Share Tech Mono'",G1c+'cc');
+
+  box(g2x,gy,gw,gh,G2c,C.O+(s.g2?'0c':'03'),s.g2);
+  glowtxt('goroutine 2',g2x+gw/2,gy+18,"11px 'VT323'",G2c);
+  txt(s.g2op||'_ = m["b"]',g2x+gw/2,gy+36,"9px 'Share Tech Mono'",G2c+'cc');
+
+  const mx=W*.34,my=H*.1,mw=W*.32,mh=50;
+  const mc=s.crash?C.R:s.conflict?C.O:C.A+'33';
+  box(mx,my,mw,mh,mc,mc+(s.crash?'13':s.conflict?'07':'03'),s.crash||s.conflict);
+  glowtxt('map[K]V',mx+mw/2,my+18,"14px 'VT323'",mc);
+  txt('flags='+(s.conflict||s.crash?'КОНФЛИКТ!':s.g1||s.g2?'запись':'простой'),mx+mw/2,my+37,"9px 'Share Tech Mono'",mc+'99');
+
+  if(s.g1)arrow(g1x+gw,gy+mh/2,mx,my+mh/2,C.B+'77','');
+  if(s.g2)arrow(g2x,gy+mh/2,mx+mw,my+mh/2,C.O+'77','');
+
+  if(s.crash){
+    glowtxt('fatal error: concurrent map write',W*.5,H*.47,"16px 'VT323'",C.R);
+    txt('fatal() — НЕ panic() — recover() ЭТО НЕ ПОЙМАЕТ',W*.5,H*.57,"10px 'Share Tech Mono'",C.R+'88');
+    box(W*.12,H*.63,W*.76,28,C.R+'2a',C.R+'07');
+    txt('hmap.flags & hashWriting (бит 4) проверяется при каждой записи',W*.5,H*.63+14,"9px 'Share Tech Mono'",C.R+'88');
+    flashCA(180);
+  }
+
+  if(s.sol){
+    const sols=[
+      {id:'mutex',l:'sync.Mutex',   n:'универсально',   sub:'все паттерны',        c:C.G},
+      {id:'rw',   l:'RWMutex',     n:'много чтений',   sub:'N читателей / 1 писатель', c:C.B},
+      {id:'smap', l:'sync.Map',    n:'преим. чтение',  sub:'только стабильные ключи',    c:C.P},
+    ];
+    ann('ПОТОКОБЕЗОПАСНЫЕ АЛЬТЕРНАТИВЫ:',W*.5,H*.46,'rgba(255,178,41,.35)');
+    const sw=W*.27,sg=W*.025,tot=sols.length*(sw+sg)-sg,startX=(W-tot)/2;
+    sols.forEach((sol,i)=>{
+      const x=startX+i*(sw+sg);
+      const act=s.sol===sol.id;
+      box(x,H*.51,sw,56,sol.c+(act?'':' 33'),act?sol.c+'12':'transparent',act);
+      glowtxt(sol.l,x+sw/2,H*.51+17,"12px 'VT323'",sol.c+(act?'':'33'));
+      txt(sol.n,x+sw/2,H*.51+32,"9px 'Share Tech Mono'",sol.c+(act?'':'33'));
+      txt(sol.sub,x+sw/2,H*.51+47,"8px 'Share Tech Mono'",sol.c+(act?'77':'22'));
+    });
+    ann('⚠ sync.Map под записями: медленнее Mutex. Сначала бенчмарк.',W*.5,H*.77,C.O+'55');
+  }
+}
+
+function draw(step){
+  cx.clearRect(0,0,W,H);
+  switch(SCENE){
+    case 'hmap':       drawHmap(step); break;
+    case 'bmap':       drawBmap(step); break;
+    case 'lookup':     drawLookup(step); break;
+    case 'insert':     drawInsert(step); break;
+    case 'grow':       drawGrow(step); break;
+    case 'concurrent': drawConcurrent(step); break;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCENE DATA — rich steps with title + insight
+═══════════════════════════════════════════════════════ */
+const SCENES = {
+
+hmap:{label:'1. HMAP',
+file:'runtime/map.go',
+code:[
+  '// runtime/map.go — Go 1.22',
+  '// hmap is the in-memory representation of a Go map.',
+  '// map variable = *hmap (just a pointer)',
+  'type hmap struct {',
+  '    count      int            // len(map) — live key count',
+  '    flags      uint8          // hashWriting | iterator flags',
+  '    B          uint8          // log₂ of bucket count',
+  '    noverflow  uint16         // approx # of overflow buckets',
+  '    hash0      uint32         // random seed (fastrand on make)',
+  '    buckets    unsafe.Pointer // ptr to [2^B]bmap. nil if count==0',
+  '    oldbuckets unsafe.Pointer // nil in steady state; != nil during grow',
+  '    nevacuate  uintptr        // grow progress: next bucket to evacuate',
+  '    extra      *mapextra      // rare overflow/iterator fields',
+  '}',
+  '',
+  'func makemap(t *maptype, hint int, h *hmap) *hmap {',
+  '    if h == nil { h = new(hmap) }      // 56-byte alloc on heap',
+  '    h.hash0 = fastrand()               // NEW random seed every call!',
+  '    B := uint8(0)',
+  '    for overLoadFactor(hint, B) { B++ } // pick B: load ≤ 6.5',
+  '    h.B = B',
+  '    if h.B != 0 {',
+  '        h.buckets = newarray(t.bucket, 1<<h.B)',
+  '    }',
+  '    return h',
+  '}',
+  '',
+  '// var m map[K]V  →  h = nil, no allocation',
+  '// nil map read:  OK, returns zero value',
+  '// nil map write: PANIC — assignment to entry in nil map',
+  '// m == nil check before write if uncertain',
+],
+steps:[
+  {phase:'init',  cl:3,  count:'0',B:null,  flags:'0x00',hash0:'?',bptr:'nil',oldptr:'nil',nevac:'0',noverfl:'0',
+   title:'MAP-ПЕРЕМЕННАЯ = УКАЗАТЕЛЬ',
+   body:'var m map[K]V объявляет указатель (8 байт на 64-бит). Сам hmap-структ НЕ выделяется. Указатель равен nil. Чтение из nil map безопасно (возвращает нулевое значение). Запись в nil map вызовет панику.',
+   insight:'<strong>Ответ на собеседовании:</strong> "что такое Go map?" → Указатель на hmap-структ в куче. Сама переменная занимает 8 байт.'},
+  {phase:'hash',  cl:17, count:'0',B:null,  flags:'0x00',hash0:'0x5f3a',bptr:'nil',oldptr:'nil',nevac:'0',noverfl:'0',hi:'hash0',
+   title:'FASTRAND: ХЭШ-СИД',
+   body:'make(map[K]V) выделяет hmap-заголовок и вызывает fastrand() для генерации случайного 32-битного сида, уникального для каждого экземпляра. Даже два одинаковых map имеют разные сиды.',
+   insight:'<strong>Зачем случайный сид?</strong> Hash-flooding атака: предсказуемый сид позволяет злоумышленнику создать ключи, которые все попадут в bucket 0, превращая O(1) в O(n). Go использует per-map сиды с версии 1.0.'},
+  {phase:'init',  cl:19, count:'0',B:'3',   flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'nil',nevac:'0',noverfl:'0',hi:'B',
+   title:'B = LOG₂(ЧИСЛО БАКЕТОВ)',
+   body:'B выбирается так, чтобы начальный load factor оставался ≤ 6.5. make(map, 100) → B=4 (16 бакетов, ~104 ключа). Число бакетов всегда степень двойки: bucket = hash & (2^B - 1) — одна операция AND, не деление.',
+   insight:'<strong>B=3 → 8 бакетов. B=4 → 16 бакетов.</strong> Удвоение при каждом росте сохраняет амортизированную стоимость O(1). make(map[K]V, N) позволяет избежать 3-4 перераспределений для большого N.'},
+  {phase:'insert',cl:4,  count:'6', B:'3',  flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'nil',nevac:'0',noverfl:'0',hi:'count',
+   title:'COUNT = LEN(MAP)',
+   body:'После 6 вставок: count=6. B=3 → 8 бакетов. Load = 6/8 = 0.75. Далеко ниже порога 6.5. count уменьшается при удалении, увеличивается при вставке (не при обновлении). len(m) читает count напрямую за O(1).',
+   insight:'<strong>len(map) — это O(1):</strong> читает hmap.count напрямую. Без обхода. count меняется только при реальной вставке (новый ключ) или удалении, не при обновлении существующих ключей.'},
+  {phase:'grow',  cl:11, count:'53',B:'4',  flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'0xc0...',nevac:'0',noverfl:'0',hi:'oldbuckets',growing:true,
+   title:'РОСТ: OLDBUCKETS',
+   body:'count=53, load=6.6 > 6.5: вызывается hashGrow(). B: 3→4 (8→16 бакетов). Старый массив сохраняется в oldbuckets. Выделяется новый пустой массив. Ключи НЕ перемещаются сразу — инкрементальная эвакуация начнётся при следующих записях.',
+   insight:'<strong>Два массива сосуществуют во время роста:</strong> oldbuckets (все данные), buckets (новый, пустой). Чтения проверяют оба. Ни одна горутина не блокируется. Рост амортизируется по O(N) последующим записям.'},
+  {phase:'evac',  cl:12, count:'53',B:'4',  flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'0xc0...',nevac:'11',noverfl:'0',hi:'nevacuate',growing:true,
+   title:'NEVACUATE = ПРОГРЕСС',
+   body:'nevacuate отслеживает, сколько старых бакетов перемещено в новый массив. Каждая запись эвакуирует 1-2 старых бакета. Когда nevacuate достигает oldN, рост завершён и oldbuckets освобождается.',
+   insight:'<strong>Без STW (stop-the-world):</strong> в отличие от Java HashMap resize, рост Go map — инкрементальный. Эвакуация 1-2 бакетов за запись ограничивает задержку. Суммарная работа O(N) распределяется по O(N) записям.'},
+],
+usage:[
+  {n:1,title:'Предварительный размер через make',sub:'главный выигрыш в производительности для map с известным размером',code:`// BAD — triggers ~4 grows for 10k items
+m := make(map[string]int)
+for _, k := range keys { m[k]++ }
+
+// GOOD — 0 grows, ~40% faster for 10k+ items
+m := make(map[string]int, len(keys))
+for _, k := range keys { m[k]++ }
+
+// How many grows does B=0 trigger for 10k items?
+// B=0:  load>6.5 after  6 keys → grow to B=1
+// B=1:  load>6.5 after 13 keys → grow to B=2
+// B=2:  load>6.5 after 26 keys → grow to B=3
+// ...
+// B=10: threshold 6656 keys — about 4 grows total`,note:'Правило: любой map, который предположительно превысит 50 элементов, должен использовать hint.'},
+  {n:2,title:'Защита от nil map',sub:'чтение и запись nil map',code:`var m map[string]int  // m is nil, no allocation
+
+// READ — always safe, returns zero value
+v := m["key"]           // v = 0,     no panic
+v, ok := m["key"]       // v = 0, ok = false
+
+// WRITE — panic!
+m["key"] = 1            // panic: assignment to nil map
+
+// Pattern: lazy initialization
+if m == nil {
+    m = make(map[string]int)
+}
+m["key"] = 1  // safe
+
+// Or use a var block with initialization:
+var m = make(map[string]int)`,note:''},
+  {n:3,title:'Копирование map — поверхностное, по указателю',sub:'присваивание map разделяет одни и те же данные',code:`a := map[string]int{"x": 1}
+b := a           // b and a point to the SAME hmap!
+b["x"] = 99
+fmt.Println(a["x"])  // 99 — NOT 1
+
+// To get a true copy, iterate:
+func copyMap[K comparable, V any](m map[K]V) map[K]V {
+    cp := make(map[K]V, len(m))
+    for k, v := range m { cp[k] = v }
+    return cp
+}
+c := copyMap(a)
+c["x"] = 1
+fmt.Println(a["x"])  // still 99`,note:'Передача map в функцию также передаёт указатель — функция может изменить map вызывающего.'},
+  {n:4,title:'maps.Clone и maps.Copy (Go 1.21)',sub:'вспомогательные функции стандартной библиотеки для копирования map',code:`import "maps"
+
+original := map[string]int{"a": 1, "b": 2}
+
+// Clone: full copy, new map
+clone := maps.Clone(original)   // independent copy
+clone["c"] = 3
+fmt.Println(original["c"])  // 0 — not affected
+
+// Copy: merge src into dst
+dst := map[string]int{"a": 99, "x": 10}
+maps.Copy(dst, original)    // original keys override dst
+fmt.Println(dst["a"])  // 1 (from original)
+fmt.Println(dst["x"])  // 10 (kept from dst)`,note:'maps.Clone — O(n): итерирует и копирует. Для больших map предварительно указывай размер назначения.'},
+  {n:5,title:'Встраивание структур для защиты от паники nil map',sub:'безопасный паттерн нулевого значения со встроенным map',code:`// Problem: struct with map field is nil by default
+type Counter struct {
+    counts map[string]int
+}
+var c Counter
+c.counts["x"]++  // panic! counts is nil
+
+// Solution 1: constructor
+func NewCounter() Counter {
+    return Counter{counts: make(map[string]int)}
+}
+
+// Solution 2: lazy init in method
+func (c *Counter) Inc(key string) {
+    if c.counts == nil {
+        c.counts = make(map[string]int)
+    }
+    c.counts[key]++
+}
+
+c2 := Counter{}  // no panic — method handles it
+c2.Inc("hits")`,note:''},
+],
+concepts:[
+  {icon:'🗂️',title:'ПОЧЕМУ 56 БАЙТ?',body:'count(8) + flags(1) + B(1) + noverflow(2) + hash0(4) = 16B header. Then 3 pointers × 8B each = 24B. Plus mapextra pointer(8B) + alignment padding = 56B total on 64-bit.'},
+  {icon:'🎲',title:'БЕЗОПАСНОСТЬ ХЭШ-СИДА',body:'Без случайного сида злоумышленник может найти ключи с одинаковым хэшем и деградировать бакет до O(n). Go использует fastrand (дешёвый PRNG) при каждом вызове make(). В HTTP-серверах это предотвращает hash-flooding DoS-атаки на таблицы маршрутизации.'},
+  {icon:'⚡',title:'LOAD FACTOR 6.5 VS JAVA 0.75',body:'Java HashMap использует 0.75 (75% заполнения). Go использует 6.5 ключей в среднем на бакет. Разница в дизайне: Java — 1 слот на бакет, Go — 8 слотов на бакет (bmap). 6.5 / 8 ≈ 81% — схожая утилизация кэша, но совершенно разная внутренняя структура.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Запись в nil map = ПАНИКА',body:'var m map[K]V при записи вызывает панику. Всегда инициализируй через make() или литерал. Чтение из nil map безопасно.'},
+  {t:'warn',icon:'⚠️',title:'Значения map не адресуемы',body:'<code>&m[key]</code> не компилируется. Для изменения поля структуры: прочитай, измени, запиши обратно. <code>p := m[k]; p.X = 1; m[k] = p</code>'},
+  {t:'ok', icon:'✅',title:'len(m) — это O(1)',body:'Читает hmap.count напрямую. Без обхода, без блокировки. Аналогично O(1) для delete: декрементирует count.'},
+  {t:'info',icon:'📌',title:'Литерал map — идиоматичен для небольших статических map',body:'<code>m := map[string]int{"a": 1, "b": 2}</code> — компилируется в серию присваиваний. Нет разницы в производительности с make + assign для небольших map.'},
+  {t:'note',icon:'🎯',title:'СОБЕСЕДОВАНИЕ: что такое Go map?',body:'Указатель на hmap-структ (56 байт на 64-бит), выделенный в куче. Сама переменная — только указатель (8 байт).'},
+]},
+
+bmap:{label:'2. BUCKET',
+file:'runtime/map.go — bmap',
+code:[
+  '// bmap — one bucket. Holds up to 8 key-value pairs.',
+  '// Actual layout injected by the compiler:',
+  '// type bmap struct {',
+  '//     tophash  [8]uint8  // fast pre-filter: top byte of hash',
+  '//     keys     [8]K      // all keys grouped together',
+  '//     values   [8]V      // all values grouped together',
+  '//     overflow *bmap     // chain to next bucket on overflow',
+  '// }',
+  '',
+  '// tophash special values (0–4 reserved):',
+  'const (',
+  '    emptyRest      = 0 // slot empty, no keys follow in this bucket',
+  '    emptyOne       = 1 // this slot empty, others may not be',
+  '    evacuatedX     = 2 // key moved to lower-half during grow',
+  '    evacuatedY     = 3 // key moved to upper-half during grow',
+  '    evacuatedEmpty = 4 // slot empty and bucket evacuated',
+  '    minTopHash     = 5 // lowest valid tophash for a real key',
+  ')',
+  '',
+  '// Real tophash = max(hash >> 56, minTopHash)',
+  '// Adjusted to ≥5 to avoid collision with state flags.',
+  '',
+  '// WHY keys then values — NOT interleaved {key,val} pairs?',
+  '// map[int32]bool interleaved: {int32, pad×3, bool, pad×3} × 8',
+  '//   = (4+3+1+3) × 8 = 88 bytes   // 24 bytes wasted on padding',
+  '// map[int32]bool grouped:  [int32×8][bool×8]',
+  '//   = (4×8) + (1×8) = 40 bytes   // 0 bytes padding wasted',
+],
+steps:[
+  {phase:'init',  cl:0,  slot:-1,th:Array(8).fill('0x00'),ks:Array(8).fill('—'),vs:Array(8).fill('—'),ov:null,
+   title:'ПУСТОЙ BMAP: ВСЁ EMPTYREST',
+   body:'Свежий бакет: все слоты tophash = 0 (emptyRest). Это означает «пустой слот, И ничего нет на этой позиции и далее». При поиске первый emptyRest (0x00) вызывает ранний выход — нет смысла сканировать дальше.',
+   insight:'<strong>emptyRest (0) vs emptyOne (1):</strong> emptyRest позволяет поиску «замкнуться» после первого удаления. emptyOne записывается при удалении, если более поздние слоты всё ещё содержат ключи.'},
+  {phase:'insert',cl:0,  slot:0,th:['0xAB','0x00','0x00','0x00','0x00','0x00','0x00','0x00'],ks:['"cat"','—','—','—','—','—','—','—'],vs:['42','—','—','—','—','—','—','—'],ov:null,
+   title:'ВСТАВКА: СНАЧАЛА TOPHASH',
+   body:'Вставка "cat" → hash >> 56 = 0xAB. Сохраняется в tophash[0]. keys[0] = "cat", values[0] = 42. tophash хранится ПЕРВЫМ, чтобы его можно было сканировать независимо от массива ключей. При следующем поиске 0xAB сравнивается до любой проверки равенства ключей.',
+   insight:'<strong>Предфильтр tophash:</strong> 1 байт сравнения отклоняет ~255/256 кандидатов слотов до вызова дорогого key.equal(). Для 32-байтового строкового ключа это позволяет избежать 32 байт сравнения памяти при промахе.'},
+  {phase:'insert',cl:0,  slot:3,th:['0xAB','0x3F','0xC2','0x77','0x00','0x00','0x00','0x00'],ks:['"cat"','"dog"','"elk"','"fox"','—','—','—','—'],vs:['42','7','99','13','—','—','—','—'],ov:null,
+   title:'СГРУППИРОВАННАЯ РАСКЛАДКА: КЛЮЧИ ЗАТЕМ ЗНАЧЕНИЯ',
+   body:'Ключи упакованы вместе [cat,dog,elk,fox], значения вместе [42,7,99,13]. Это НЕ чередование {cat,42},{dog,7}... Сгруппированная раскладка избегает паддинга выравнивания структур между несовместимыми типами.',
+   insight:'<strong>Для map[int32]bool:</strong> чередующаяся раскладка тратит 24B на бакет на паддинг. Сгруппированная раскладка: ноль потерь. Компилятор Go генерирует реальный bmap-структ с правильной type-aware раскладкой.'},
+  {phase:'insert',cl:0,  slot:7,th:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'],ks:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'],vs:['42','7','99','13','5','88','17','2'],ov:null,
+   title:'БАКЕТ ЗАПОЛНЕН: 8/8 СЛОТОВ',
+   body:'Все 8 слотов tophash ненулевые. Бакет заполнен. Следующая вставка в этот хэш-бакет не поместится — нужно выделить новый overflow bmap в куче и соединить через overflow-указатель.',
+   insight:'<strong>Почему 8 слотов?</strong> 8 байт tophash = 64 бита = одна строка кэша CPU. Полное сканирование tophash[] затрагивает ровно одну строку кэша перед проверкой ключей.'},
+  {phase:'warn',  cl:0,  slot:-1,th:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'],ks:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'],vs:['42','7','99','13','5','88','17','2'],ov:'0xc000ab00',
+   title:'OVERFLOW-БАКЕТ В ЦЕПОЧКЕ',
+   body:'overflow pointer points to a new bmap. This bucket is now a chain of length 2. Lookup must traverse the chain. Too many overflow buckets (hmap.noverflow) triggers a "same-size" compaction grow: B stays the same but chains are consolidated.',
+   insight:'<strong>noverflow counter:</strong> hmap.noverflow ≈ number of overflow buckets. When noverflow ≥ 2^B (roughly as many overflow as regular), tooManyOverflowBuckets() returns true and triggers a compaction grow.'},
+],
+usage:[
+  {n:1,title:'Тип ключа определяет качество tophash',sub:'быстрые vs медленные проверки равенства ключей',code:`// FAST keys (builtin hash, cheap equal):
+m1 := map[int]string{}         // int: single CPU instruction
+m2 := map[string]int{}         // string: len + memcmp
+m3 := map[[16]byte]int{}       // fixed array: 16-byte memcmp
+
+// SLOW keys — avoid in hot paths:
+type Big [256]byte
+m4 := map[Big]int{}             // every full match: 256B compare
+
+// For large keys: hash the key manually
+import "crypto/sha256"
+fingerprint := sha256.Sum256(bigData[:])
+m5 := map[[32]byte]int{}        // only 32B on tophash match
+
+// tophash cuts most comparisons — but when tophash matches,
+// key.equal() is called. Key type determines that cost.`,note:'Предфильтр tophash устраняет ~255/256 несовпадений. Оставшийся 1/256: полный вызов key.equal().'},
+  {n:2,title:'Map of maps — ловушка nil внутреннего map',sub:'вложенные map требуют явной инициализации',code:`groups := make(map[string]map[string]int)
+
+// WRONG — inner map is nil!
+groups["team"]["alice"] = 1  // panic: nil map
+
+// Pattern 1: check and init
+func getOrCreate(m map[string]map[string]int, k string) map[string]int {
+    if m[k] == nil {
+        m[k] = make(map[string]int)
+    }
+    return m[k]
+}
+getOrCreate(groups, "team")["alice"] = 1
+
+// Pattern 2: use setdefault helper (Go 1.21 maps package)
+import "maps"
+// No stdlib helper yet — write your own or pattern 1`,note:'Inner maps are zero-valued (nil) even after the outer map is created.'},
+  {n:3,title:'Порядок итерации случаен — это сделано намеренно',sub:'намеренное решение Go spec, принятое с версии 1.0',code:`m := map[string]int{"a": 1, "b": 2, "c": 3}
+
+for k, v := range m {
+    fmt.Println(k, v)  // order changes on every run
+}
+
+// SORTED iteration:
+import "slices"
+keys := make([]string, 0, len(m))
+for k := range m { keys = append(keys, k) }
+slices.Sort(keys)
+for _, k := range keys {
+    fmt.Printf("%s: %d\n", k, m[k])
+}
+
+// PARALLEL MAP BUILD (Go 1.22 range-over-func proposal):
+// Still use sorted keys for deterministic output.`,note:'Map iteration randomization was introduced in Go 1 to prevent code from accidentally relying on a specific (implementation-defined) order.'},
+  {n:4,title:'Инспекция бакетов через reflect.MapIter',sub:'итерация без материализации всех ключей',code:`import "reflect"
+
+m := map[string]int{"a": 1, "b": 2, "c": 3}
+
+// reflect.MapIter does NOT allocate all keys at once
+iter := reflect.ValueOf(m).MapRange()
+for iter.Next() {
+    k := iter.Key().String()
+    v := iter.Value().Int()
+    fmt.Printf("%s=%d\n", k, v)
+}
+
+// Use case: generic code that can't use range directly
+func printMap(m any) {
+    v := reflect.ValueOf(m)
+    if v.Kind() != reflect.Map { return }
+    for _, k := range v.MapKeys() {
+        fmt.Println(k, v.MapIndex(k))
+    }
+}`,note:''},
+  {n:5,title:'Ограничение comparable — что может быть ключом map',sub:'не все типы работают как ключи map',code:`// VALID key types:
+m1 := map[int]string{}
+m2 := map[string]int{}
+m3 := map[[4]int]int{}      // arrays of comparable: OK
+m4 := map[struct{ X, Y int }]int{}  // comparable struct: OK
+
+// INVALID — will not compile:
+// m5 := map[[]int]int{}    // slice: not comparable
+// m6 := map[map[K]V]int{}  // map: not comparable
+// m7 := map[func()]int{}   // func: not comparable
+
+// Workaround for slice keys: convert to string or use [N]byte
+func sliceKey(s []int) string {
+    return fmt.Sprint(s)  // slow but works
+}`,note:'Спецификация Go требует, чтобы ключи map поддерживали ==. Slice, map и функции не поддерживают.'},
+],
+concepts:[
+  {icon:'⚡',title:'ПОЧЕМУ 8 СЛОТОВ НА БАКЕТ?',body:'8 байт tophash = 64 бита = ровно одна строка CPU-кэша на современном железе. Поиск, который промахивается по всем 8 tophash-слотам, платит только 1 cache miss перед переходом к overflow-цепочке или объявлением "не найдено".'},
+  {icon:'🔢',title:'ФЛАГИ СОСТОЯНИЯ TOPHASH (0–4)',body:'Значения 0–4 зарезервированы для состояния бакета: emptyRest(0), emptyOne(1), evacuatedX(2), evacuatedY(3), evacuatedEmpty(4). Реальные хэши ключей хранятся как max(hash>>56, 5). Это позволяет отслеживать эвакуацию по слотам внутри одного байта.'},
+  {icon:'📐',title:'СГРУППИРОВАННАЯ РАСКЛАДКА СНИЖАЕТ ПАДДИНГ',body:'Выравнивание структур: Go выравнивает поля по их размеру. Для map[int32]bool: чередующиеся пары {int32, bool} требуют 3B паддинга после каждого bool. Сгруппированные [int32×8][bool×8] не имеют паддинга. Экономит до 24B на бакет для map со смешанными типами.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Ключи должны быть comparable (== обязан работать)',body:'Slice, map и функции не могут быть ключами map — ошибка компилятора. Массивы comparable типов могут. Структуры только с comparable полями могут.'},
+  {t:'info',icon:'📌',title:'tophash 0–4 зарезервированы — никаких скрытых ошибок',body:'Если hash >> 56 ключа попадает в 0–4, рантайм поднимает его до 5. Прозрачно для пользователей. Нельзя наблюдать или вызвать коллизию хэша с флагами состояния.'},
+  {t:'ok', icon:'🎯',title:'СОБЕСЕДОВАНИЕ: зачем хранить tophash отдельно?',body:'Быстрое отклонение через сравнение 1 байта до вызова key.equal(). Все 8 tophash умещаются в одной строке кэша. Отклоняет ~255/256 слотов-кандидатов без обращения к массиву ключей.'},
+  {t:'note',icon:'📌',title:'overflow-цепочки = сигнал производительности',body:'Длинные overflow-цепочки означают либо плохое распределение хэша, либо map нужен рост. На практике хэш-функции Go отличные — overflow-цепочки редки при нормальном использовании.'},
+]},
+
+lookup:{label:'3. LOOKUP',
+file:'runtime/map.go — mapaccess1',
+code:[
+  '// m[key] compiles to mapaccess1(t, h, key)',
+  'func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {',
+  '    if h == nil || h.count == 0 { return zeroptr }',
+  '    // Detect concurrent read + write',
+  '    if h.flags&hashWriting != 0 {',
+  '        fatal("concurrent map read and map write")',
+  '    }',
+  '    // Step 1: hash the key with map-specific seed',
+  '    hash := t.hasher(key, uintptr(h.hash0))',
+  '    // Step 2: pick bucket (cheap bitwise AND)',
+  '    m    := bucketMask(h.B)               // = (1 << B) - 1',
+  '    b    := (*bmap)(add(h.buckets,',
+  '               (hash&m)*bucketsize))',
+  '    // Step 3: growing? may need to check old array',
+  '    if c := h.oldbuckets; c != nil {',
+  '        oldb := (*bmap)(add(c, (hash&(m>>1))*bucketsize))',
+  '        if !evacuated(oldb) { b = oldb } // key still in old bucket',
+  '    }',
+  '    // Step 4: compute tophash (top 8 bits)',
+  '    top := tophash(hash)               // = hash >> 56, min 5',
+  '    // Step 5: scan bucket chain',
+  '    for ; b != nil; b = b.overflow(t) {',
+  '        for i := uintptr(0); i < bucketCnt; i++ {',
+  '            if b.tophash[i] != top {',
+  '                if b.tophash[i] == emptyRest { break }',
+  '                continue    // cheap: 1 byte compare, skip slot',
+  '            }',
+  '            // tophash matched — do full key comparison',
+  '            k := add(unsafe.Pointer(b), dataOffset+i*keysize)',
+  '            if t.key.equal(key, k) {',
+  '                v := add(unsafe.Pointer(b), valOffset+i*valsize)',
+  '                return v  // found!',
+  '            }',
+  '        }',
+  '    }',
+  '    return zeroptr // not found: zero value, no panic',
+  '}',
+],
+steps:[
+  {phase:'init',  cl:1, step:0, key:'hello',B:'3',hashval:'8FC302',bucket:undefined,top:undefined,tophash:Array(8).fill('0x00'),result:null,scanAt:0,
+   title:'ВЫЗОВ mapaccess1',
+   body:'m["hello"] компилируется в mapaccess1(t, h, unsafe.Pointer(&key)). Сначала: проверка nil map и нулевого count — ранний возврат. Проверка флага hashWriting — fatal если установлен (обнаружено параллельное чтение + запись).',
+   insight:'<strong>Форма с двумя значениями</strong> v, ok := m[k] компилируется в mapaccess2, который также возвращает bool. Компилятор выбирает вариант на основе формы присваивания.'},
+  {phase:'hash',  cl:8, step:1, key:'hello',B:'3',hashval:'8FC302',bucket:undefined,top:undefined,tophash:Array(8).fill('0x00'),result:null,scanAt:0,
+   title:'ХЭШИРУЕМ КЛЮЧ',
+   body:'t.hasher(key, h.hash0) производит 64-битный хэш. hasher специфичен для типа (строковый, целочисленный и т.д.) и использует случайный сид map. Один и тот же ключ хэшируется в разные значения в разных экземплярах map.',
+   insight:'<strong>Встроенные типы ключей используют аппаратное ускорение AES</strong> на поддерживающих CPU (amd64, arm64). Программный резервный вариант для других платформ. Хэширование строки "hello" занимает ~2нс.'},
+  {phase:'hash',  cl:10,step:2, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:undefined,tophash:Array(8).fill('0x00'),result:null,scanAt:0,
+   title:'ВЫБОР БАКЕТА: hash & mask',
+   body:'bucketMask(B=3) = 7 (0b0111). hash & 7 = нижние 3 бита хэша = индекс бакета. Переходим к &h.buckets[index]. Это одна побитовая операция AND — намного дешевле деления с остатком.',
+   insight:'<strong>Почему степени двойки?</strong> hash % N требует деления. hash & (N-1) работает идентично, но стоит 1 цикл вместо 20+. Именно поэтому число бакетов всегда 2^B, а не произвольное число.'},
+  {phase:'lookup',cl:19,step:2, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:'8F',tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'],result:null,scanAt:0,
+   title:'ВЫЧИСЛЕНИЕ TOPHASH: hash >> 56',
+   body:'tophash = hash >> 56 = верхние 8 бит = 0x8F. Входим в bucket[2]. У него 4 заполненных слота. Готовимся сканировать tophash[8] в поисках 0x8F. Это плотный цикл по 8 байтам — полностью помещается в регистры.',
+   insight:'<strong>0x8F в 8 слотах → ~3% ложноположительных</strong> на слот (вероятность коллизии 1/256). При 4 заполненных слотах: 4/256 ≈ 0.016 ложноположительных на поиск, требующих одного лишнего вызова key.equal().'},
+  {phase:'lookup',cl:22,step:3, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:'8F',tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'],result:null,scanAt:1,
+   title:'СКАНИРОВАНИЕ TOPHASH: 1 БАЙТ ЗА РАЗ',
+   body:'tophash[0]=0x44 ≠ 0x8F → пропуск (сравнение 1 байта, без доступа к памяти ключей/значений). tophash[1]=0x8F → СОВПАДЕНИЕ → вызываем key.equal("hello", keys[1]). Только при совпадении tophash мы обращаемся к памяти ключей.',
+   insight:'<strong>Эффективность сканирования:</strong> для ключа НЕ в map сканирование отклоняет все 8 слотов 8 сравнениями байтов. key.equal() никогда не вызывается. emptyRest (0x00) вызывает ранний выход: сканирование останавливается на первом пустом слоте.'},
+  {phase:'done',  cl:28,step:4, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:'8F',tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'],result:'FOUND → &values[1]  (O(1) amortized)',rc:'#4ade80',scanAt:1,
+   title:'KEY.EQUAL → НАЙДЕНО',
+   body:'key.equal("hello", keys[1]) возвращает true. Возвращается указатель на values[1]. Вызывающий читает значение через этот указатель. При НЕНАХОЖДЕНИИ: сканирование исчерпывает все tophash, возвращается zeroptr (без паники).',
+   insight:'<strong>Возвращаемое значение — указатель внутрь бакета:</strong> вызывающий пишет через него (для mapassign) или читает (для mapaccess). Внутри операции с map копирования не происходит.'},
+],
+usage:[
+  {n:1,title:'Форма с двумя значениями — правильный способ проверки существования',sub:'v, ok := m[k] — всегда используй, когда важно отсутствие ключа',code:`m := map[string]int{"active": 0, "count": 5}
+
+// ONE-VALUE form: cannot distinguish missing from zero
+v := m["active"]   // v = 0 — is it zero or missing? unclear!
+v  = m["missing"]  // v = 0 — same as above!
+
+// TWO-VALUE form: always explicit
+v, ok := m["active"]   // v=0, ok=true  — key present, value is 0
+v, ok  = m["missing"]  // v=0, ok=false — key absent
+v, ok  = m["count"]    // v=5, ok=true  — key present
+
+// Idiomatic pattern: guard with ok
+if result, ok := m[key]; ok {
+    process(result)
+} else {
+    handleMissing(key)
+}`,note:'Всегда используй форму с двумя значениями, когда нужно отличить "ключ отсутствует" от "ключ отображается в нулевое значение". Частая ошибка: проверять v == 0 вместо !ok.'},
+  {n:2,title:'getOrDefault и трюки с нулевыми значениями',sub:'семантика нулевых значений делает многие паттерны чистыми',code:`// Counting — zero value of int is 0, so ++ works
+freq := make(map[string]int)
+words := strings.Fields(text)
+for _, w := range words {
+    freq[w]++   // first time: 0+1=1; subsequent: prev+1
+}
+
+// Grouping — zero value of []T is nil, append works on nil
+groups := make(map[string][]string)
+for _, item := range items {
+    groups[item.Category] = append(groups[item.Category], item.Name)
+}
+
+// Set — map[T]struct{} uses zero allocation for values
+seen := make(map[string]struct{})
+for _, s := range slice {
+    seen[s] = struct{}{}
+}
+_, exists := seen["foo"]`,note:'map[K]struct{} — канонический Go-set. struct{} занимает 0 байт. По сравнению с map[K]bool: идентичная производительность поиска, немного меньше памяти.'},
+  {n:3,title:'Чтение во время итерации — что безопасно',sub:'удаление во время range гарантированно безопасно по спецификации',code:`m := map[string]int{"a": 1, "b": 2, "c": 3, "d": 4}
+
+// SAFE: delete the current key during range
+for k, v := range m {
+    if v < 2 {
+        delete(m, k)  // safe per Go spec
+    }
+}
+
+// SAFE: update existing key during range
+for k := range m {
+    m[k] *= 10   // OK — only modifies existing keys
+}
+
+// UNDEFINED: add NEW keys during range
+// Go spec: "If a map entry is created during iteration,
+//  that entry may or may not be produced during iteration."
+for k := range m {
+    m["new_"+k] = 0  // may or may not appear in this range
+}`,note:''},
+  {n:4,title:'Параллельное чтение: безопасно без блокировок',sub:'чтения не устанавливают флаг hashWriting',code:`// Multiple goroutines reading the SAME map: SAFE
+// (as long as NO goroutine writes concurrently)
+
+var cache = map[string][]byte{...}  // built once, read-only
+
+// Start N goroutines reading cache concurrently:
+for i := 0; i < 100; i++ {
+    go func() {
+        data := cache["some-key"]  // safe: no writer
+        _ = data
+    }()
+}
+
+// Concurrent reads do NOT set hashWriting.
+// hashWriting is only set by mapassign/mapdelete.
+
+// BUT: if ANY goroutine writes, ALL reads need sync.
+// One write + many reads = fatal() if unsynchronized.`,note:''},
+  {n:5,title:'Производительность: map[K]V vs sync.Map vs mutex+map',sub:'ориентиры для выбора правильного примитива',code:`// Benchmark: 8 goroutines, 90% reads, 10% writes, 1M ops
+// map + sync.Mutex:   ~140 ns/op
+// map + sync.RWMutex: ~80  ns/op  (at 90% reads)
+// sync.Map:           ~60  ns/op  (stable keys, read-mostly)
+
+// Benchmark: 8 goroutines, 50% reads, 50% writes, 1M ops
+// map + sync.Mutex:   ~160 ns/op
+// map + sync.RWMutex: ~180 ns/op  (write starvation risk)
+// sync.Map:           ~220 ns/op  (dirty map mutex bottleneck)
+
+// Conclusion:
+// - 90%+ reads, stable keys: sync.Map wins
+// - Mixed or write-heavy: sync.Mutex + plain map
+// - Always benchmark YOUR specific workload`,note:'Эти цифры приблизительны. Нагрузка на кэш, размер ключа и количество горутин существенно влияют на результаты.'},
+],
+concepts:[
+  {icon:'🔍',title:'ДВУХУРОВНЕВЫЙ ПОИСК',body:'Уровень 1: hash & mask → O(1) выбор бакета. Уровень 2: сканирование tophash → O(1) поиск внутри бакета (макс. 8 слотов). Только при попадании tophash: вызывается key.equal(). Средняя стоимость поиска: 1 хэш + 1–8 байт сравнений + 0–1 key.equal().'},
+  {icon:'🌱',title:'БЕЗОПАСНОСТЬ ПОИСКА ВО ВРЕМЯ РОСТА',body:'Если oldbuckets != nil (рост в процессе), поиск проверяет evacuated(old_bucket). Если не эвакуирован: читает из старого массива. Если эвакуирован: читает из нового массива. Прозрачно для вызывающих. Немного медленнее во время роста.'},
+  {icon:'💀',title:'ПАРАЛЛЕЛЬНОЕ ЧТЕНИЕ + ЗАПИСЬ = FATAL',body:'Флаг hashWriting проверяется при каждом начале поиска. Если установлен параллельной записью: fatal("concurrent map read and map write"). Это НЕ паника — её невозможно перехватить. go test -race поймает это на этапе тестирования.'},
+],
+traps:[
+  {t:'ok', icon:'✅',title:'Отсутствующий ключ возвращает нулевое значение — без паники',body:'m["missing"] возвращает нулевое значение для V. Используй v, ok := m[k] чтобы отличить отсутствие от нулевого значения.'},
+  {t:'warn',icon:'💥',title:'Параллельное чтение + запись = fatal',body:'В отличие от паники, fatal() нельзя поймать с recover(). Процесс завершается. go test -race обязателен.'},
+  {t:'info',icon:'📌',title:'Временная сложность: O(1) амортизированная в среднем',body:'O(n) теоретический худший случай при вырождении хэш-функции (все ключи в один бакет). На практике: O(1) со встроенными хэшерами Go.'},
+  {t:'ok', icon:'🎯',title:'СОБЕСЕДОВАНИЕ: сколько шагов в поиске по map?',body:'1. hash(key) с сидом. 2. bucket = hash & mask. 3. сканирование tophash. 4. key.equal() при совпадении tophash. 5. Возврат указателя на значение или нулевого значения.'},
+]},
+
+insert:{label:'4. INSERT',
+file:'runtime/map.go — mapassign',
+code:[
+  '// m[key] = val  →  mapassign(t *maptype, h *hmap, key unsafe.Pointer)',
+  '// Returns pointer to value slot; caller writes value through it.',
+  'func mapassign(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {',
+  '    // 1. detect concurrent write',
+  '    if h.flags&hashWriting != 0 {',
+  '        fatal("concurrent map writes")  // NOT panic',
+  '    }',
+  '    h.flags ^= hashWriting              // set flag',
+  '',
+  '    hash := t.hasher(key, uintptr(h.hash0))',
+  '    b    := (*bmap)(add(h.buckets, (hash&bucketMask(h.B))*bucketsize))',
+  '    top  := tophash(hash)',
+  '',
+  '    var inserti *uint8',
+  '    var insertk, val unsafe.Pointer',
+  '',
+  '    // 2. scan: simultaneously find existing key OR empty slot',
+  '    for {',
+  '        for i := uintptr(0); i < bucketCnt; i++ {',
+  '            if b.tophash[i] != top {',
+  '                if isEmpty(b.tophash[i]) && inserti == nil {',
+  '                    inserti = &b.tophash[i] // save first empty slot',
+  '                    insertk = keyptr(b, i)',
+  '                    val     = valptr(b, i)',
+  '                }',
+  '                if b.tophash[i] == emptyRest { break }',
+  '                continue',
+  '            }',
+  '            // 3. tophash match — check full key equality',
+  '            k := keyptr(b, i)',
+  '            if !t.key.equal(key, k) { continue }',
+  '            // 4. EXISTING KEY → UPDATE path (in-place)',
+  '            val = valptr(b, i)',
+  '            goto done',
+  '        }',
+  '        ovf := b.overflow(t)',
+  '        if ovf == nil { break }',
+  '        b = ovf',
+  '    }',
+  '    // 5. not found — grow if needed, then use inserti',
+  '    if overLoadFactor(h.count+1, h.B) ||',
+  '       tooManyOverflowBuckets(h.noverflow, h.B) {',
+  '        hashGrow(t, h)',
+  '        goto again  // retry after grow',
+  '    }',
+  '    if inserti == nil {  // no empty slot found',
+  '        inserti, insertk, val = newoverflow(t, h, b)',
+  '    }',
+  '    *inserti = top; *insertk = key; h.count++',
+  'done:',
+  '    h.flags &^= hashWriting // clear flag',
+  '    return val',
+  '}',
+],
+steps:[
+  {phase:'init',  cl:4,  flagSet:true, slots:Array(8).fill('empty'),bucket:'0',count:'0',B:'1',key:'newkey',top:'AB',overflow:false,growTrig:false,
+   title:'УСТАНОВКА ФЛАГА hashWriting',
+   body:'mapassign входит. Проверяет h.flags & hashWriting: ноль (безопасно). Устанавливает флаг: h.flags ^= hashWriting. Теперь если любая другая горутина войдёт в mapassign или mapdelete параллельно, она увидит флаг и вызовет fatal().',
+   insight:'<strong>fatal() vs panic():</strong> Флаг записи вызывает fatal(), а не panic(). recover() от fatal() невозможен. В трассировке стека горутин видны обе горутины. Всегда используй go test -race.'},
+  {phase:'insert',cl:18, flagSet:true, slots:['target','empty','empty','empty','empty','empty','empty','empty'],bucket:'0',count:'1',B:'1',key:'newkey',top:'AB',overflow:false,growTrig:false,
+   title:'СКАНИРОВАНИЕ: СОХРАНЯЕМ ПЕРВЫЙ ПУСТОЙ СЛОТ',
+   body:'Цикл сканирует все слоты tophash. Слот 0 пустой → сохраняем его адрес в inserti (цель вставки). Продолжаем сканирование, проверяя существование ключа. Существующий ключ не найден → используем inserti. tophash[0] = 0xAB, keys[0] = "newkey", count++.',
+   insight:'<strong>Двойной проход:</strong> один проход одновременно находит слот вставки (первый пустой) И проверяет существование ключа (путь обновления). Если ключ найден в середине сканирования, сохранённый inserti отбрасывается и мы переходим к "done".'},
+  {phase:'lookup',cl:27, flagSet:true, slots:['match','match','match','empty','empty','empty','empty','empty'],bucket:'0',count:'3',B:'1',key:'key0',top:'AB',overflow:false,growTrig:false,
+   title:'ПУТЬ ОБНОВЛЕНИЯ: ЗАПИСЬ НА МЕСТЕ',
+   body:'Ключ "key0" уже существует: совпадение tophash + key.equal() = true. Возвращается существующий &values[0]. Вызывающий записывает новое значение на месте. Без инкремента count. Без выделения памяти. Без изменения tophash. Обновление — это быстрый путь.',
+   insight:'<strong>Обновление никогда не выделяет память:</strong> возвращает существующий указатель на значение. Компилятор генерирует простое сохранение через указатель. Нет нагрузки на GC. Сравни с Java HashMap.put(), который может выделить новый Entry.'},
+  {phase:'warn',  cl:37, flagSet:true, slots:Array(8).fill('full'),bucket:'0',count:'8',B:'1',key:'9th',top:'EE',overflow:false,growTrig:false,
+   title:'НУЖЕН OVERFLOW-БАКЕТ',
+   body:'Все 8 слотов заполнены, inserti=nil. newoverflow() выделяет новый bmap в куче, связывает через overflow-указатель, инкрементирует hmap.noverflow. Следующая вставка в этот бакет пойдёт в overflow-бакет.',
+   insight:'<strong>Выделение newoverflow():</strong> рантайм поддерживает пул overflow-бакетов в mapextra для снижения нагрузки на GC. Только при пустом пуле происходит выделение из кучи.'},
+  {phase:'grow',  cl:34, flagSet:false,slots:Array(8).fill('full'),bucket:'0',count:'14',B:'1',key:null,top:null,overflow:false,growTrig:true,
+   title:'РОСТ ЗАПУЩЕН: LOAD > 6.5',
+   body:'count=15 даст load = 15/2 = 7.5 > 6.5. До вставки: вызывается hashGrow(). B: 1→2 (2→4 бакета). Старый массив сохраняется в oldbuckets. Новый пустой массив выделяется. Функция прыгает к "again:" для повтора с новым B.',
+   insight:'<strong>Рост происходит ДО вставки:</strong> не после. Новый ключ всегда вставляется в правильно размещённый map. После роста индекс бакета пересчитывается с новым B — ключ может попасть в другой бакет.'},
+  {phase:'done',  cl:41, flagSet:false,slots:['match','match','match','target','empty','empty','empty','empty'],bucket:'0',count:'6',B:'2',key:'newkey',top:'AB',overflow:false,growTrig:false,
+   title:'СБРАСЫВАЕМ ФЛАГ, ВОЗВРАЩАЕМСЯ',
+   body:'Вставка завершена. h.flags &^= hashWriting сбрасывает флаг записи. Возвращается указатель на значение вызывающему. count=6, B=2, load=1.5. Далеко ниже порога. Следующий рост при count=26.',
+   insight:'<strong>Амортизированный O(1):</strong> большинство вставок O(1) (без роста). Рост стоит O(n), но распределяется по O(n) последующим записям через инкрементальную эвакуацию. Итоговая стоимость на вставку: O(1) амортизированно.'},
+],
+usage:[
+  {n:1,title:'Вставка vs обновление — одинаковый синтаксис, разные пути',sub:'рантайм выбирает на основе существования ключа',code:`m := map[string]int{}
+
+// INSERT path (key not found):
+m["alice"] = 100   // new slot, count: 0→1
+m["bob"]   = 200   // new slot, count: 1→2
+
+// UPDATE path (key exists — in-place, no allocation):
+m["alice"] = 150   // same slot, count stays 2
+
+// COMMON PATTERN: increment (zero-value trick):
+m["visits"]++   // first time: insert 0+1=1
+m["visits"]++   // update: 1+1=2
+m["visits"]++   // update: 2+1=3
+
+// COMMON PATTERN: conditional set
+if _, ok := m[key]; !ok {
+    m[key] = expensiveCompute()  // only if not exists
+}`,note:''},
+  {n:2,title:'Map никогда не уменьшается — ловушка памяти в долгоработающих серверах',sub:'пиковое выделение памяти сохраняется даже после массового удаления',code:`// Insert 1 million keys:
+m := make(map[int]string)
+for i := 0; i < 1_000_000; i++ {
+    m[i] = strconv.Itoa(i)
+}
+// hmap.count = 1M, B is large, bucket array allocated
+
+// Delete all keys:
+for k := range m { delete(m, k) }
+// hmap.count = 0
+// BUT: bucket array is STILL ALLOCATED at peak size!
+// Memory is NOT returned to the OS.
+
+// FIX: rebuild the map
+func rebuild[K comparable, V any](m map[K]V) map[K]V {
+    n := make(map[K]V, len(m))
+    for k, v := range m { n[k] = v }
+    return n  // old map GC'd
+}
+m = rebuild(m)  // now memory is released`,note:'Это известная проблема Go. Для долгоработающих серверов, которые обрабатывают и затем отбрасывают большие map, явная перестройка — единственный способ вернуть память.'},
+  {n:3,title:'Защита параллельных записей через sync.Mutex',sub:'простейший корректный паттерн для любой нагрузки на запись',code:`type SafeCounter struct {
+    mu   sync.Mutex
+    data map[string]int
+}
+
+func NewSafeCounter() *SafeCounter {
+    return &SafeCounter{data: make(map[string]int)}
+}
+
+// write: exclusive lock
+func (c *SafeCounter) Inc(key string) {
+    c.mu.Lock()
+    c.data[key]++
+    c.mu.Unlock()  // defer is fine too, slightly slower
+}
+
+// read: also needs lock (write could be in progress)
+func (c *SafeCounter) Get(key string) int {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    return c.data[key]
+}
+
+// snapshot: lock, copy, release
+func (c *SafeCounter) Snapshot() map[string]int {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    cp := make(map[string]int, len(c.data))
+    for k, v := range c.data { cp[k] = v }
+    return cp
+}`,note:''},
+  {n:4,title:'maps.Delete и maps.DeleteFunc (Go 1.21)',sub:'условное удаление с предикатом',code:`import "maps"
+
+m := map[string]int{"a": 1, "b": -1, "c": 3, "d": -4}
+
+// Delete all entries where value < 0:
+maps.DeleteFunc(m, func(k string, v int) bool {
+    return v < 0
+})
+// m = {"a": 1, "c": 3}
+
+// Equivalent manual version:
+for k, v := range m {
+    if v < 0 { delete(m, k) }
+}
+
+// maps.Keys and maps.Values (also Go 1.21):
+import "maps", "slices"
+keys := slices.Collect(maps.Keys(m))
+slices.Sort(keys)`,note:'Пакет maps требует Go 1.21. Эквивалентные паттерны с итерацией работают во всех версиях Go.'},
+  {n:5,title:'Значения map со структурами не адресуемы — паттерн',sub:'компромиссы между map указателей и map значений',code:`type User struct{ Name string; Visits int }
+
+// VALUE map — values are copies, NOT addressable
+users := map[string]User{}
+users["alice"] = User{"Alice", 0}
+
+// WRONG — does not compile:
+// users["alice"].Visits++
+// Error: cannot assign to users["alice"].Visits
+
+// Pattern A: read-modify-write (simple)
+u := users["alice"]
+u.Visits++
+users["alice"] = u
+
+// Pattern B: pointer map (direct mutation)
+ptrs := map[string]*User{}
+ptrs["alice"] = &User{"Alice", 0}
+ptrs["alice"].Visits++  // OK — pointer is addressable
+
+// Trade-off: pointer map = GC pressure (each *User is heap-tracked)
+// Value map = no GC for values, but no direct mutation`,note:''},
+],
+concepts:[
+  {icon:'🚩',title:'МЕХАНИКА ФЛАГА hashWriting',body:'Один бит в hmap.flags. Устанавливается при входе в mapassign/mapdelete. Сбрасывается при выходе. Проверяется при каждом входе. Стоимость: одна побитовая операция AND на операцию. Если установлен: fatal(). Флаг не переживает переключение горутин — это не блокировка, а детектор.'},
+  {icon:'🔍',title:'ДВОЙНОЕ СКАНИРОВАНИЕ',body:'Цикл сканирования делает два дела одновременно: отслеживает первый пустой слот (inserti) как кандидат для вставки и ищет существующий ключ (для обновления). Один проход O(bucketCount) вместо двух. Если ключ найден: inserti не используется.'},
+  {icon:'📈',title:'ДВА УСЛОВИЯ РОСТА',body:'1. overLoadFactor: count > 6.5 × 2^B → B++ (удвоение бакетов). 2. tooManyOverflowBuckets: слишком много overflow-цепочек → тот же B, уплотнение. Уплотнение перераспределяет overflow-цепочки без выделения дополнительной памяти.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Параллельные записи = fatal, без recover',body:'fatal() вызывается при обнаружении флага hashWriting. Процесс завершается. Запускай go test -race в CI чтобы поймать это на этапе тестирования.'},
+  {t:'warn',icon:'💥',title:'Map никогда не уменьшается после роста',body:'Удаление всех ключей уменьшает count, но НЕ массив бакетов. Явная перестройка нужна для освобождения памяти в долгоработающих процессах.'},
+  {t:'ok', icon:'✅',title:'Обновление не выделяет память',body:'Обновление существующего ключа возвращает существующий указатель на значение. Без выделения памяти, без нагрузки на GC. Быстрый путь.'},
+  {t:'ok', icon:'🎯',title:'СОБЕСЕДОВАНИЕ: два условия роста?',body:'1. Load factor > 6.5 → B++ (удвоение). 2. tooManyOverflowBuckets → тот же B (уплотнение). Второй обрабатывает нагрузки с большим количеством удалений, которые создают разреженные overflow-цепочки.'},
+]},
+
+grow:{label:'5. GROW',
+file:'runtime/map.go — hashGrow + evacuate',
+code:[
+  '// hashGrow: called when load>6.5 or too many overflow chains',
+  'func hashGrow(t *maptype, h *hmap) {',
+  '    bigger := uint8(1)          // assume B++ (double buckets)',
+  '    if !overLoadFactor(h.count+1, h.B) {',
+  '        // same-B grow: compaction, no doubling',
+  '        bigger = 0',
+  '    }',
+  '    oldbuckets := h.buckets',
+  '    newbuckets  = newarray(t.bucket, 1<<(h.B+bigger))',
+  '    h.oldbuckets = oldbuckets  // save old array (all data here)',
+  '    h.buckets    = newbuckets  // new array (empty)',
+  '    h.B         += bigger',
+  '    h.nevacuate  = 0           // start evacuation from bucket 0',
+  '    // Keys NOT moved yet. Incremental evacuation starts now.',
+  '}',
+  '',
+  '// evacuate: called 1-2x per write/delete during grow',
+  'func evacuate(t *maptype, h *hmap, oldbucket uintptr) {',
+  '    b      := oldbuckets[oldbucket]',
+  '    newbit := h.noldbuckets()   // = 1 << (B - 1)',
+  '    for ; b != nil; b = b.overflow(t) {',
+  '        for i := 0; i < bucketCnt; i++ {',
+  '            hash  := t.hasher(bucketKey(b, i), h.hash0)',
+  '            // New bit determines X or Y destination:',
+  '            useY  := (hash & newbit) != 0  // bit (B-1)',
+  '            dst   := &xy[useY]  // xy[0]=X, xy[1]=Y',
+  '            dst.b.tophash[dst.i] = b.tophash[i]',
+  '            *dst.k = *bucketKey(b, i)',
+  '            *dst.v = *bucketVal(b, i)',
+  '            dst.i++',
+  '        }',
+  '    }',
+  '    h.nevacuate++',
+  '    if h.nevacuate == newbit {',
+  '        advanceEvacMark(h) // all done, free old array',
+  '    }',
+  '}',
+  '',
+  '// Load factor: count > 6.5 * 2^B',
+  '// At B=3 (8 buckets): grows at count=53',
+  '// At B=10 (1024 buckets): grows at count=6656',
+],
+steps:[
+  {phase:'init',  cl:1,  B:'3',nevac:'0',
+   title:'РОСТ ЗАПУЩЕН',
+   body:'B=2: 4 бакета. count=27, load=6.75 > 6.5. Вызывается hashGrow(). bigger=1 (рост по load factor, не уплотнение). Выделяется новый массив из 8 бакетов. B: 2→3. nevacuate сбрасывается в 0.',
+   insight:'<strong>Два режима роста:</strong> (1) Рост по load: B++ → удвоение бакетов. (2) Уплотнение: тот же B, без удвоения, просто консолидируются overflow-цепочки. Сейчас: рост по load.'},
+  {phase:'grow',  cl:10, B:'3',nevac:'0',
+   title:'ДВА МАССИВА СОСУЩЕСТВУЮТ',
+   body:'oldbuckets = старый массив из 4 бакетов (все данные). h.buckets = новый пустой массив из 8 бакетов. Ключи НЕ перемещены. Чтения прозрачно проверяют оба массива. Ни одна горутина не блокируется.',
+   insight:'<strong>Безопасность параллелизма во время роста:</strong> чтения используют evacuated(oldb) для выбора массива. Записи всегда идут в новый массив (предварительно эвакуировав старый бакет).'},
+  {phase:'evac',  cl:17, B:'3',nevac:'1',
+   title:'ЭВАКУАЦИЯ БАКЕТА 0',
+   body:'Первая запись после роста вызывает evacuate(oldbucket=0). Для каждого ключа в старом бакете 0: вычисляем хэш, проверяем бит B-1. Бит=0 → X (новый бакет 0). Бит=1 → Y (новый бакет 4). Бакет 0 теперь помечен как эвакуированный. nevacuate: 0→1.',
+   insight:'<strong>Объяснение разделения X/Y:</strong> старый бакет 0 обслуживал хэши, где нижние 2 бита = 00. Новый бакет 0 обслуживает нижние 3 бита = 000 (X). Новый бакет 4 — нижние 3 бита = 100 (Y). Один дополнительный бит их различает.'},
+  {phase:'evac',  cl:17, B:'3',nevac:'2',
+   title:'ИНКРЕМЕНТАЛЬНО: 1–2 НА ЗАПИСЬ',
+   body:'nevacuate=2. Старые бакеты 0,1 эвакуированы. Бакеты 2,3 всё ещё в старом массиве. Поиски, направленные к этим старым бакетам, корректно обслуживаются из oldbuckets (проверка evacuated()).',
+   insight:'<strong>Почему 1–2 на запись?</strong> Ограничение эвакуации на операцию делает задержку записи в худшем случае предсказуемой. Суммарная стоимость эвакуации O(n) амортизируется по O(n) записям: O(1) амортизированно на вставку.'},
+  {phase:'evac',  cl:17, B:'3',nevac:'3',
+   title:'ПОЧТИ ГОТОВО',
+   body:'nevacuate=3. Остался один старый бакет. Обычные операции с map продолжаются. Параллельные читатели автоматически используют правильный массив. Параллельные записи продолжают запускать эвакуацию.',
+   insight:'<strong>Стоимость проверки evacuated():</strong> одно чтение указателя + одно сравнение на поиск во время роста. ~2 нс дополнительно на поиск. Рост не бесплатен, но задержка ограничена.'},
+  {phase:'done',  cl:31, B:'3',nevac:'4',
+   title:'РОСТ ЗАВЕРШЁН',
+   body:'nevacuate=4=oldN. Вызывается advanceEvacMark(). oldbuckets=nil. GC освобождает старый массив. B=3: 8 бакетов. load=27/8=3.4. Ни одна горутина не была приостановлена.',
+   insight:'<strong>Рост никогда не уменьшает B:</strong> как только B увеличился, он остаётся. Удаление ключей уменьшает count, но не B. Массив бакетов остаётся пикового размера навсегда. Перестрой map для уменьшения размера.'},
+],
+usage:[
+  {n:1,title:'Пороги роста по значениям B',sub:'сколько ключей до каждого роста',code:`// Grow threshold = 6.5 * 2^B keys
+// B=0:  ≥ 6.5  * 1   =  7 keys → grow
+// B=1:  ≥ 6.5  * 2   = 13 keys → grow
+// B=2:  ≥ 6.5  * 4   = 26 keys → grow
+// B=3:  ≥ 6.5  * 8   = 52 keys → grow
+// B=4:  ≥ 6.5  * 16  = 104 keys → grow
+// B=10: ≥ 6.5  * 1024 = 6,656 keys → grow
+
+// Without hint: ~log2(N/6.5) grows for N keys
+// With hint N: 0 grows (pre-sized to correct B)
+
+m := make(map[string]int, 1_000_000)
+// B = ceil(log2(1000000/6.5)) = ceil(17.2) = 18
+// 2^18 = 262144 buckets allocated upfront
+// threshold: 6.5 * 262144 = 1,703,936 keys
+// No grow until 1.7M keys inserted`,note:''},
+  {n:2,title:'Обнаружение роста через метрики runtime',sub:'наблюдаем скачки выделений памяти при росте map',code:`import (
+    "runtime"
+    "testing"
+)
+
+func BenchmarkMapGrow(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        b.ReportAllocs()
+
+        m := make(map[int]int)  // no hint
+        for j := 0; j < 10000; j++ {
+            m[j] = j           // ~8 grows triggered here
+        }
+        _ = m
+    }
+}
+// Output: ~12 allocs/op  (bucket arrays from each grow)
+
+func BenchmarkMapNoGrow(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        m := make(map[int]int, 10000)  // pre-sized
+        for j := 0; j < 10000; j++ {
+            m[j] = j           // 0 grows
+        }
+        _ = m
+    }
+}
+// Output: 2 allocs/op  (hmap header + initial buckets)`,note:''},
+  {n:3,title:'Рост без увеличения размера: уплотнение после массового удаления',sub:'noverflow > 2^B запускает рост без изменения B',code:`// Scenario: insert 100k keys, delete 90k
+m := make(map[int]int, 100_000)
+for i := 0; i < 100_000; i++ { m[i] = i }
+
+for i := 0; i < 90_000; i++ { delete(m, i) }
+// count = 10_000, but many overflow chains are now mostly empty
+// hmap.noverflow is still high from the original insertions
+
+// Next insert may trigger tooManyOverflowBuckets:
+// noverflow ≈ 2^B → compaction grow (bigger=0)
+// Old overflow chains merged into fewer, denser buckets
+// B stays the same — no doubling
+
+// Result: same B, fewer overflow chains, better lookup perf
+// The bucket array size doesn't change — memory not freed!`,note:''},
+  {n:4,title:'Взаимодействие роста с sync.RWMutex',sub:'рост временно влияет на производительность чтения',code:`var (
+    mu    sync.RWMutex
+    cache = make(map[string][]byte, 1000)
+)
+
+// WRITER:
+func set(k string, v []byte) {
+    mu.Lock()
+    defer mu.Unlock()
+    cache[k] = v  // may trigger grow inside the write lock!
+    // grow = atomic pointer swaps + memory allocation
+    // All readers are blocked for duration of Lock()
+    // Grow duration: ~microseconds for typical maps
+}
+
+// TIP: pre-size cache to avoid grow under lock:
+// cache = make(map[string][]byte, expectedMaxSize)
+// No grow → no spike under write lock`,note:'Рост под блокировкой записи блокирует всех читателей на это время. Предварительное указание размера полностью избегает этого.'},
+  {n:5,title:'Рост уплотнением vs удвоением при больших объёмах',sub:'понимание того, какой режим срабатывает и почему',code:`// DOUBLING GROW (bigger=1):
+//   Condition: count > 6.5 * 2^B
+//   Effect: B++, 2x buckets allocated
+//   Use case: map is genuinely getting fuller
+
+// COMPACTION GROW (bigger=0):
+//   Condition: noverflow >= max(1, 2^(B-4))
+//              (i.e., many overflow chains)
+//   Effect: B unchanged, keys redistributed
+//   Use case: insert-heavy + delete-heavy maps
+//             that accumulate empty overflow buckets
+
+// Example that triggers compaction, NOT doubling:
+m := make(map[int]int)
+for i := 0; i < 1000; i++ { m[i] = i }   // B grows
+for i := 0; i < 990; i++ { delete(m, i) } // noverflow stays high
+m[9999] = 9999  // may trigger compaction grow (not B++)
+
+// Key insight: two separate growth mechanisms for two
+// different pathological cases.`,note:''},
+],
+concepts:[
+  {icon:'📊',title:'ПОЧЕМУ 6.5, А НЕ 0.75?',body:'Бакеты Go вмещают 8 слотов. 6.5/8 = 81% заполнения. Бакеты Java HashMap вмещают 1 слот. 0.75/1 = 75% заполнения. Оба нацелены на схожую утилизацию кэша, но структура бакетов Go амортизирует гонки за указателями по 8 элементам.'},
+  {icon:'🔄',title:'ИНКРЕМЕНТАЛЬНАЯ ЭВАКУАЦИЯ',body:'1–2 старых бакета эвакуируются на запись во время роста. Амортизирует O(n) перехэширование по O(n) последующим операциям. Максимальная дополнительная работа на вставку при росте: эвакуировать 2 бакета (ограничено). Без блокировки горутин, без stop-the-world.'},
+  {icon:'✂️',title:'МЕХАНИКА РАЗДЕЛЕНИЯ X/Y',body:'Старый бакет i обслуживает хэши, где hash & oldMask = i. После роста (B++), старый бакет i разделяется на новый бакет i (X) и новый бакет i+oldN (Y). Селектор: бит B-1 хэша. 0→X, 1→Y. Только один дополнительный бит определяет назначение.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Map никогда не уменьшается после роста',body:'Once B increases, it never decreases. Deleting keys reduces count but not B or the bucket array. For long-running processes: explicit rebuild.'},
+  {t:'ok', icon:'✅',title:'Рост — это не stop-the-world',body:'Инкрементальный, 1–2 бакета на запись. Чтения продолжаются во время роста. Горутины не блокируются. Скачок задержки ограничен.'},
+  {t:'info',icon:'📌',title:'Рост происходит внутри критической секции записи',body:'Если ты используешь sync.Mutex, рост происходит пока удерживается блокировка — что блокирует читателей. Предварительно указывай размер чтобы предотвратить рост под блокировкой.'},
+  {t:'ok', icon:'🎯',title:'СОБЕСЕДОВАНИЕ: является ли рост map потокобезопасным?',body:'Нет — рост требует записи (устанавливает флаг hashWriting). Но рост не блокирует для чтений: они прозрачно читают из правильного массива во время роста.'},
+]},
+
+concurrent:{label:'6. CONCURRENT',
+file:'runtime/map.go — race detection',
+code:[
+  '// Maps are NOT goroutine-safe. Concurrent writes = FATAL.',
+  '// Concurrent read + write = FATAL. fatal() ≠ panic().',
+  '// Run: go test -race to detect races.',
+  '',
+  '// ── OPTION 1: sync.Mutex (universal) ───────────────────',
+  'type SafeMap[K comparable, V any] struct {',
+  '    mu sync.Mutex',
+  '    m  map[K]V',
+  '}',
+  'func (s *SafeMap[K,V]) Set(k K, v V) {',
+  '    s.mu.Lock()',
+  '    s.m[k] = v',
+  '    s.mu.Unlock()',
+  '}',
+  'func (s *SafeMap[K,V]) Get(k K) (V, bool) {',
+  '    s.mu.Lock()',
+  '    defer s.mu.Unlock()',
+  '    v, ok := s.m[k]',
+  '    return v, ok',
+  '}',
+  '',
+  '// ── OPTION 2: sync.RWMutex (read-heavy) ─────────────────',
+  'var rw sync.RWMutex',
+  'rw.Lock();  m[key] = val; rw.Unlock()  // writer: exclusive',
+  'rw.RLock(); v := m[key]; rw.RUnlock() // reader: shared, N ok',
+  '',
+  '// ── OPTION 3: sync.Map (read-mostly, stable keys) ───────',
+  'var sm sync.Map',
+  'sm.Store("key", value)',
+  'v, ok := sm.Load("key")           // lock-free if in read map',
+  'sm.LoadOrStore("key", default)',
+  'sm.Range(func(k, v any) bool {',
+  '    fmt.Println(k, v)',
+  '    return true',
+  '})',
+  '',
+  '// sync.Map internals:',
+  '// read map (atomic, lock-free reads)',
+  '// dirty map (mutex, has new/updated keys)',
+  '// misses → dirty promoted to read (atomic swap)',
+],
+steps:[
+  {phase:'init',  cl:0, g1:false,g2:false,g1op:'_ = m["a"]',g2op:'_ = m["b"]',conflict:false,crash:false,sol:null,
+   title:'MAP: НЕ ПОТОКОБЕЗОПАСЕН',
+   body:'В Go map нет внутренней блокировки. Параллельные записи, или параллельное чтение и запись, оба вызывают fatal(). Это намеренно: добавление блокировки замедлило бы все операции map в одной горутине. Выбор: всегда платить стоимость блокировки или синхронизировать явно. Go выбрал явную синхронизацию.',
+   insight:'<strong>Почему fatal(), а не panic()?</strong> Состояние гонки указывает на ошибку программирования — повреждённые внутренности map. Разрешение recover() скрыло бы ошибку и позволило бы процессу продолжить работу с повреждённым состоянием.'},
+  {phase:'hash',  cl:9, g1:true, g2:false,g1op:'m["a"] = 1',g2op:'waiting...',conflict:false,crash:false,sol:null,
+   title:'ГОРУТИНА 1: УСТАНАВЛИВАЕТ hashWriting',
+   body:'Горутина 1 входит в mapassign. h.flags & hashWriting = 0 (сброшен). Устанавливает h.flags |= hashWriting. Теперь обрабатывает вставку: хэширует ключ, находит бакет, сканирует слоты. Флаг записи установлен на всё время.',
+   insight:'<strong>Флаг — НЕ блокировка:</strong> он не блокирует другие горутины. Он только определяет, произошёл ли параллельный вход. Стоимость обнаружения: одна побитовая AND на операцию — практически бесплатно.'},
+  {phase:'crash', cl:5, g1:true, g2:true, g1op:'m["a"] = 1',g2op:'m["b"] = 2',conflict:true,crash:true,sol:null,
+   title:'ГОРУТИНА 2: ОБНАРУЖИВАЕТ ФЛАГ → FATAL',
+   body:'Горутина 2 входит в mapassign. Проверяет h.flags & hashWriting — установлен горутиной 1! Вызывает fatal("concurrent map writes"). Рантайм выводит стеки обеих горутин и завершает процесс. Восстановление невозможно.',
+   insight:'<strong>go test -race поймал бы это:</strong> детектор гонок инструментирует все обращения к памяти, включая чтения/записи map. Он обнаруживает гонку до того, как сработает fatal(), с понятным отчётом стека горутин.'},
+  {phase:'warn',  cl:0, g1:false,g2:false,g1op:'terminated',g2op:'terminated',conflict:false,crash:false,sol:null,
+   title:'ПРОЦЕСС ЗАВЕРШЁН',
+   body:'fatal() завершает процесс через throw(), который вызывает exit(). Трассировка стека показывает обе задействованные горутины. Нет очистки, нет выполнения отложенных функций для горутины, вызвавшей fatal().',
+   insight:'<strong>Профилактика:</strong> (1) go test -race во всех CI-конвейерах. (2) Запускай продакшн с GORACE=halt_on_error=1 для обнаружения гонок в продакшне. (3) Используй один из трёх вариантов синхронизации ниже.'},
+  {phase:'insert',cl:5, g1:false,g2:false,g1op:'mu.Lock(); m["a"]=1',g2op:'mu.Lock(); m["b"]=2',conflict:false,crash:false,sol:'mutex',
+   title:'РЕШЕНИЕ 1: sync.Mutex',
+   body:'Блокировка перед каждым обращением к map (чтение И запись). Только одна горутина удерживает mutex за раз. Все остальные горутины блокируются. Простой, универсальный, корректный для всех паттернов. Накладные расходы ~20–30 нс на операцию.',
+   insight:'<strong>Частая ошибка:</strong> блокировать записи, но не чтения. Чтение параллельно с записью столь же смертельно. Mutex должен оборачивать пути и чтения, и записи.'},
+  {phase:'lookup',cl:21,g1:false,g2:false,g1op:'rw.RLock();v=m["a"]',g2op:'rw.Lock();m["b"]=2',conflict:false,crash:false,sol:'rw',
+   title:'РЕШЕНИЕ 2: sync.RWMutex',
+   body:'N горутин могут одновременно удерживать RLock(). Lock() — эксклюзивный (блокирует читателей и писателей). Лучше Mutex при reads >> writes (соотношение >10:1). Если чтений < в 10 раз больше записей, Mutex часто быстрее (меньшие накладные расходы на получение).',
+   insight:'<strong>Риск голодания записей:</strong> при многих читателях, постоянно удерживающих RLock, писатель может долго ждать Lock(). sync.RWMutex в Go предотвращает полное голодание, но задержка записи растёт при нагрузке на чтение.'},
+  {phase:'done',  cl:26,g1:false,g2:false,g1op:'sm.Load("a")',g2op:'sm.Store("b",2)',conflict:false,crash:false,sol:'smap',
+   title:'РЕШЕНИЕ 3: sync.Map',
+   body:'Два внутренних map: read map (атомарный доступ, без блокировки) и dirty map (защищённый mutex). Чтения сначала проверяют read map (без блокировки). Если нет: проверяют dirty map (с блокировкой). Новые ключи идут в dirty. Dirty повышается до read при достижении порога промахов.',
+   insight:'<strong>Идеальный случай для sync.Map:</strong> стабильный набор ключей, много параллельных читателей. Плохой случай: частые вставки новых ключей (mutex dirty map становится узким местом). Сделай бенчмарк перед выбором вместо Mutex.'},
+],
+usage:[
+  {n:1,title:'Обобщённая потокобезопасная обёртка map (Go 1.18+)',sub:'type-safe обёртка с использованием обобщений',code:`type Map[K comparable, V any] struct {
+    mu sync.RWMutex
+    m  map[K]V
+}
+
+func NewMap[K comparable, V any]() *Map[K, V] {
+    return &Map[K, V]{m: make(map[K]V)}
+}
+
+func (m *Map[K,V]) Set(k K, v V) {
+    m.mu.Lock()
+    m.m[k] = v
+    m.mu.Unlock()
+}
+
+func (m *Map[K,V]) Get(k K) (V, bool) {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    v, ok := m.m[k]
+    return v, ok
+}
+
+func (m *Map[K,V]) Delete(k K) {
+    m.mu.Lock()
+    delete(m.m, k)
+    m.mu.Unlock()
+}
+
+func (m *Map[K,V]) Len() int {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    return len(m.m)
+}`,note:'Дженерики устраняют type assertions через interface{}. Работает для любого comparable типа ключа.'},
+  {n:2,title:'sync.Map для реестра сервисов (идеальный вариант использования)',sub:'стабильные ключи + много читателей = sync.Map побеждает',code:`// Good fit: routes/handlers registered once, read on every request
+var routes sync.Map
+
+// Registration (startup, rare):
+func Register(path string, h http.HandlerFunc) {
+    routes.Store(path, h)
+}
+
+// Dispatch (hot path, very frequent):
+func Dispatch(w http.ResponseWriter, r *http.Request) {
+    v, ok := routes.Load(r.URL.Path)  // lock-free after warmup!
+    if !ok {
+        http.NotFound(w, r)
+        return
+    }
+    v.(http.HandlerFunc)(w, r)
+}
+
+// LoadOrStore: atomic get-or-create (no double-init)
+actual, loaded := routes.LoadOrStore("/new", newHandler)
+if loaded {
+    fmt.Println("already registered:", actual)
+}`,note:'После первых нескольких запросов read map полностью заполнен и Load() работает без блокировок. Именно для этого паттерна создавался sync.Map.'},
+  {n:3,title:'Паттерн сериализации через каналы',sub:'одна горутина владеет map — блокировки не нужны',code:`type op struct {
+    key    string
+    val    int
+    write  bool
+    result chan<- int
+}
+
+func mapWorker(ops <-chan op) {
+    m := make(map[string]int)
+    for o := range ops {
+        if o.write {
+            m[o.key] = o.val
+            o.result <- 0  // ack
+        } else {
+            o.result <- m[o.key]
+        }
+    }
+}
+
+ch := make(chan op, 128)  // buffered for throughput
+go mapWorker(ch)
+
+// Caller:
+result := make(chan int, 1)
+ch <- op{key: "hits", result: result}
+v := <-result
+
+// Advantage: natural backpressure, no lock contention.
+// Disadvantage: higher per-op latency (~goroutine schedule).`,note:''},
+  {n:4,title:'Детектор гонок в CI — обязательно',sub:'как включить и что обнаруживает',code:`// go test -race: instruments all memory accesses
+// Catches: concurrent map read+write, concurrent writes
+
+// .github/workflows/test.yml:
+// - run: go test -race ./...
+
+// Local:
+// go test -race ./...
+// go run -race main.go
+
+// Example output when race detected:
+// ==================
+// WARNING: DATA RACE
+// Write at 0x... by goroutine 7:
+//   main.main.func2()
+//       main.go:15
+// Previous read at 0x... by goroutine 6:
+//   main.main.func1()
+//       main.go:10
+// ==================
+
+// -race overhead: ~5-10x slowdown, 5-10x memory
+// Run in CI/staging, NOT in production (usually)`,note:'go test -race — самый важный инструмент для обнаружения гонок в map до продакшна.'},
+  {n:5,title:'Шардированный map — снижение конкуренции блокировок',sub:'N независимых map, каждый со своей блокировкой',code:`// For very high concurrency: shard the map to reduce contention
+const shards = 64
+
+type ShardedMap struct {
+    shards [shards]struct {
+        sync.RWMutex
+        m map[string]int
+    }
+}
+
+func NewShardedMap() *ShardedMap {
+    sm := &ShardedMap{}
+    for i := range sm.shards {
+        sm.shards[i].m = make(map[string]int)
+    }
+    return sm
+}
+
+func (s *ShardedMap) shard(k string) int {
+    h := fnv.New32()
+    h.Write([]byte(k))
+    return int(h.Sum32()) % shards
+}
+
+func (s *ShardedMap) Set(k string, v int) {
+    sh := &s.shards[s.shard(k)]
+    sh.Lock()
+    sh.m[k] = v
+    sh.Unlock()
+}`,note:'64 шарда → в 64 раза меньше конкуренции. Полезно для горячих кэшей со многими горутинами. Компромисс: нет атомарного len(), Range() требует блокировки всех шардов.'},
+],
+concepts:[
+  {icon:'💀',title:'ПОЧЕМУ FATAL, А НЕ PANIC?',body:'Параллельная запись в map указывает на повреждение внутренностей — tophash, указатели, count в несогласованном состоянии. Продолжение выполнения с повреждённым map привело бы к непредсказуемым сбоям позднее. fatal() гарантирует немедленную остановку процесса с полезной трассировкой стека.'},
+  {icon:'🔬',title:'МЕХАНИКА ДЕТЕКТОРА ГОНОК',body:'go test -race использует ThreadSanitizer (TSan). Каждое обращение к памяти инструментируется для записи "последний раз записано горутиной X в момент T". При чтении: проверяется, является ли последний писатель другой горутиной и синхронизированы ли часы. O(1) проверка на обращение, 5-10x накладные расходы на выполнение.'},
+  {icon:'🗺️',title:'ВНУТРЕННОСТИ SYNC.MAP',body:'Два map: readOnly (атомарный указатель на неизменяемый снимок) и dirty (защищён mutex, содержит новые ключи). Путь чтения: атомарная загрузка + поиск в map, без блокировок. Путь промаха: блокируем dirty map, поиск, записываем промах. После (промахи > dirtyLen): dirty становится новым readOnly, dirty пересобирается лениво.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'fatal() нельзя перехватить с recover()',body:'В отличие от паник, fatal() обходит механизм defer/recover. Процесс немедленно завершается. Без очистки. Используй go test -race для обнаружения гонок на этапе тестирования.'},
+  {t:'warn',icon:'⚠️',title:'Параллельные чтения без записей: безопасно',body:'Множество горутин, одновременно читающих один map — безопасно. hashWriting устанавливается только записями. Читателям не нужна синхронизация, если нет параллельного писателя.'},
+  {t:'warn',icon:'⚠️',title:'sync.Map — НЕ универсальная замена map',body:'Нагрузки с большим количеством записей: mutex dirty-map является узким местом. sync.Map превосходит Mutex только при преимущественном чтении и стабильных ключах. Сначала бенчмарк.'},
+  {t:'ok', icon:'🎯',title:'СОБЕСЕДОВАНИЕ: опиши 3 варианта синхронизации',body:'Mutex (универсальный), RWMutex (много чтений), sync.Map (стабильные ключи, преим. чтение). Объясни, когда каждый подходит и почему sync.Map не является прямой заменой.'},
+  {t:'note',icon:'📌',title:'Map через каналы избегает всех блокировок',body:'Одна горутина владеет map. Весь доступ через сообщения канала. Естественное обратное давление, нет конкуренции. Компромисс: накладные расходы на планирование горутин (~1 мкс vs ~20 нс для mutex).'},
+]},
+};
+
+/* ── PLAYBACK ── */
+let SCENE='hmap';
+const PLAY={steps:[],idx:0,playing:false,timer:null,speed:950};
+
+function applyStep(step){
+  draw(step);
+  // badge + phase
+  const b=document.getElementById('badge');
+  b.textContent=step.phase.toUpperCase();b.className='badge '+step.phase;
+  // title
+  document.getElementById('expl-title').textContent=step.title||step.phase.toUpperCase();
+  // body
+  document.getElementById('expl-body').textContent=step.body||step.desc||'';
+  // insight
+  const ins=document.getElementById('expl-insight');
+  if(step.insight){ins.innerHTML=step.insight;ins.style.display='block';}
+  else{ins.style.display='none';}
+  // step counter
+  const tot=PLAY.steps.length;
+  document.getElementById('expl-step').textContent=(PLAY.idx+1)+' / '+tot;
+  document.getElementById('pbar').style.width=(tot>1?(PLAY.idx/(tot-1)*100):0)+'%';
+  document.getElementById('sc').textContent=(PLAY.idx+1)+'/'+tot;
+  // stats
+  document.getElementById('s-cnt').textContent=step.count||'—';
+  document.getElementById('s-b').textContent=step.B||'—';
+  const bv=parseInt(step.B||'0');
+  document.getElementById('s-bk').textContent=bv>0?Math.pow(2,bv):'—';
+  const lf=step.count&&step.B?(parseFloat(step.count)/Math.pow(2,bv)).toFixed(2):'—';
+  const lfEl=document.getElementById('s-lf');lfEl.textContent=lf;
+  lfEl.style.color=parseFloat(lf)>6.5?'var(--r)':parseFloat(lf)>5?'var(--o)':'var(--c)';
+  document.getElementById('s-gr').textContent=step.growing?'ДА':(step.nevac&&step.nevac!=='0'?'evac':( step.growTrig?'РОСТ!':'no'));
+  document.getElementById('s-gr').style.color=step.growing||step.growTrig?'var(--o)':'rgba(255,178,41,.4)';
+  renderCode(SCENES[SCENE].code,step.cl>=0?step.cl:-1);
+  snd(step.phase);
+}
+function next(){if(PLAY.idx<PLAY.steps.length-1){PLAY.idx++;applyStep(PLAY.steps[PLAY.idx]);}}
+function prev(){if(PLAY.idx>0){PLAY.idx--;applyStep(PLAY.steps[PLAY.idx]);}}
+function togglePlay(){
+  if(PLAY.playing){
+    clearInterval(PLAY.timer);PLAY.playing=false;
+    document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');
+  }else{
+    PLAY.playing=true;document.getElementById('pb').textContent='⏸ PAUSE';document.getElementById('pb').classList.add('pl');
+    PLAY.timer=setInterval(()=>{
+      if(PLAY.idx<PLAY.steps.length-1){next();}
+      else{clearInterval(PLAY.timer);PLAY.playing=false;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}
+    },PLAY.speed);
+  }
+}
+function doReset(){if(PLAY.playing)togglePlay();PLAY.idx=0;if(PLAY.steps.length)applyStep(PLAY.steps[0]);}
+function setSpd(v){PLAY.speed=Math.round(2500-v*230);if(PLAY.playing){clearInterval(PLAY.timer);PLAY.timer=setInterval(()=>{if(PLAY.idx<PLAY.steps.length-1)next();else{clearInterval(PLAY.timer);PLAY.playing=false;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}},PLAY.speed);}}
+
+/* ── RENDER RIGHT PANELS ── */
+function renderUsage(sc){
+  document.getElementById('bp-usage').innerHTML=sc.usage.map(u=>`
+    <div class="uex">
+      <div class="uex-hdr">
+        <div class="uex-num">ПРИМЕР ${u.n}</div>
+        <div class="uex-title">${u.title}</div>
+        <div class="uex-sub">${u.sub}</div>
+      </div>
+      <div class="uex-code">${hlUsage(u.code)}</div>
+      ${u.note?`<div class="uex-note">${u.note}</div>`:''}
+    </div>`).join('');
+}
+function renderConcepts(sc){
+  document.getElementById('bp-concepts').innerHTML=sc.concepts.map(c=>`
+    <div class="icon-row">
+      <div class="info-icon">${c.icon}</div>
+      <div><strong>${c.title}</strong><p>${c.body}</p></div>
+    </div>`).join('');
+}
+function renderTraps(sc){
+  document.getElementById('bp-traps').innerHTML=sc.traps.map(t=>`
+    <div class="trap ${t.t}">
+      <div class="trap-icon">${t.icon}</div>
+      <div class="trap-body"><strong>${t.title}</strong>${t.body}</div>
+    </div>`).join('');
+}
+
+function selectScene(key){
+  if(PLAY.playing)togglePlay();
+  SCENE=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENES[key];
+  PLAY.steps=sc.steps;PLAY.idx=0;
+  document.getElementById('code-hdr-file').textContent=sc.file||'runtime/map.go';
+  renderUsage(sc);renderConcepts(sc);renderTraps(sc);
+  renderCode(sc.code,-1);
+  applyStep(sc.steps[0]);
+}
+function buildTabs(){
+  const order=[['hmap','1·HMAP'],['bmap','2·BUCKET'],['lookup','3·LOOKUP'],['insert','4·INSERT'],['grow','5·GROW'],['concurrent','6·CONCURRENT']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  if(e.key==='ArrowRight'||e.key===']')next();
+  else if(e.key==='ArrowLeft'||e.key==='[')prev();
+  else if(e.key===' '){e.preventDefault();togglePlay();}
+  else if(e.key==='r'||e.key==='R')doReset();
+  else if(e.key==='m'||e.key==='M')toggleMute();
+  else if(e.key==='1')selectScene('hmap');
+  else if(e.key==='2')selectScene('bmap');
+  else if(e.key==='3')selectScene('lookup');
+  else if(e.key==='4')selectScene('insert');
+  else if(e.key==='5')selectScene('grow');
+  else if(e.key==='6')selectScene('concurrent');
+});
+
+/* ── BOOT ── */
+(function boot(){
+  const term=document.getElementById('blog'),fill=document.getElementById('bfill');
+  const lines=[
+    ['Выделение hmap-заголовка (56B на amd64)','OK'],
+    ['Вызов fastrand() — хэш-сид','0x5f3a1c2b'],
+    ['Вычисление B из load factor 6.5','B=3 → 8 бакетов'],
+    ['Проверка tophash-раскладки bmap','emptyRest = 0'],
+    ['Загрузка инкрементального эвакуатора','1–2 на запись'],
+    ['Проверка детектора hashWriting','fatal≠panic'],
+    ['MAP.VIZ ГОТОВ',''],
+  ];
+  let i=0;
+  function nxt(){
+    if(i>=lines.length){setTimeout(start,350);return;}
+    const[msg,ok]=lines[i];
+    const d=document.createElement('div');d.className='bline';
+    d.innerHTML=`<span>${msg}</span><span class="bok">${ok||(i===lines.length-1?'<span class="bcur"></span>':'')}</span>`;
+    term.appendChild(d);setTimeout(()=>d.classList.add('v'),20);
+    fill.style.width=((i+1)/lines.length*100)+'%';
+    i++;setTimeout(nxt,i===lines.length?300:100);
+  }
+  setTimeout(nxt,200);
+})();
+function start(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  window.addEventListener('resize',resize);
+  resize();
+  setTimeout(()=>selectScene('hmap'),150);
+}
+</script>
+</body>
+</html>

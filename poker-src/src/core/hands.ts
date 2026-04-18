@@ -1,9 +1,17 @@
 import type { Card, GameVariant, HandCategory, HandRank } from './types.js';
-import { rankOf, suitOf, shortDeckRankOf } from './cards.js';
+import { rankOf, suitOf, shortDeckRankOf, isJoker, JOKER, RANKS, SUITS } from './cards.js';
+import { bestHandFast } from './eval/fast.js';
+
+// Decoded-card → string, inverse of fast.ts encodeCard.
+const RANK_CHARS = '23456789TJQKA';
+const SUIT_CHARS = 'shdc';
+function decodeCardInt(enc: number): Card {
+  return (RANK_CHARS[enc >> 2] ?? '2') + (SUIT_CHARS[enc & 3] ?? 's');
+}
 
 export const HAND_NAMES: readonly string[] = [
   'High Card', 'Pair', 'Two Pair', 'Three of a Kind', 'Straight',
-  'Flush', 'Full House', 'Four of a Kind', 'Straight Flush',
+  'Flush', 'Full House', 'Four of a Kind', 'Straight Flush', 'Five of a Kind',
 ];
 
 /** Get rank value based on game variant */
@@ -193,6 +201,9 @@ export function bestHand(cards: Card[], variant?: GameVariant): HandRank {
   if (cards.length < 5 || cards.length > 7) {
     throw new Error(`bestHand expects 5-7 cards, got ${cards.length}`);
   }
+  if (variant === 'joker' && cards.some(isJoker)) {
+    return bestHandJoker(cards);
+  }
   if (cards.length === 5) {
     const c = classify5(cards, variant);
     return {
@@ -202,6 +213,26 @@ export function bestHand(cards: Card[], variant?: GameVariant): HandRank {
       category: c.category,
     };
   }
+  // Fast path: standard Hold'em style evaluator (6 or 7 cards). It picks the
+  // best 5-card subset in a single pass without combinatorial enumeration.
+  // Short-deck and any future custom-rank variants fall through to the
+  // slower classify-each-combo path since the fast evaluator assumes the
+  // normal 2..A rank ordering.
+  if (variant !== 'shortdeck') {
+    const result = bestHandFast(cards);
+    const chosen = result.cardsEnc.map(decodeCardInt);
+    // Sanity: if the fast path ever gives us a non-5 subset, fall back to
+    // the slow enumeration so classify5/handName don't explode.
+    if (chosen.length === 5) {
+      return {
+        score: result.score,
+        cards: chosen,
+        name: handName(chosen, variant),
+        category: result.category as HandCategory,
+      };
+    }
+  }
+  // Short-deck slow path: preserve the existing combinatorial fallback.
   let best: HandRank | null = null;
   for (const combo of combinations(cards, 5)) {
     const score = eval5(combo, variant);
@@ -256,4 +287,71 @@ export function bestHandOmaha(hole: Card[], community: Card[], variant?: GameVar
     throw new Error('bestHandOmaha: no valid combination found');
   }
   return best;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Joker Hold'em — wild card evaluation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ALL_CARDS: Card[] = (() => {
+  const out: Card[] = [];
+  for (const s of SUITS) for (const r of RANKS) out.push(r + s);
+  return out;
+})();
+
+/**
+ * Evaluate a hand that may contain a joker (wild card).
+ *
+ * Two passes:
+ *   1. Five-of-a-kind check: scan the non-joker cards for any rank that
+ *      appears 4 times. If found, the joker makes it five-of-a-kind
+ *      (category 9 — highest possible hand). We pick the highest such
+ *      rank if multiple quads exist (impossible with 1 joker, but safe).
+ *   2. Best-substitution brute force: for each of the 52 real cards not
+ *      already present, replace the joker with it, evaluate the resulting
+ *      hand, and keep the best. ~48 iterations × fast evaluator ≈ <1ms.
+ *
+ * Whichever of (1) or (2) scores higher wins.
+ */
+export function bestHandJoker(cards: Card[]): HandRank {
+  const jokerCount = cards.filter(isJoker).length;
+  if (jokerCount === 0) return bestHand(cards);
+
+  const nonJokers = cards.filter(c => !isJoker(c));
+  const present = new Set(nonJokers);
+
+  let best: HandRank | null = null;
+
+  // Pass 1 — five-of-a-kind: if non-joker cards contain quads, the
+  // joker promotes them. We scan all 5–6 non-joker cards (not just a
+  // best-5 subset) so four aces spread across hole + community are found.
+  const rankCounts = new Map<string, number>();
+  for (const c of nonJokers) {
+    const r = c[0]!;
+    rankCounts.set(r, (rankCounts.get(r) ?? 0) + 1);
+  }
+  for (const [r, cnt] of rankCounts) {
+    if (cnt < 4) continue;
+    const rv = rankOf(r + 's'); // any suit — we only need the numeric value
+    const score = 9 * (15 ** 5) + rv * (15 ** 4);
+    const fiveCards = nonJokers.filter(c => c[0] === r).slice(0, 4);
+    fiveCards.push(JOKER);
+    const promoted: HandRank = {
+      score,
+      cards: fiveCards,
+      name: `Five of a Kind, ${plural(rv)}`,
+      category: 9 as HandCategory,
+    };
+    if (!best || promoted.score > best.score) best = promoted;
+  }
+
+  // Pass 2 — substitution brute force for normal hands (8 and below).
+  for (const sub of ALL_CARDS) {
+    if (present.has(sub)) continue;
+    const trial = [...nonJokers, sub];
+    const result = bestHand(trial);
+    if (!best || result.score > best.score) best = result;
+  }
+
+  return best!;
 }
