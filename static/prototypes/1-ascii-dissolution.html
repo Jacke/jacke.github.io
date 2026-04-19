@@ -227,119 +227,82 @@
         </li>
       </ol>
 
-      <!-- Lab -->
-      <p class="section-label reveal">Lab</p>
-      <div class="lab-grid reveal">
-        <a class="lab-card" href="/poker/">
-          <p class="lab-card-tag">Game</p>
-          <p class="lab-card-title">Poker</p>
-          <p class="lab-card-desc">Multiplayer Texas Hold'em, 7 variants incl. Joker &amp; Short Deck. P2P + server matchmaking. Ed25519 signed.</p>
+      <!-- Open Source -->
+      <p class="section-label reveal">Open Source</p>
+      <div class="project-list">
+        <a class="project-card reveal" href="https://github.com/jacke/doradura" target="_blank" rel="noopener">
+          <div class="project-header">
+            <h3 class="project-title">Doradura</h3>
+            <span class="project-badge">Rust</span>
+          </div>
+          <p class="project-desc">Media-download ecosystem: terminal UI + Telegram bot on a shared Rust core. Downloads from 1000+ platforms (YouTube, TikTok, Spotify, SoundCloud). Audio effects, video-to-notes, 4 languages.</p>
+          <p class="project-stack">Tokio &middot; teloxide &middot; ratatui &middot; FFmpeg &middot; yt-dlp &middot; Axum &middot; SQLite</p>
         </a>
-        <a class="lab-card" href="/algos/search-viz.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">Search Algorithms</p>
-          <p class="lab-card-desc">Interactive visualizations of binary search, DFS, BFS, A* and more.</p>
+        <a class="project-card reveal" href="https://github.com/Jacke/telepath" target="_blank" rel="noopener">
+          <div class="project-header">
+            <h3 class="project-title">Telepath</h3>
+            <span class="project-badge">Python</span>
+            <span class="project-badge">TypeScript</span>
+          </div>
+          <p class="project-desc">Single-tenant Telegram reader and automation tool. Web dashboard for reading channels and automating messaging pipelines. JWT auth, background job scheduler, local session management.</p>
+          <p class="project-stack">FastAPI &middot; Next.js &middot; SQLite &middot; Docker Compose &middot; pytest</p>
         </a>
-        <a class="lab-card" href="/algos/dp_viz.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">Dynamic Programming</p>
-          <p class="lab-card-desc">Step-by-step DP table animations — knapsack, LCS, edit distance.</p>
+        <a class="project-card reveal" href="/poker/">
+          <div class="project-header">
+            <h3 class="project-title">The Hand</h3>
+            <span class="project-badge">TypeScript</span>
+          </div>
+          <p class="project-desc">Browser multiplayer poker engine. 7 variants (Hold'em, Omaha, Short Deck, Pineapple, Joker). P2P via WebRTC + server matchmaker. Ed25519 signed protocol. 4-tier bot AI. 300+ tests.</p>
+          <p class="project-stack">Vite &middot; PeerJS &middot; WebSocket &middot; @noble/ed25519 &middot; Node.js &middot; SQLite</p>
         </a>
-        <a class="lab-card" href="/algos/data-struct_1.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">Data Structures</p>
-          <p class="lab-card-desc">Arrays, linked lists, stacks, queues, hash maps — animated operations.</p>
-        </a>
-        <a class="lab-card" href="/algos/tree-viz.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">Trees</p>
-          <p class="lab-card-desc">BST, AVL, Red-Black, B-Tree — insert, delete, rebalance visualized.</p>
-        </a>
-        <a class="lab-card" href="/algos/graph-lab.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">Graph Algorithms</p>
-          <p class="lab-card-desc">Dijkstra, topological sort, cycle detection, connected components.</p>
-        </a>
-        <a class="lab-card" href="/algos/hash-map.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">HashMap Internals</p>
-          <p class="lab-card-desc">Hashing, collision resolution, rehashing, load factor — step by step.</p>
-        </a>
-        <a class="lab-card" href="/algos/lru-viz.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">LRU Cache</p>
-          <p class="lab-card-desc">Doubly-linked list + hash map — eviction policy visualized.</p>
-        </a>
-        <a class="lab-card" href="/algos/consistent-hash.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Consistent Hashing</p>
-          <p class="lab-card-desc">Ring topology, virtual nodes, key distribution across shards.</p>
-        </a>
-        <a class="lab-card" href="/algos/kafka-viz_1.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Kafka</p>
-          <p class="lab-card-desc">Producers, partitions, consumer groups, offset commits — animated.</p>
-        </a>
-        <a class="lab-card" href="/algos/raft-sim.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Raft Consensus</p>
-          <p class="lab-card-desc">Leader election, log replication, term handling — interactive sim.</p>
-        </a>
-        <a class="lab-card" href="/algos/chan2-viz_5.html">
-          <p class="lab-card-tag">Go</p>
-          <p class="lab-card-title">Channels &amp; Goroutines</p>
-          <p class="lab-card-desc">Buffered/unbuffered channels, select, fan-in/fan-out patterns.</p>
-        </a>
-        <a class="lab-card" href="/algos/net-viz.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Networking</p>
-          <p class="lab-card-desc">TCP handshake, HTTP/2 streams, DNS resolution — packet by packet.</p>
-        </a>
-        <a class="lab-card" href="/algos/db-viz_1.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Database Internals</p>
-          <p class="lab-card-desc">B-tree pages, WAL, MVCC, query execution — storage engine anatomy.</p>
-        </a>
-        <a class="lab-card" href="/algos/mem-viz.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Memory Management</p>
-          <p class="lab-card-desc">Stack vs heap, allocation, GC roots, reference counting visualized.</p>
-        </a>
-        <a class="lab-card" href="/algos/sync-viz_1.html">
-          <p class="lab-card-tag">Go</p>
-          <p class="lab-card-title">Concurrency Primitives</p>
-          <p class="lab-card-desc">Mutex, RWMutex, WaitGroup, Once, sync.Map — race condition demos.</p>
-        </a>
-        <a class="lab-card" href="/algos/interface-viz.html">
-          <p class="lab-card-tag">Go</p>
-          <p class="lab-card-title">Interfaces</p>
-          <p class="lab-card-desc">Interface tables, type assertions, embedding, polymorphism.</p>
-        </a>
-        <a class="lab-card" href="/algos/map-viz-ru.html">
-          <p class="lab-card-tag">Go</p>
-          <p class="lab-card-title">Map Internals</p>
-          <p class="lab-card-desc">Go map buckets, overflow chains, evacuation during growth.</p>
-        </a>
-        <a class="lab-card" href="/algos/retry-viz.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Retry &amp; Backoff</p>
-          <p class="lab-card-desc">Exponential backoff, jitter, circuit breakers — failure patterns.</p>
-        </a>
-        <a class="lab-card" href="/algos/txlog-sim.html">
-          <p class="lab-card-tag">Systems</p>
-          <p class="lab-card-title">Transaction Log</p>
-          <p class="lab-card-desc">WAL, checkpointing, crash recovery — append-only log simulator.</p>
-        </a>
-        <a class="lab-card" href="/algos/btree-viz.html">
-          <p class="lab-card-tag">Algo Viz</p>
-          <p class="lab-card-title">B-Tree</p>
-          <p class="lab-card-desc">Insert, split, merge, search — order-configurable B-tree.</p>
-        </a>
-        <a class="lab-card" href="/grammar/">
-          <p class="lab-card-tag">Reference</p>
-          <p class="lab-card-title">English Grammar</p>
-          <p class="lab-card-desc">Tenses, articles, gerunds, conditionals — 17 sections with examples.</p>
-        </a>
+      </div>
+
+      <!-- Interactive Cheatsheets -->
+      <p class="section-label reveal">Interactive Cheatsheets</p>
+
+      <div class="sheet-group reveal">
+        <p class="sheet-group-label">Algorithms &amp; Data Structures</p>
+        <div class="sheet-list">
+          <a class="sheet-link" href="/algos/search-viz.html">Search Algorithms</a>
+          <a class="sheet-link" href="/algos/dp_viz.html">Dynamic Programming</a>
+          <a class="sheet-link" href="/algos/data-struct_1.html">Data Structures</a>
+          <a class="sheet-link" href="/algos/tree-viz.html">Trees</a>
+          <a class="sheet-link" href="/algos/btree-viz.html">B-Tree</a>
+          <a class="sheet-link" href="/algos/graph-lab.html">Graph Algorithms</a>
+          <a class="sheet-link" href="/algos/hash-map.html">HashMap Internals</a>
+          <a class="sheet-link" href="/algos/lru-viz.html">LRU Cache</a>
+        </div>
+      </div>
+
+      <div class="sheet-group reveal">
+        <p class="sheet-group-label">Systems Design</p>
+        <div class="sheet-list">
+          <a class="sheet-link" href="/algos/kafka-viz_1.html">Kafka</a>
+          <a class="sheet-link" href="/algos/raft-sim.html">Raft Consensus</a>
+          <a class="sheet-link" href="/algos/consistent-hash.html">Consistent Hashing</a>
+          <a class="sheet-link" href="/algos/db-viz_1.html">Database Internals</a>
+          <a class="sheet-link" href="/algos/txlog-sim.html">Transaction Log</a>
+          <a class="sheet-link" href="/algos/net-viz.html">Networking</a>
+          <a class="sheet-link" href="/algos/mem-viz.html">Memory Management</a>
+          <a class="sheet-link" href="/algos/retry-viz.html">Retry &amp; Backoff</a>
+        </div>
+      </div>
+
+      <div class="sheet-group reveal">
+        <p class="sheet-group-label">Go Internals</p>
+        <div class="sheet-list">
+          <a class="sheet-link" href="/algos/chan2-viz_5.html">Channels &amp; Goroutines</a>
+          <a class="sheet-link" href="/algos/sync-viz_1.html">Concurrency Primitives</a>
+          <a class="sheet-link" href="/algos/interface-viz.html">Interfaces</a>
+          <a class="sheet-link" href="/algos/map-viz-ru.html">Map Internals</a>
+        </div>
+      </div>
+
+      <div class="sheet-group reveal" style="margin-bottom: 120px;">
+        <p class="sheet-group-label">Reference</p>
+        <div class="sheet-list">
+          <a class="sheet-link" href="/grammar/">English Grammar</a>
+        </div>
       </div>
 
       <!-- CTA -->
@@ -355,7 +318,7 @@
         <dd><a href="https://twitter.com/stanthoughts" target="_blank" rel="noopener">twitter.com/stanthoughts</a></dd>
 
         <dt>Email</dt>
-        <dd><a href="mailto:stan@iamjacke.com">stan@iamjacke.com</a></dd>
+        <dd><a href="mailto:iamjacke@gmail.com">iamjacke@gmail.com</a></dd>
       </dl>
 
     </div>
