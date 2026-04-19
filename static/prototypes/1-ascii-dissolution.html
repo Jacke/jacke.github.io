@@ -127,6 +127,17 @@
 </head>
 <body>
 
+  <nav id="site-nav">
+    <span class="nav-name">Stan Sobolev</span>
+    <div class="nav-links">
+      <a href="#sec-about">About</a>
+      <a href="#sec-work">Work</a>
+      <a href="#sec-oss">Open Source</a>
+      <a href="#sec-sheets">Cheatsheets</a>
+      <a href="#sec-contact">Contact</a>
+    </div>
+  </nav>
+
   <canvas id="mesh-bg"></canvas>
   <canvas id="cursor-canvas"></canvas>
   <div id="hero-glow"></div>
@@ -183,7 +194,7 @@
       </dl>
 
       <!-- Bio paragraph (pretext canvas cascade) -->
-      <p class="section-label reveal">About</p>
+      <p class="section-label reveal" id="sec-about">About</p>
       <p class="about-text reveal" id="about-fallback">
         Stan Sobolev is a Staff Engineer and System Architect specializing
         in distributed systems that handle millions of requests daily.
@@ -194,7 +205,7 @@
       <div id="bio-flow-wrap" style="display:none;"></div>
 
       <!-- Selected work -->
-      <p class="section-label reveal">Selected Work</p>
+      <p class="section-label reveal" id="sec-work">Selected Work</p>
       <ol class="work-list">
         <li class="work-item reveal reveal-delay-1">
           <span class="work-num">01 · Infrastructure</span>
@@ -229,7 +240,7 @@
       </ol>
 
       <!-- Open Source -->
-      <p class="section-label reveal">Open Source</p>
+      <p class="section-label reveal" id="sec-oss">Open Source</p>
       <div class="project-list">
         <a class="project-card reveal" href="https://github.com/jacke/doradura" target="_blank" rel="noopener">
           <div class="project-header">
@@ -259,7 +270,7 @@
       </div>
 
       <!-- Interactive Cheatsheets -->
-      <p class="section-label reveal">Interactive Cheatsheets</p>
+      <p class="section-label reveal" id="sec-sheets">Interactive Cheatsheets</p>
 
       <div class="sheet-group reveal">
         <p class="sheet-group-label">Algorithms &amp; Data Structures</p>
@@ -307,7 +318,7 @@
       </div>
 
       <!-- CTA -->
-      <h2 class="cta-heading reveal">Let's build something.</h2>
+      <h2 class="cta-heading reveal" id="sec-contact">Let's build something.</h2>
       <dl class="swiss-grid reveal">
         <dt>Github</dt>
         <dd><a href="https://github.com/Jacke" target="_blank" rel="noopener">github.com/Jacke</a></dd>
@@ -329,6 +340,7 @@
   <script src="/js/konami.min.js"></script>
   <script src="/js/glitch.min.js"></script>
   <script src="/js/mesh-bg.min.js"></script>
+  <script src="/js/navbar.min.js"></script>
   <script type="module" src="/js/homepage.min.js"></script>
 </body>
 </html>
