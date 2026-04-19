@@ -1,0 +1,50 @@
+# Stan Sobolev — iamjacke.com
+
+> Staff Engineer & System Architect with 15+ years building distributed systems. Scala, Go, Kubernetes, Kafka, PostgreSQL. Mentored 20+ engineers to Staff+ level.
+
+## About
+
+Stan Sobolev is a Staff Engineer and System Architect specializing in distributed systems that handle millions of requests daily. He designs event-driven architectures, leads engineering teams, and mentors engineers to Staff+ level.
+
+- Role: Staff Engineer · System Architect · Mentor
+- Stack: Scala · Go · Kubernetes · Kafka · PostgreSQL
+- Scale: 10M+ requests/day
+- Location: Remote · Global
+- Email: iamjacke@gmail.com
+- GitHub: https://github.com/Jacke
+- LinkedIn: https://linkedin.com/in/jacke1
+- Twitter: https://twitter.com/stanthoughts
+
+## Open Source Projects
+
+### Doradura
+- URL: https://github.com/jacke/doradura
+- Language: Rust
+- Description: Media-download ecosystem — terminal UI + Telegram bot on a shared Rust core. Downloads from 1000+ platforms (YouTube, TikTok, Spotify, SoundCloud). Audio effects, video-to-notes, 4 languages.
+- Stack: Tokio, teloxide, ratatui, FFmpeg, yt-dlp, Axum, SQLite
+
+### Telepath
+- URL: https://github.com/Jacke/telepath
+- Language: Python, TypeScript
+- Description: Single-tenant Telegram reader and automation tool. Web dashboard for reading channels and automating messaging pipelines. JWT auth, background job scheduler.
+- Stack: FastAPI, Next.js, SQLite, Docker Compose
+
+### The Hand (Poker Engine)
+- URL: https://iamjacke.com/poker/
+- Language: TypeScript
+- Description: Browser multiplayer poker engine. 7 variants (Hold'em, Omaha, Short Deck, Pineapple, Crazy Pineapple, Irish, Joker). P2P via WebRTC + server matchmaker. Ed25519 signed protocol. 4-tier bot AI. 300+ tests.
+- Stack: Vite, PeerJS, WebSocket, @noble/ed25519, Node.js, SQLite
+
+## Interactive Cheatsheets
+
+All cheatsheets are interactive browser-based visualizations.
+
+- Algorithms: Search, Dynamic Programming, Trees, B-Tree, Graph Algorithms, HashMap, LRU Cache
+- Systems Design: Kafka, Raft Consensus, Consistent Hashing, Database Internals, Transaction Log, Networking, Memory Management, Retry & Backoff
+- Go Internals: Channels & Goroutines, Concurrency Primitives, Interfaces, Map Internals
+
+## Site
+
+- URL: https://iamjacke.com
+- Built with: Hugo, Tailwind CSS, custom WebGL shaders
+- Deployed: GitHub Pages
