@@ -92,7 +92,7 @@ body {
 }
 
 /* ─── BLACKJACK ──────────────────────────────────────────────────────── */
-.btn-blackjack {
+.btn-blackjack, .btn-durak {
   display: inline-block;
   margin-top: 12px;
   background: linear-gradient(180deg, #1f4230 0%, #0f2c1f 100%);
@@ -105,12 +105,12 @@ body {
   cursor: pointer;
   transition: all 140ms ease;
 }
-.btn-blackjack:hover {
+.btn-blackjack:hover, .btn-durak:hover {
   border-color: #6fd890;
   color: #ffffff;
   box-shadow: 0 0 18px rgba(111,216,144,0.35);
 }
-.btn-blackjack-pvp {
+.btn-blackjack-pvp, .btn-durak-pvp {
   background: linear-gradient(180deg, #1f3a5a 0%, #0a1830 100%);
   border-color: #3d8ddd;
   color: #c9deff;
@@ -5229,8 +5229,10 @@ body:has(#screen-game.active) #side-stack #bank-widget { display: flex; }
     <div style="height:12px;"></div>
     <button class="btn btn-primary" id="btn-create-game" data-i18n="landing.dealIn">DEAL ME IN</button>
     <button class="btn btn-primary" id="btn-find-match" data-i18n="landing.findMatch">FIND MATCH</button>
-    <button class="btn btn-blackjack" id="btn-blackjack">🂡 BLACKJACK (SOLO)</button>
-    <button class="btn btn-blackjack btn-blackjack-pvp" id="btn-blackjack-pvp">🂡 BLACKJACK · INVITE FRIEND</button>
+    <button class="btn btn-blackjack" id="btn-blackjack">♠ BLACKJACK (SOLO)</button>
+    <button class="btn btn-blackjack btn-blackjack-pvp" id="btn-blackjack-pvp">♠ BLACKJACK · INVITE FRIEND</button>
+    <button class="btn btn-durak" id="btn-durak">♣ DURAK (SOLO)</button>
+    <button class="btn btn-durak btn-durak-pvp" id="btn-durak-pvp">♣ DURAK · INVITE FRIEND</button>
     <div class="landing-subtitle" data-i18n="landing.inviteHint">Invite a friend. No signup. No server.</div>
 
     <div class="bot-picker">
@@ -5371,7 +5373,20 @@ body:has(#screen-game.active) #side-stack #bank-widget { display: flex; }
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- SCREEN: BLACKJACK                                                    -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
-<div id="screen-blackjack" class="screen">
+<div id="screen-blackjack" class="screen"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN: DURAK                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div id="screen-durak" class="screen">
+  <div style="color:white;text-align:center;padding:40px;">
+    <h1 style="font-size:2rem;margin-bottom:20px;">♣ DURAK</h1>
+    <p style="color:rgba(255,255,255,0.7);">Coming soon...</p>
+    <div id="durak-debug" style="margin-top:30px;font-family:monospace;font-size:0.8rem;color:rgba(255,255,255,0.5);"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
   <!-- Topbar with exit, title, and help button -->
   <div class="bj-topbar">
     <button type="button" class="bj-exit" id="bj-btn-exit" title="Back to lobby">← LOBBY</button>
