@@ -1,19 +1,18 @@
-// Durak UI + turn driver. Engine lives in ./engine.ts.
+// Durak UI + turn driver — "Красный бархат" edition.
+// Visuals: red velvet felt, gold khokhloma corner filigree, wax-seal phase badge,
+// framed trump cartouche, discard pile, bilingual outcome banner.
 
 import { showScreen } from '../ui/dom.js';
 import {
   createDurakState,
   startDurak,
-  rankOf,
   suitOf,
-  isTrump,
   beats,
   canAttackWith,
   attack as durakAttack,
   defend as durakDefend,
   take as durakTake,
   pass as durakPass,
-  MAX_TABLE_CARDS,
 } from './engine.js';
 import type { DurakState } from './types.js';
 import { decideDurak, thinkDelayMs, type DurakDifficulty } from './bot.js';
@@ -30,17 +29,39 @@ interface UIState {
   difficulty: DurakDifficulty;
   selected: string | null;
   botTimer: ReturnType<typeof setTimeout> | null;
-  banner: { kind: 'win' | 'loss' | 'round'; text: string } | null;
+  banner: { kind: 'win' | 'loss'; text: string; ruText: string } | null;
   locked: boolean;
 }
 
 let ui: UIState | null = null;
 
+// ─── Khokhloma SVG flourish (used in all 4 corners) ──────────────────
+const KHOKHLOMA_SVG = `
+<svg viewBox="0 0 150 150" aria-hidden="true">
+  <path d="M 8 142 C 20 122, 30 108, 48 100 C 62 92, 66 72, 55 55 C 46 40, 52 24, 68 18"/>
+  <path d="M 48 100 C 58 104, 70 112, 82 120"/>
+  <path d="M 55 55 Q 70 60, 82 52 T 96 42"/>
+  <path d="M 68 18 Q 78 14, 90 22"/>
+  <path d="M 28 110 Q 20 105, 18 95 Q 22 98, 30 102"/>
+  <path d="M 65 75 Q 72 68, 78 72 Q 76 80, 68 82"/>
+  <path d="M 75 38 Q 82 30, 92 32 Q 88 40, 80 44"/>
+  <circle class="d-berry" cx="48" cy="100" r="3.2"/>
+  <circle class="d-berry" cx="55" cy="55" r="3.2"/>
+  <circle class="d-berry" cx="68" cy="18" r="3.5"/>
+  <circle class="d-berry" cx="82" cy="120" r="2.6"/>
+  <circle class="d-berry" cx="96" cy="42" r="2.6"/>
+  <circle class="d-berry" cx="90" cy="22" r="2.4"/>
+</svg>
+`;
+
 function rankLabel(card: string): string {
   return card[0] === 'T' ? '10' : card[0]!;
 }
 
-function cardFaceHtml(card: string, opts: { selected?: boolean; playable?: boolean; disabled?: boolean; extraClass?: string; clickable?: boolean } = {}): string {
+function cardFaceHtml(
+  card: string,
+  opts: { selected?: boolean; playable?: boolean; disabled?: boolean; extraClass?: string; clickable?: boolean } = {},
+): string {
   const suit = card[1]!;
   const isRed = RED_SUITS.has(suit);
   const classes = ['card', isRed ? 'red-suit' : 'black-suit'];
@@ -67,36 +88,62 @@ function cardBackHtml(extraClass = ''): string {
   const cls = ['card', extraClass].filter(Boolean).join(' ');
   return `
     <div class="${cls}">
-      <div class="card-back"><span class="card-back-logo">JACKE</span></div>
+      <div class="card-back"><span class="card-back-logo">ДУРАК</span></div>
     </div>
   `;
 }
 
-function renderTrumpCorner(state: DurakState): string {
-  const deckN = state.deck.length;
+function renderKhokhlomaCorners(): string {
+  return `
+    <div class="d-corner d-corner-tl">${KHOKHLOMA_SVG}</div>
+    <div class="d-corner d-corner-tr">${KHOKHLOMA_SVG}</div>
+    <div class="d-corner d-corner-bl">${KHOKHLOMA_SVG}</div>
+    <div class="d-corner d-corner-br">${KHOKHLOMA_SVG}</div>
+  `;
+}
+
+function renderTrumpFrame(state: DurakState): string {
   const trump = state.trumpCard;
-  const deckClass = deckN === 0 ? 'd-deck empty' : 'd-deck';
-  const deckStack = deckN > 0
-    ? `<div class="${deckClass}">
+  const deckN = state.deck.length;
+  const trumpMarkup = trump
+    ? cardFaceHtml(trump, { extraClass: 'd-trump-card' })
+    : `<div style="opacity:0.4;font-size:0.7rem;letter-spacing:0.2em;">NO TRUMP</div>`;
+  const deckMarkup = deckN > 0
+    ? `<div class="d-deck">
          <div class="d-deck-card"></div>
          <div class="d-deck-card"></div>
          <div class="d-deck-card"></div>
        </div>`
-    : `<div class="${deckClass}"></div>`;
-  const trumpCard = trump
-    ? cardFaceHtml(trump, { extraClass: 'd-trump-card' })
-    : '<div class="d-trump-label" style="opacity:0.4">NO TRUMP</div>';
+    : `<div class="d-deck empty"></div>`;
+  const suitChar = trump ? SUIT_SYM[suitOf(trump)] : '';
   return `
-    <div class="d-trump-corner">
-      ${trumpCard}
-      ${deckStack}
-      <div class="d-deck-count">DECK ${deckN}</div>
-      <div class="d-trump-label">TRUMP ${trump ? SUIT_SYM[suitOf(trump)] : ''}</div>
+    <div class="d-trump-frame">
+      <div class="d-trump-title">TRUMP · КОЗЫРЬ ${suitChar}</div>
+      ${trumpMarkup}
+      <div class="d-deck-block">
+        ${deckMarkup}
+        <span class="d-deck-count">${deckN}</span>
+      </div>
     </div>
   `;
 }
 
-function renderBotHand(state: DurakState): string {
+function renderDiscardPile(state: DurakState): string {
+  const n = state.discardPile.length;
+  if (n === 0) return '';
+  const layers = Math.min(3, Math.ceil(n / 6));
+  const cards = Array.from({ length: layers })
+    .map(() => '<div class="d-discard-card"></div>')
+    .join('');
+  return `
+    <div class="d-discard">
+      <div class="d-discard-stack">${cards}</div>
+      <span class="d-discard-label">DISCARD · ${n}</span>
+    </div>
+  `;
+}
+
+function renderBotZone(state: DurakState): string {
   const hand = state.hands[BOT] ?? [];
   const backs = hand.map(() => cardBackHtml()).join('');
   const botActive = isBotTurn(state);
@@ -104,6 +151,7 @@ function renderBotHand(state: DurakState): string {
     <div class="d-zone d-zone-bot${botActive ? ' is-active' : ''}">
       <div class="d-zone-plate">
         <span class="d-zone-title">BOT</span>
+        <span class="d-zone-title-ru">БОТ</span>
         <span class="d-zone-count">${hand.length} cards</span>
       </div>
       <div class="d-hand">${backs || '<div style="opacity:0.35;font-size:0.7rem;letter-spacing:0.2em;">EMPTY</div>'}</div>
@@ -113,7 +161,7 @@ function renderBotHand(state: DurakState): string {
 
 function renderPlayArea(state: DurakState): string {
   if (state.table.length === 0) {
-    return `<div class="d-play-area"><div class="d-play-empty">Table · Waiting for attack</div></div>`;
+    return `<div class="d-play-area"><div class="d-play-empty">СТОЛ · WAITING FOR ATTACK</div></div>`;
   }
   let html = '<div class="d-play-area">';
   for (let i = 0; i < state.table.length; i += 2) {
@@ -128,7 +176,7 @@ function renderPlayArea(state: DurakState): string {
   return html;
 }
 
-function renderPlayerHand(state: DurakState, selected: string | null): string {
+function renderPlayerZone(state: DurakState, selected: string | null): string {
   const hand = state.hands[PLAYER] ?? [];
   const phase = state.phase;
   const myTurn =
@@ -138,46 +186,64 @@ function renderPlayerHand(state: DurakState, selected: string | null): string {
   const trumpSuit = state.trumpSuit;
   const topAttack = state.table.length % 2 === 1 ? state.table[state.table.length - 1]! : null;
 
-  const cards = hand.map((card) => {
-    let playable = false;
-    if (myTurn && phase === 'attack') {
-      playable = canAttackWith(state, PLAYER, card);
-    } else if (myTurn && phase === 'defend' && topAttack && trumpSuit) {
-      playable = beats(card, topAttack, trumpSuit);
-    }
-    return cardFaceHtml(card, {
-      selected: selected === card,
-      playable,
-      disabled: myTurn && !playable,
-      clickable: true,
-    });
-  }).join('');
+  const cards = hand
+    .map((card) => {
+      let playable = false;
+      if (myTurn && phase === 'attack') {
+        playable = canAttackWith(state, PLAYER, card);
+      } else if (myTurn && phase === 'defend' && topAttack && trumpSuit) {
+        playable = beats(card, topAttack, trumpSuit);
+      }
+      return cardFaceHtml(card, {
+        selected: selected === card,
+        playable,
+        disabled: myTurn && !playable,
+        clickable: true,
+      });
+    })
+    .join('');
 
   return `
     <div class="d-zone d-zone-player${myTurn ? ' is-active' : ''}">
       <div class="d-hand">${cards || '<div style="opacity:0.35;font-size:0.7rem;letter-spacing:0.2em;">EMPTY</div>'}</div>
       <div class="d-zone-plate">
         <span class="d-zone-title">YOU</span>
+        <span class="d-zone-title-ru">ТЫ</span>
         <span class="d-zone-count">${hand.length} cards</span>
       </div>
     </div>
   `;
 }
 
-function phaseLabel(state: DurakState): { text: string; cls: string } {
-  if (state.gameWinner !== null) return { text: 'GAME OVER', cls: '' };
-  if (state.phase === 'end') return { text: 'ROUND END', cls: '' };
+function phaseSealInfo(state: DurakState): { icon: string; label: string; cls: string } {
+  if (state.gameWinner !== null) return { icon: '🏁', label: 'END', cls: '' };
   if (state.phase === 'attack') {
-    return state.currentAttacker === PLAYER
-      ? { text: 'YOUR ATTACK', cls: 'is-attack' }
-      : { text: 'BOT ATTACKS', cls: 'is-attack' };
+    if (state.currentAttacker === PLAYER) return { icon: '⚔', label: 'ATK', cls: 'is-player-attack' };
+    return { icon: '⚔', label: 'BOT', cls: 'is-bot-turn' };
   }
   if (state.phase === 'defend') {
-    return state.currentDefender === PLAYER
-      ? { text: 'YOUR DEFENSE', cls: 'is-defend' }
-      : { text: 'BOT DEFENDS', cls: 'is-defend' };
+    if (state.currentDefender === PLAYER) return { icon: '🛡', label: 'DEF', cls: 'is-player-defend' };
+    return { icon: '🛡', label: 'BOT', cls: 'is-bot-turn' };
   }
-  return { text: state.phase.toUpperCase(), cls: '' };
+  return { icon: '·', label: '···', cls: '' };
+}
+
+function renderTopbar(state: DurakState, difficulty: DurakDifficulty): string {
+  const seal = phaseSealInfo(state);
+  return `
+    <div class="d-topbar">
+      <button type="button" class="d-exit" data-action="exit">← LOBBY</button>
+      <div class="d-title-block">
+        <span class="d-overline">ДУРАК</span>
+        <span class="d-title">DURAK</span>
+        <span class="d-subtitle">36 CARDS · HEADS-UP · ${difficulty.toUpperCase()}</span>
+      </div>
+      <div class="d-phase-seal ${seal.cls}" title="${seal.label}">
+        <span class="d-phase-icon">${seal.icon}</span>
+        <span class="d-phase-label">${seal.label}</span>
+      </div>
+    </div>
+  `;
 }
 
 function renderControls(state: DurakState, selected: string | null): string {
@@ -185,13 +251,13 @@ function renderControls(state: DurakState, selected: string | null): string {
   const buttons: string[] = [];
 
   if (phase === 'defend' && state.currentDefender === PLAYER && state.table.length % 2 === 1) {
-    buttons.push(`<button type="button" class="d-btn danger" data-action="take">TAKE</button>`);
+    buttons.push(`<button type="button" class="d-btn danger" data-action="take">TAKE · ВЗЯТЬ</button>`);
   }
   if (phase === 'attack' && state.currentAttacker === PLAYER && state.table.length > 0 && state.table.length % 2 === 0) {
-    buttons.push(`<button type="button" class="d-btn" data-action="pass">PASS</button>`);
+    buttons.push(`<button type="button" class="d-btn" data-action="pass">BITO · БИТО</button>`);
   }
   if (selected) {
-    buttons.push(`<button type="button" class="d-btn primary" data-action="play">PLAY</button>`);
+    buttons.push(`<button type="button" class="d-btn primary" data-action="play">PLAY · ХОДИТЬ</button>`);
   }
 
   if (buttons.length === 0) {
@@ -203,33 +269,28 @@ function renderControls(state: DurakState, selected: string | null): string {
 }
 
 function renderOutcomeBanner(banner: UIState['banner']): string {
-  if (!banner) return `<div class="d-outcome-banner"></div>`;
-  const cls = banner.kind === 'win' ? 'show win' : banner.kind === 'loss' ? 'show loss' : 'show';
-  return `<div class="d-outcome-banner ${cls}">${banner.text}</div>`;
+  if (!banner) return '';
+  const cls = banner.kind === 'win' ? 'show win' : 'show loss';
+  return `<div class="d-outcome-banner ${cls}">${banner.text}<span class="d-outcome-ru">${banner.ruText}</span></div>`;
 }
 
 function renderScreen(): void {
   if (!ui) return;
   const container = document.getElementById('screen-durak');
   if (!container) return;
-  const { state, selected, banner } = ui;
-  const phase = phaseLabel(state);
+  const { state, selected, banner, difficulty } = ui;
 
   container.innerHTML = `
-    <div class="d-topbar">
-      <button type="button" class="d-exit" data-action="exit">← LOBBY</button>
-      <div class="d-title-block">
-        <span class="d-title">DURAK</span>
-        <span class="d-subtitle">36 CARDS · HEADS-UP · ${state.difficulty?.toString().toUpperCase() ?? ui.difficulty.toUpperCase()}</span>
-      </div>
-      <span class="d-phase-badge ${phase.cls}">${phase.text}</span>
-    </div>
+    ${renderTopbar(state, difficulty)}
     <div class="d-table">
       <div class="d-felt-pattern" aria-hidden="true"></div>
-      ${renderTrumpCorner(state)}
-      ${renderBotHand(state)}
+      <div class="d-spotlight" aria-hidden="true"></div>
+      ${renderKhokhlomaCorners()}
+      ${renderTrumpFrame(state)}
+      ${renderDiscardPile(state)}
+      ${renderBotZone(state)}
       ${renderPlayArea(state)}
-      ${renderPlayerHand(state, selected)}
+      ${renderPlayerZone(state, selected)}
       ${renderControls(state, selected)}
       ${renderOutcomeBanner(banner)}
     </div>
@@ -249,7 +310,8 @@ function wireEvents(container: HTMLElement): void {
       if (!ui || ui.locked) return;
       const card = (el as HTMLElement).dataset['card'];
       if (!card) return;
-      if (!(el as HTMLElement).classList.contains('is-playable') && !(el as HTMLElement).classList.contains('is-selected')) return;
+      const node = el as HTMLElement;
+      if (!node.classList.contains('is-playable') && !node.classList.contains('is-selected')) return;
       ui.selected = ui.selected === card ? null : card;
       renderScreen();
     });
@@ -306,14 +368,15 @@ function checkGameOver(): void {
   if (!ui) return;
   if (ui.state.gameWinner !== null) {
     const won = ui.state.gameWinner === PLAYER;
-    ui.banner = { kind: won ? 'win' : 'loss', text: won ? 'YOU WIN' : 'YOU LOSE' };
+    ui.banner = won
+      ? { kind: 'win', text: 'YOU WIN', ruText: 'ПОБЕДА' }
+      : { kind: 'loss', text: 'YOU LOSE', ruText: 'ДУРАК' };
     ui.locked = true;
-    // auto-restart after banner animates
     if (ui.botTimer) clearTimeout(ui.botTimer);
     ui.botTimer = setTimeout(() => {
       if (!ui) return;
       startDurakGame(ui.difficulty);
-    }, 2400);
+    }, 2800);
   }
 }
 
@@ -334,16 +397,11 @@ function scheduleBot(): void {
       durakTake(ui.state, BOT);
     } else if (action.type === 'pass') {
       durakPass(ui.state, BOT);
-    } else {
-      // Bot is stuck (no valid action) — end the round in defender's favor
-      // to keep play moving. Edge case; shouldn't normally hit.
-      console.warn('[durak] bot returned none; forcing pass');
     }
 
     checkGameOver();
     renderScreen();
     if (ui.state.gameWinner === null && isBotTurn(ui.state)) {
-      // Bot may need another turn (e.g. still attacking)
       scheduleBot();
     }
   }, thinkDelayMs(ui.difficulty));
