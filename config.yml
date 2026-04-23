@@ -13,13 +13,13 @@ disqusShortname: iamjacke-com
 
 params:
   # SEO & Meta
-  description: "Staff Engineer specializing in distributed systems, system design, and engineering mentorship. Helping engineers reach Staff+ level."
+  description: "Senior Backend Engineer based in London. Distributed systems, event-driven platforms, and engineering mentorship."
   keywords:
     - "software engineer"
     - "system design"
     - "distributed systems"
     - "mentoring"
-    - "staff engineer"
+    - "senior engineer"
     - "scala"
     - "go"
     - "kubernetes"
@@ -35,8 +35,8 @@ params:
   # Hero Section
   hero:
     title: "Stan Sobolev"
-    subtitle: "Staff Engineer | System Architect | Mentor"
-    tagline: "Scaled distributed systems to 10M+ requests/day. Now helping engineers reach Staff+ level."
+    subtitle: "Senior Backend Engineer | Systems Design | Mentor"
+    tagline: "Ten years building backends that handle 10M+ requests a day. Now mentoring engineers into senior roles."
     cta_primary:
       text: "View My Work"
       url: "#projects"
