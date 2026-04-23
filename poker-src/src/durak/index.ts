@@ -1,321 +1,382 @@
-// Durak entry point - wire events between UI and engine
+// Durak UI + turn driver. Engine lives in ./engine.ts.
 
-import { $, IDS, showScreen, hideOverlay } from '../ui/dom.js';
-import { createDurakState, startDurak, rankOf, suitOf, isTrump, beats, canAttackWith, attack as durakAttack, defend as durakDefend, take as durakTake, pass as durakPass, endRound, MAX_TABLE_CARDS } from './engine.js';
+import { showScreen } from '../ui/dom.js';
+import {
+  createDurakState,
+  startDurak,
+  rankOf,
+  suitOf,
+  isTrump,
+  beats,
+  canAttackWith,
+  attack as durakAttack,
+  defend as durakDefend,
+  take as durakTake,
+  pass as durakPass,
+  MAX_TABLE_CARDS,
+} from './engine.js';
+import type { DurakState } from './types.js';
 import { decideDurak, thinkDelayMs, type DurakDifficulty } from './bot.js';
-import { shuffle, defaultRng } from '../core/cards.js';
+import { defaultRng } from '../core/cards.js';
 
-// Global state
-let durakState = createDurakState(2);
-let botTimer: ReturnType<typeof setTimeout> | null = null;
-let currentDifficulty: DurakDifficulty = 'medium';
-let selectedAttackCard: string | null = null;
-let selectedDefendCard: string | null = null;
+const PLAYER = 0;
+const BOT = 1;
 
-// Card rendering helpers
-const CARD_SYMBOLS: Record<string, string> = {
-  s: '♠', h: '♥', d: '♦', c: '♣'
-};
+const SUIT_SYM: Record<string, string> = { s: '♠', h: '♥', d: '♦', c: '♣' };
+const RED_SUITS = new Set(['h', 'd']);
 
-function renderCard(card: string, selected: boolean = false): string {
-  const rank = card[0];
-  const suit = card[1];
-  const symbol = CARD_SYMBOLS[suit] || suit;
-  const isRed = suit === 'h' || suit === 'd';
-  const style = isRed ? 'color:#e55' : 'color:#fff';
-  const selStyle = selected ? 'background:#4a4;border-radius:4px;' : '';
-  
-  return `<span class="d-card" data-card="${card}" style="display:inline-block;width:50px;height:70px;border:1px solid #666;border-radius:6px;padding:8px 4px;margin:2px;font-size:1.4rem;cursor:pointer;${style}${selStyle}" title="${card}">${rank}${symbol}</span>`;
+interface UIState {
+  state: DurakState;
+  difficulty: DurakDifficulty;
+  selected: string | null;
+  botTimer: ReturnType<typeof setTimeout> | null;
+  banner: { kind: 'win' | 'loss' | 'round'; text: string } | null;
+  locked: boolean;
 }
 
-function renderTrumpCard(): string {
-  if (!durakState.trumpCard) return '<span>None</span>';
-  const card = durakState.trumpCard;
-  const rank = card[0];
-  const suit = card[1];
-  const symbol = CARD_SYMBOLS[suit] || suit;
-  const isRed = suit === 'h' || suit === 'd';
-  return `<span style="font-size:1.4rem;${isRed ? 'color:#e55' : 'color:#fff'}">${rank}${symbol}</span>`;
+let ui: UIState | null = null;
+
+function rankLabel(card: string): string {
+  return card[0] === 'T' ? '10' : card[0]!;
 }
 
-function getCardSymbol(suit: string): string {
-  return CARD_SYMBOLS[suit] || suit;
-}
-
-function renderTableCards(): string {
-  if (durakState.table.length === 0) {
-    return '<div style="color:#666;font-size:0.9rem;">table empty</div>';
-  }
-  
-  let html = '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;padding:10px;">';
-  for (let i = 0; i < durakState.table.length; i++) {
-    const card = durakState.table[i]!;
-    const rank = card[0];
-    const suit = card[1];
-    const symbol = getCardSymbol(suit);
-    const isRed = suit === 'h' || suit === 'd';
-    html += `<div class="d-table-card" style="display:inline-block;width:45px;height:65px;border:1px solid #555;border-radius:4px;background:#222;padding:6px;font-size:1.1rem;color:${isRed ? '#e55' : '#fff'};text-align:center;">${rank}<br>${symbol}</div>`;
-  }
-  html += '</div>';
-  return html;
-}
-
-function renderPlayerHand(playerIndex: number, isAttacker: boolean): string {
-  const hand = durakState.hands[playerIndex];
-  if (!hand || hand.length === 0) {
-    return '<div style="color:#666;">no cards</div>';
-  }
-  
-  let html = '<div style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center;">';
-  
-  for (const card of hand) {
-    const rank = card[0];
-    const suit = card[1];
-    const symbol = getCardSymbol(suit);
-    const isRed = suit === 'h' || suit === 'd';
-    
-    // Check if card can be played
-    let canPlay = false;
-    let playAction = '';
-    
-    if (playerIndex === 0 && durakState.phase === 'attack' && durakState.currentAttacker === 0) {
-      canPlay = canAttackWith(durakState, 0, card);
-      playAction = 'attack';
-    } else if (playerIndex === 0 && durakState.phase === 'defend' && durakState.currentDefender === 0 && durakState.table.length > 0) {
-      const attackCard = durakState.table[durakState.table.length - 1]!;
-      if (beats(card, attackCard, durakState.trumpSuit!)) {
-        canPlay = true;
-        playAction = 'defend';
-      }
-    }
-    
-    const cursor = canPlay ? 'cursor:pointer;background:#334;' : 'background:#222;opacity:0.5;';
-    const borderColor = canPlay ? '#6a6' : '#444';
-    const selBorder = (selectedAttackCard === card || selectedDefendCard === card) ? '#afa' : borderColor
-    
-    html += `<span class="d-hand-card" data-card="${card}" data-action="${playAction}" style="display:inline-block;width:42px;height:60px;border:2px solid ${selBorder};border-radius:4px;padding:4px;font-size:1rem;${cursor}color:${isRed ? '#e55' : '#fff'};user-select:none;text-align:center;">${rank}<br>${symbol}</span>`;
-  }
-  
-  html += '</div>';
-  return html;
-}
-
-function renderButtons(): string {
-  let buttons = '';
-  
-  // Attack pass button
-  if (durakState.phase === 'attack' && !durakState.defenderCanTake) {
-    buttons += `<button class="d-btn d-btn-pass" data-action="pass" style="padding:8px 16px;background:#444;border:1px solid #666;color:#fff;border-radius:4px;cursor:pointer;">Pass</button>`;
-  }
-  
-  // Defend take button
-  if (durakState.phase === 'defend' && durakState.currentDefender === 0 && durakState.defenderCanTake) {
-    buttons += `<button class="d-btn d-btn-take" data-action="take" style="padding:8px 16px;background:#a44;border:1px solid #c66;color:#fff;border-radius:4px;cursor:pointer;margin-left:8px;">Take</button>`;
-  }
-  
-  // Play button (after selecting card)
-  if (selectedAttackCard || selectedDefendCard) {
-    buttons += `<button class="d-btn d-btn-play" data-action="play" style="padding:8px 20px;background:#4a4;border:1px solid #6a6;color:#fff;border-radius:4px;cursor:pointer;margin-left:8px;">Play</button>`;
-  }
-  
-  return buttons ? `<div style="margin-top:12px;">${buttons}</div>` : '';
-}
-
-function renderPhaseIndicator(): string {
-  const phaseEmoji: Record<string, string> = {
-    'attack': '⚔️',
-    'defend': '🛡️',
-    'end': '🎉'
-  };
-  const emoji = phaseEmoji[durakState.phase] || '';
-  const statusText: Record<string, string> = {
-    'attack': 'Your attack',
-    'defend': 'Your defense',
-    'end': 'Round over'
-  };
-  return `<div style="font-size:1rem;margin:8px 0;color:#aaa;">${emoji} ${statusText[durakState.phase] || durakState.phase}</div>`;
-}
-
-function renderDeckInfo(): string {
-  return `<div style="font-size:0.8rem;color:#666;margin-top:8px;">Deck: ${durakState.deck.length} cards</div>`;
-}
-
-function updateDisplay(): void {
-  const container = document.getElementById('screen-durak');
-  if (!container) return;
-  
-  const playerHand = renderPlayerHand(0, durakState.currentAttacker === 0);
-  const botHand = renderPlayerHand(1, durakState.currentAttacker === 1);
-  const tableCards = renderTableCards();
-  const buttons = renderButtons();
-  const phaseIndicator = renderPhaseIndicator();
-  const deckInfo = renderDeckInfo();
-  
-  container.innerHTML = `
-    <div style="max-width:600px;margin:0 auto;padding:20px;color:#fff;text-align:center;">
-      <h1 style="font-size:1.8rem;margin-bottom:8px;">♣ DURAK</h1>
-      
-      <div style="background:#1a1a1a;border-radius:8px;padding:12px;margin:12px 0;">
-        <div style="font-size:0.8rem;color:#888;">TRUMP</div>
-        ${renderTrumpCard()}
-        ${deckInfo}
+function cardFaceHtml(card: string, opts: { selected?: boolean; playable?: boolean; disabled?: boolean; extraClass?: string; clickable?: boolean } = {}): string {
+  const suit = card[1]!;
+  const isRed = RED_SUITS.has(suit);
+  const classes = ['card', isRed ? 'red-suit' : 'black-suit'];
+  if (opts.selected) classes.push('is-selected');
+  if (opts.playable) classes.push('is-playable');
+  if (opts.disabled) classes.push('is-disabled');
+  if (opts.extraClass) classes.push(opts.extraClass);
+  const dataAttr = opts.clickable ? ` data-card="${card}"` : '';
+  const r = rankLabel(card);
+  const s = SUIT_SYM[suit] ?? suit;
+  return `
+    <div class="${classes.join(' ')}"${dataAttr}>
+      <div class="card-face">
+        <span class="card-rank-tl">${r}</span>
+        <span class="card-suit-tl">${s}</span>
+        <span class="card-rank-br">${r}</span>
+        <span class="card-suit-br">${s}</span>
       </div>
-      
-      ${phaseIndicator}
-      
-      <div style="background:#222;border-radius:8px;padding:12px;margin:12px 0;min-height:100px;">
-        <div style="font-size:0.75rem;color:#666;margin-bottom:6px;">Bot (defender)</div>
-        <div style="opacity:0.6;">${botHand}</div>
-      </div>
-      
-      ${tableCards}
-      
-      <div style="background:#222;border-radius:8px;padding:12px;margin:12px 0;min-height:100px;">
-        <div style="font-size:0.75rem;color:#666;margin-bottom:6px;">Your hand</div>
-        ${playerHand}
-        ${buttons}
-      </div>
-      
-      <button class="d-exit" onclick="document.getElementById('screen-landing').classList.add('active');document.getElementById('screen-durak').classList.remove('active');" style="margin-top:20px;padding:8px 16px;background:#333;border:1px solid #555;color:#888;border-radius:4px;cursor:pointer;">← Exit</button>
     </div>
   `;
-  
-  // Attach event listeners
-  attachCardListeners();
-  attachButtonListeners();
 }
 
-function attachCardListeners(): void {
-  document.querySelectorAll('.d-hand-card[data-card]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      const card = target.dataset['card'];
-      const action = target.dataset['action'];
-      
-      if (!card || !action) return;
-      
-      if (action === 'attack' && durakState.phase === 'attack') {
-        selectedAttackCard = selectedAttackCard === card ? null : card;
-        selectedDefendCard = null;
-        updateDisplay();
-      } else if (action === 'defend' && durakState.phase === 'defend') {
-        selectedDefendCard = selectedDefendCard === card ? null : card;
-        selectedAttackCard = null;
-        updateDisplay();
-      }
+function cardBackHtml(extraClass = ''): string {
+  const cls = ['card', extraClass].filter(Boolean).join(' ');
+  return `
+    <div class="${cls}">
+      <div class="card-back"><span class="card-back-logo">JACKE</span></div>
+    </div>
+  `;
+}
+
+function renderTrumpCorner(state: DurakState): string {
+  const deckN = state.deck.length;
+  const trump = state.trumpCard;
+  const deckClass = deckN === 0 ? 'd-deck empty' : 'd-deck';
+  const deckStack = deckN > 0
+    ? `<div class="${deckClass}">
+         <div class="d-deck-card"></div>
+         <div class="d-deck-card"></div>
+         <div class="d-deck-card"></div>
+       </div>`
+    : `<div class="${deckClass}"></div>`;
+  const trumpCard = trump
+    ? cardFaceHtml(trump, { extraClass: 'd-trump-card' })
+    : '<div class="d-trump-label" style="opacity:0.4">NO TRUMP</div>';
+  return `
+    <div class="d-trump-corner">
+      ${trumpCard}
+      ${deckStack}
+      <div class="d-deck-count">DECK ${deckN}</div>
+      <div class="d-trump-label">TRUMP ${trump ? SUIT_SYM[suitOf(trump)] : ''}</div>
+    </div>
+  `;
+}
+
+function renderBotHand(state: DurakState): string {
+  const hand = state.hands[BOT] ?? [];
+  const backs = hand.map(() => cardBackHtml()).join('');
+  const botActive = isBotTurn(state);
+  return `
+    <div class="d-zone d-zone-bot${botActive ? ' is-active' : ''}">
+      <div class="d-zone-plate">
+        <span class="d-zone-title">BOT</span>
+        <span class="d-zone-count">${hand.length} cards</span>
+      </div>
+      <div class="d-hand">${backs || '<div style="opacity:0.35;font-size:0.7rem;letter-spacing:0.2em;">EMPTY</div>'}</div>
+    </div>
+  `;
+}
+
+function renderPlayArea(state: DurakState): string {
+  if (state.table.length === 0) {
+    return `<div class="d-play-area"><div class="d-play-empty">Table · Waiting for attack</div></div>`;
+  }
+  let html = '<div class="d-play-area">';
+  for (let i = 0; i < state.table.length; i += 2) {
+    const atk = state.table[i]!;
+    const def = state.table[i + 1];
+    html += '<div class="d-pair">';
+    html += cardFaceHtml(atk, { extraClass: 'd-attack-card' });
+    if (def) html += cardFaceHtml(def, { extraClass: 'd-defend-card' });
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderPlayerHand(state: DurakState, selected: string | null): string {
+  const hand = state.hands[PLAYER] ?? [];
+  const phase = state.phase;
+  const myTurn =
+    (phase === 'attack' && state.currentAttacker === PLAYER) ||
+    (phase === 'defend' && state.currentDefender === PLAYER);
+
+  const trumpSuit = state.trumpSuit;
+  const topAttack = state.table.length % 2 === 1 ? state.table[state.table.length - 1]! : null;
+
+  const cards = hand.map((card) => {
+    let playable = false;
+    if (myTurn && phase === 'attack') {
+      playable = canAttackWith(state, PLAYER, card);
+    } else if (myTurn && phase === 'defend' && topAttack && trumpSuit) {
+      playable = beats(card, topAttack, trumpSuit);
+    }
+    return cardFaceHtml(card, {
+      selected: selected === card,
+      playable,
+      disabled: myTurn && !playable,
+      clickable: true,
+    });
+  }).join('');
+
+  return `
+    <div class="d-zone d-zone-player${myTurn ? ' is-active' : ''}">
+      <div class="d-hand">${cards || '<div style="opacity:0.35;font-size:0.7rem;letter-spacing:0.2em;">EMPTY</div>'}</div>
+      <div class="d-zone-plate">
+        <span class="d-zone-title">YOU</span>
+        <span class="d-zone-count">${hand.length} cards</span>
+      </div>
+    </div>
+  `;
+}
+
+function phaseLabel(state: DurakState): { text: string; cls: string } {
+  if (state.gameWinner !== null) return { text: 'GAME OVER', cls: '' };
+  if (state.phase === 'end') return { text: 'ROUND END', cls: '' };
+  if (state.phase === 'attack') {
+    return state.currentAttacker === PLAYER
+      ? { text: 'YOUR ATTACK', cls: 'is-attack' }
+      : { text: 'BOT ATTACKS', cls: 'is-attack' };
+  }
+  if (state.phase === 'defend') {
+    return state.currentDefender === PLAYER
+      ? { text: 'YOUR DEFENSE', cls: 'is-defend' }
+      : { text: 'BOT DEFENDS', cls: 'is-defend' };
+  }
+  return { text: state.phase.toUpperCase(), cls: '' };
+}
+
+function renderControls(state: DurakState, selected: string | null): string {
+  const phase = state.phase;
+  const buttons: string[] = [];
+
+  if (phase === 'defend' && state.currentDefender === PLAYER && state.table.length % 2 === 1) {
+    buttons.push(`<button type="button" class="d-btn danger" data-action="take">TAKE</button>`);
+  }
+  if (phase === 'attack' && state.currentAttacker === PLAYER && state.table.length > 0 && state.table.length % 2 === 0) {
+    buttons.push(`<button type="button" class="d-btn" data-action="pass">PASS</button>`);
+  }
+  if (selected) {
+    buttons.push(`<button type="button" class="d-btn primary" data-action="play">PLAY</button>`);
+  }
+
+  if (buttons.length === 0) {
+    return `<div class="d-hint">${
+      isBotTurn(state) ? 'Bot is thinking…' : phase === 'end' ? 'Dealing next round…' : 'Pick a card'
+    }</div>`;
+  }
+  return `<div class="d-controls">${buttons.join('')}</div>`;
+}
+
+function renderOutcomeBanner(banner: UIState['banner']): string {
+  if (!banner) return `<div class="d-outcome-banner"></div>`;
+  const cls = banner.kind === 'win' ? 'show win' : banner.kind === 'loss' ? 'show loss' : 'show';
+  return `<div class="d-outcome-banner ${cls}">${banner.text}</div>`;
+}
+
+function renderScreen(): void {
+  if (!ui) return;
+  const container = document.getElementById('screen-durak');
+  if (!container) return;
+  const { state, selected, banner } = ui;
+  const phase = phaseLabel(state);
+
+  container.innerHTML = `
+    <div class="d-topbar">
+      <button type="button" class="d-exit" data-action="exit">← LOBBY</button>
+      <div class="d-title-block">
+        <span class="d-title">DURAK</span>
+        <span class="d-subtitle">36 CARDS · HEADS-UP · ${state.difficulty?.toString().toUpperCase() ?? ui.difficulty.toUpperCase()}</span>
+      </div>
+      <span class="d-phase-badge ${phase.cls}">${phase.text}</span>
+    </div>
+    <div class="d-table">
+      <div class="d-felt-pattern" aria-hidden="true"></div>
+      ${renderTrumpCorner(state)}
+      ${renderBotHand(state)}
+      ${renderPlayArea(state)}
+      ${renderPlayerHand(state, selected)}
+      ${renderControls(state, selected)}
+      ${renderOutcomeBanner(banner)}
+    </div>
+  `;
+
+  wireEvents(container);
+}
+
+function wireEvents(container: HTMLElement): void {
+  container.querySelector('[data-action="exit"]')?.addEventListener('click', exitToLobby);
+  container.querySelector('[data-action="take"]')?.addEventListener('click', onTake);
+  container.querySelector('[data-action="pass"]')?.addEventListener('click', onPass);
+  container.querySelector('[data-action="play"]')?.addEventListener('click', onPlay);
+
+  container.querySelectorAll('.d-zone-player .card[data-card]').forEach((el) => {
+    el.addEventListener('click', () => {
+      if (!ui || ui.locked) return;
+      const card = (el as HTMLElement).dataset['card'];
+      if (!card) return;
+      if (!(el as HTMLElement).classList.contains('is-playable') && !(el as HTMLElement).classList.contains('is-selected')) return;
+      ui.selected = ui.selected === card ? null : card;
+      renderScreen();
     });
   });
 }
 
-function attachButtonListeners(): void {
-  // Pass button
-  document.querySelector('.d-btn-pass')?.addEventListener('click', () => {
-    if (durakState.phase === 'attack' && durakState.currentAttacker === 0) {
-      durakPass(durakState, 0);
-      processBotTurn();
-    }
-  });
-  
-  // Take button
-  document.querySelector('.d-btn-take')?.addEventListener('click', () => {
-    if (durakState.phase === 'defend' && durakState.currentDefender === 0) {
-      durakTake(durakState, 0);
-      processBotTurn();
-    }
-  });
-  
-  // Play button
-  document.querySelector('.d-btn-play')?.addEventListener('click', () => {
-    handlePlayAction();
-  });
+function isBotTurn(state: DurakState): boolean {
+  if (state.gameWinner !== null) return false;
+  if (state.phase === 'attack' && state.currentAttacker === BOT) return true;
+  if (state.phase === 'defend' && state.currentDefender === BOT) return true;
+  return false;
 }
 
-function handlePlayAction(): void {
-  if (!selectedAttackCard && !selectedDefendCard) return;
-  
-  if (selectedAttackCard && durakState.phase === 'attack') {
-    durakAttack(durakState, 0, selectedAttackCard);
-    selectedAttackCard = null;
-  } else if (selectedDefendCard && durakState.phase === 'defend') {
-    const attackCard = durakState.table[durakState.table.length - 1];
-    if (attackCard) {
-      durakDefend(durakState, 0, attackCard, selectedDefendCard);
-      selectedDefendCard = null;
-    }
+function onPlay(): void {
+  if (!ui || ui.locked) return;
+  const card = ui.selected;
+  if (!card) return;
+  ui.selected = null;
+
+  if (ui.state.phase === 'attack' && ui.state.currentAttacker === PLAYER) {
+    durakAttack(ui.state, PLAYER, card);
+  } else if (ui.state.phase === 'defend' && ui.state.currentDefender === PLAYER) {
+    const attackCard = ui.state.table[ui.state.table.length - 1];
+    if (attackCard) durakDefend(ui.state, PLAYER, attackCard, card);
   }
-  
-  // Check if round ended
-  if (durakState.phase === 'end' || durakState.roundWinner !== null) {
-    const winner = durakState.roundWinner;
-    if (winner !== null) {
-      endRound(durakState, winner);
-    }
-    durakState.roundWinner = null;
-  }
-  
-  updateDisplay();
-  
-  // Bot turn after player action
-  setTimeout(() => processBotTurn(), 500);
+  progress();
 }
 
-function processBotTurn(): void {
-  if (botTimer) clearTimeout(botTimer);
-  
-  const delay = thinkDelayMs(currentDifficulty);
-  botTimer = setTimeout(() => {
-    const botIdx = 1;
-    const action = decideDurak(durakState, botIdx, currentDifficulty);
-    console.log('[durak] Bot action:', action);
-    
+function onTake(): void {
+  if (!ui || ui.locked) return;
+  if (ui.state.phase !== 'defend' || ui.state.currentDefender !== PLAYER) return;
+  ui.selected = null;
+  durakTake(ui.state, PLAYER);
+  progress();
+}
+
+function onPass(): void {
+  if (!ui || ui.locked) return;
+  if (ui.state.phase !== 'attack' || ui.state.currentAttacker !== PLAYER) return;
+  ui.selected = null;
+  durakPass(ui.state, PLAYER);
+  progress();
+}
+
+function progress(): void {
+  if (!ui) return;
+  checkGameOver();
+  renderScreen();
+  if (ui.state.gameWinner !== null) return;
+  scheduleBot();
+}
+
+function checkGameOver(): void {
+  if (!ui) return;
+  if (ui.state.gameWinner !== null) {
+    const won = ui.state.gameWinner === PLAYER;
+    ui.banner = { kind: won ? 'win' : 'loss', text: won ? 'YOU WIN' : 'YOU LOSE' };
+    ui.locked = true;
+    // auto-restart after banner animates
+    if (ui.botTimer) clearTimeout(ui.botTimer);
+    ui.botTimer = setTimeout(() => {
+      if (!ui) return;
+      startDurakGame(ui.difficulty);
+    }, 2400);
+  }
+}
+
+function scheduleBot(): void {
+  if (!ui) return;
+  if (ui.botTimer) clearTimeout(ui.botTimer);
+  if (!isBotTurn(ui.state)) return;
+
+  ui.botTimer = setTimeout(() => {
+    if (!ui) return;
+    const action = decideDurak(ui.state, BOT, ui.difficulty);
+
     if (action.type === 'attack' && action.card) {
-      durakAttack(durakState, botIdx, action.card);
+      durakAttack(ui.state, BOT, action.card);
     } else if (action.type === 'defend' && action.card && action.targetCard) {
-      durakDefend(durakState, botIdx, action.targetCard, action.card);
+      durakDefend(ui.state, BOT, action.targetCard, action.card);
     } else if (action.type === 'take') {
-      durakTake(durakState, botIdx);
+      durakTake(ui.state, BOT);
     } else if (action.type === 'pass') {
-      durakPass(durakState, botIdx);
+      durakPass(ui.state, BOT);
+    } else {
+      // Bot is stuck (no valid action) — end the round in defender's favor
+      // to keep play moving. Edge case; shouldn't normally hit.
+      console.warn('[durak] bot returned none; forcing pass');
     }
-    
-    // Check for game end
-    if (durakState.gameWinner !== null) {
-      alert(durakState.gameWinner === 0 ? '🎉 You win!' : '💀 You lose!');
-      startDurakGame(currentDifficulty);
-      return;
+
+    checkGameOver();
+    renderScreen();
+    if (ui.state.gameWinner === null && isBotTurn(ui.state)) {
+      // Bot may need another turn (e.g. still attacking)
+      scheduleBot();
     }
-    
-    // Check for round end
-    if (durakState.phase === 'end') {
-      durakState.roundWinner = null;
-      durakState.phase = 'attack';
-    }
-    
-    updateDisplay();
-  }, delay);
+  }, thinkDelayMs(ui.difficulty));
+}
+
+function exitToLobby(): void {
+  if (ui?.botTimer) clearTimeout(ui.botTimer);
+  ui = null;
+  showScreen('screen-landing');
 }
 
 export function startDurakGame(difficulty: DurakDifficulty = 'medium'): void {
-  currentDifficulty = difficulty;
-  durakState = createDurakState(2);
-  const events = startDurak(durakState, defaultRng);
-  
-  console.log('[durak] Starting game:', events);
-  
+  const state = createDurakState(2);
+  startDurak(state, defaultRng);
+  ui = {
+    state,
+    difficulty,
+    selected: null,
+    botTimer: null,
+    banner: null,
+    locked: false,
+  };
   showScreen('screen-durak');
-  updateDisplay();
+  renderScreen();
+  if (isBotTurn(state)) scheduleBot();
 }
 
 export function initDurak(): void {
   const soloBtn = document.getElementById('btn-durak');
   const pvpBtn = document.getElementById('btn-durak-pvp');
-  
-  soloBtn?.addEventListener('click', () => {
-    console.log('[durak] Starting solo game');
-    startDurakGame('medium');
-  });
-  
+
+  soloBtn?.addEventListener('click', () => startDurakGame('medium'));
   pvpBtn?.addEventListener('click', () => {
-    console.log('[durak] Starting PvP game');
+    alert('PvP for Durak is coming — solo mode is playable today.');
   });
 }

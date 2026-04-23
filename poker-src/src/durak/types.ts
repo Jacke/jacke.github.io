@@ -2,11 +2,12 @@ import type { Card, Suit, Rank } from '../core/types.js';
 
 export type DurakPhase = 'idle' | 'attack' | 'defend' | 'draw' | 'end';
 
-export type ActionKind = 'attack' | 'defend' | 'take' | 'pass';
+export type ActionKind = 'attack' | 'defend' | 'take' | 'pass' | 'none';
 
-export interface DurakCard extends Card {
-  suit: Suit;
-  rank: Rank;
+export interface DurakAction {
+  type: ActionKind;
+  card?: Card;
+  targetCard?: Card;
 }
 
 export interface DurakState {
@@ -31,7 +32,7 @@ export const DURAK_RANKS: readonly Rank[] = [
 
 export const DURAK_SUITS: readonly Suit[] = ['s', 'h', 'd', 'c'];
 
-export const RANK_VALUE: Readonly<Record<Rank, number>> = {
+export const RANK_VALUE: Readonly<Partial<Record<Rank, number>>> = {
   '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10,
   'J': 11, 'Q': 12, 'K': 13, 'A': 14,
 };

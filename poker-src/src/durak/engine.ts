@@ -161,45 +161,46 @@ export function defend(state: DurakState, defender: number, attackCard: Card, de
   state.table.push(defenseCard);
   
   state.attackerCardsLeft = state.hands[state.currentAttacker]!.length;
-  
+
   if (state.table.length >= MAX_TABLE_CARDS || state.attackerCardsLeft === 0) {
     events.push(...endRound(state, state.currentDefender));
   } else {
     events.push({ type: 'durak-defend', data: { player: defender, attackCard, defenseCard } });
+    state.phase = 'attack';
+    state.defenderCanTake = true;
   }
-  
+
   return events;
 }
 
 export function take(state: DurakState, defender: number): DurakEvents[] {
   const events: DurakEvents[] = [];
-  
-  if (state.phase !== 'defend') return events;
+
+  if (state.phase !== 'defend' && state.phase !== 'attack') return events;
   if (defender !== state.currentDefender) return events;
-  if (!state.defenderCanTake) return events;
-  
+
   for (const card of state.table) {
     state.hands[defender]!.push(card);
   }
-  state.discardPile.push(...state.table);
   state.table = [];
-  
-  events.push(...endRound(state, defender));
+
+  events.push(...endRound(state, state.currentAttacker));
   events.push({ type: 'durak-take', data: { player: defender } });
-  
+
   return events;
 }
 
 export function pass(state: DurakState, attacker: number): DurakEvents[] {
   const events: DurakEvents[] = [];
-  
+
   if (state.phase !== 'attack') return events;
   if (attacker !== state.currentAttacker) return events;
-  
-  state.defenderCanTake = false;
-  
+  if (state.table.length === 0) return events;
+  if (state.table.length % 2 !== 0) return events;
+
   events.push({ type: 'durak-pass', data: { player: attacker } });
-  
+  events.push(...endRound(state, state.currentDefender));
+
   return events;
 }
 
@@ -222,16 +223,17 @@ export function endRound(state: DurakState, winner: number): DurakEvents[] {
     state.discardPile.push(card);
   }
   state.table = [];
-  
+
   dealToPlayers(state);
-  
+
   state.roundWinner = winner;
-  
-  if (state.hands[0]!.length === 0) {
+  state.defenderCanTake = true;
+
+  if (state.hands[0]!.length === 0 && state.deck.length === 0) {
     state.gameWinner = 0;
     state.phase = 'end';
     events.push({ type: 'durak-game-end', data: { winner: 0 } });
-  } else if (state.hands[1]!.length === 0) {
+  } else if (state.hands[1]!.length === 0 && state.deck.length === 0) {
     state.gameWinner = 1;
     state.phase = 'end';
     events.push({ type: 'durak-game-end', data: { winner: 1 } });
@@ -242,6 +244,6 @@ export function endRound(state: DurakState, winner: number): DurakEvents[] {
     state.phase = 'attack';
     events.push({ type: 'durak-round-end', data: { winner } });
   }
-  
+
   return events;
 }

@@ -5174,6 +5174,398 @@ body:has(#screen-game.active) #side-stack #bank-widget { display: flex; }
   font-size: 0.75rem;
 }
 
+/* ═══════════════════════════════════════════════════════════════════ */
+/*                           D U R A K                                 */
+/* ═══════════════════════════════════════════════════════════════════ */
+#screen-durak {
+  --d-felt: #1a4d33;
+  --d-felt-edge: #061b12;
+  --d-gold: #e2c68a;
+  --d-gold-bright: #f5dca3;
+  --d-gold-dim: rgba(226,198,138,0.45);
+  --d-accent: #6fd890;
+  --d-loss: #d63d3d;
+}
+#screen-durak.active {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #030806;
+}
+
+/* ─── Topbar ──────────────────────────────────────────────────────── */
+.d-topbar {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  padding: 10px 22px;
+  background: linear-gradient(180deg, rgba(10,20,14,0.98) 0%, rgba(5,12,8,0.92) 100%);
+  border-bottom: 1px solid var(--d-gold-dim);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+  font-family: var(--font-mono);
+  z-index: 5;
+}
+.d-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.d-title {
+  color: var(--d-gold-bright);
+  font-family: var(--font-head, var(--font-mono));
+  font-weight: 900;
+  font-size: 1.3rem;
+  letter-spacing: 0.28em;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+}
+.d-subtitle {
+  color: rgba(226,198,138,0.55);
+  font-size: 0.55rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+.d-exit {
+  background: rgba(15,28,20,0.8);
+  border: 1px solid var(--d-gold-dim);
+  color: var(--d-gold);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  padding: 6px 12px;
+  cursor: pointer;
+  letter-spacing: 0.14em;
+  border-radius: 3px;
+  transition: all 140ms ease;
+}
+.d-exit:hover {
+  border-color: var(--d-gold-bright);
+  color: var(--d-gold-bright);
+  box-shadow: 0 0 14px rgba(226,198,138,0.25);
+}
+.d-phase-badge {
+  justify-self: end;
+  background: rgba(15,28,20,0.8);
+  border: 1px solid var(--d-gold-dim);
+  color: var(--d-gold);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 5px 12px;
+  letter-spacing: 0.2em;
+  border-radius: 3px;
+}
+.d-phase-badge.is-attack { color: #c9ffd8; border-color: rgba(111,216,144,0.6); }
+.d-phase-badge.is-defend { color: #ffd7a8; border-color: rgba(245,190,138,0.6); }
+
+/* ─── Felt table ──────────────────────────────────────────────────── */
+.d-table {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 28px 18px;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 42%, rgba(36,122,72,0.85) 0%, transparent 55%),
+    radial-gradient(ellipse 110% 70% at 50% 50%, var(--d-felt) 0%, #0a3b22 45%, var(--d-felt-edge) 100%);
+  box-shadow:
+    inset 0 0 140px rgba(0,0,0,0.85),
+    inset 0 0 24px rgba(226,198,138,0.15);
+  min-height: 0;
+}
+.d-felt-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image:
+    radial-gradient(circle at 12% 22%, rgba(255,255,255,0.4) 0%, transparent 25%),
+    radial-gradient(circle at 88% 78%, rgba(255,255,255,0.35) 0%, transparent 28%);
+}
+
+/* ─── Trump corner ────────────────────────────────────────────────── */
+.d-trump-corner {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.d-trump-card {
+  transform: rotate(-6deg);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+}
+.d-deck {
+  position: relative;
+  width: clamp(48px, 8vw, 70px);
+  height: clamp(68px, 11.4vw, 100px);
+}
+.d-deck.empty {
+  width: clamp(48px, 8vw, 70px);
+  height: clamp(68px, 11.4vw, 100px);
+  opacity: 0;
+}
+.d-deck-card {
+  position: absolute;
+  inset: 0;
+  background: #0d1a14;
+  border: 1px solid rgba(200,168,130,0.5);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.d-deck-card::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0, transparent 4px,
+    rgba(200,168,130,0.08) 4px, rgba(200,168,130,0.08) 5px
+  );
+}
+.d-deck-card:nth-child(1) { transform: translate(-3px, -4px) rotate(-2.5deg); }
+.d-deck-card:nth-child(2) { transform: translate(0, 0) rotate(0.5deg); }
+.d-deck-card:nth-child(3) { transform: translate(3px, 4px) rotate(2.5deg); }
+.d-deck-count {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  color: var(--d-gold-dim);
+}
+.d-trump-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.28em;
+  color: var(--d-gold-bright);
+  text-transform: uppercase;
+}
+
+/* ─── Zones (bot / player) ────────────────────────────────────────── */
+.d-zone {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 22px 32px 14px;
+  margin: 0 auto;
+  max-width: 780px;
+  width: 100%;
+  z-index: 2;
+}
+.d-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--d-gold-dim);
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 30px rgba(0,0,0,0.35),
+    0 4px 24px rgba(0,0,0,0.35);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.d-zone.is-active::before {
+  border-color: var(--d-gold-bright);
+  box-shadow:
+    inset 0 0 30px rgba(0,0,0,0.35),
+    0 0 28px rgba(226,198,138,0.4);
+}
+.d-zone-bot { padding-top: 18px; }
+.d-zone-player { padding-bottom: 22px; padding-top: 14px; }
+.d-zone-plate {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 18px;
+  background: linear-gradient(180deg, var(--d-felt-edge) 0%, #020806 100%);
+  border: 1px solid var(--d-gold);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.d-zone-player .d-zone-plate {
+  top: auto;
+  bottom: -11px;
+}
+.d-zone-title {
+  color: var(--d-gold);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+.d-zone-count {
+  color: rgba(226,198,138,0.75);
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+  padding-left: 10px;
+  border-left: 1px solid rgba(226,198,138,0.4);
+}
+
+/* ─── Hand rows ───────────────────────────────────────────────────── */
+.d-hand {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  min-height: clamp(68px, 11.4vw, 100px);
+}
+.d-hand .card {
+  transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+.d-hand .card.is-playable {
+  cursor: pointer;
+}
+.d-hand .card.is-playable:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.55);
+}
+.d-hand .card.is-disabled {
+  filter: grayscale(0.6) brightness(0.72);
+}
+.d-hand .card.is-selected {
+  transform: translateY(-14px);
+  box-shadow: 0 0 20px rgba(111,216,144,0.75), 0 12px 24px rgba(0,0,0,0.55);
+}
+
+/* ─── Play area (attack/defend pairs) ─────────────────────────────── */
+.d-play-area {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 22px 16px;
+  min-height: 140px;
+  position: relative;
+  z-index: 1;
+}
+.d-play-empty {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.24em;
+  color: rgba(226,198,138,0.4);
+  text-transform: uppercase;
+}
+.d-pair {
+  position: relative;
+  width: clamp(48px, 8vw, 70px);
+  height: calc(clamp(68px, 11.4vw, 100px) + 22px);
+}
+.d-pair .card.d-attack-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.d-pair .card.d-defend-card {
+  position: absolute;
+  top: 22px;
+  left: 18px;
+  transform: rotate(8deg);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.6);
+}
+
+/* ─── Controls ────────────────────────────────────────────────────── */
+.d-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 0 4px;
+}
+.d-btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 10px 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 140ms ease;
+  background: rgba(15,28,20,0.85);
+  border: 1px solid var(--d-gold-dim);
+  color: var(--d-gold);
+}
+.d-btn:hover {
+  border-color: var(--d-gold-bright);
+  color: var(--d-gold-bright);
+  box-shadow: 0 0 14px rgba(226,198,138,0.25);
+}
+.d-btn.primary {
+  background: linear-gradient(180deg, #2c5a3f 0%, #17412a 100%);
+  border-color: var(--d-accent);
+  color: #c9ffd8;
+}
+.d-btn.primary:hover { box-shadow: 0 0 18px rgba(111,216,144,0.45); }
+.d-btn.danger {
+  background: linear-gradient(180deg, #5a2c2c 0%, #3a1717 100%);
+  border-color: rgba(214,61,61,0.65);
+  color: #ffb3b3;
+}
+.d-btn.danger:hover { box-shadow: 0 0 18px rgba(214,61,61,0.45); }
+.d-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.d-hint {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  color: rgba(226,198,138,0.55);
+  text-transform: uppercase;
+  padding: 6px 0 4px;
+}
+
+/* ─── Outcome banner ──────────────────────────────────────────────── */
+.d-outcome-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.7);
+  padding: 18px 54px;
+  font-family: var(--font-head, var(--font-mono));
+  font-size: 2.4rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #ffffff;
+  background: rgba(4,12,8,0.95);
+  border: 2px solid var(--d-gold);
+  border-radius: 10px;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  display: none;
+  white-space: nowrap;
+}
+.d-outcome-banner.show {
+  display: block;
+  animation: d-banner 2200ms cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+}
+.d-outcome-banner.win {
+  border-color: var(--d-accent);
+  color: #c9ffd8;
+  box-shadow: 0 0 60px rgba(111,216,144,0.55);
+}
+.d-outcome-banner.loss {
+  border-color: rgba(214,61,61,0.85);
+  color: #ffb3b3;
+  box-shadow: 0 0 54px rgba(214,61,61,0.55);
+}
+@keyframes d-banner {
+  0%   { opacity: 0; transform: translate(-50%, -80%) scale(0.6); }
+  10%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  85%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -40%) scale(0.95); }
+}
+
 </style>
 </head>
 <body>
@@ -6145,13 +6537,7 @@ body:has(#screen-game.active) #side-stack #bank-widget { display: flex; }
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- SCREEN: DURAK                                                        -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
-<div id="screen-durak" class="screen">
-  <div style="color:white;text-align:center;padding:40px;">
-    <h1 style="font-size:2rem;margin-bottom:20px;">♣ DURAK</h1>
-    <p style="color:rgba(255,255,255,0.7);">Coming soon...</p>
-    <div id="durak-debug" style="margin-top:30px;font-family:monospace;font-size:0.8rem;color:rgba(255,255,255,0.5);"></div>
-  </div>
-</div>
+<div id="screen-durak" class="screen"></div>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- SCREEN: READY                                                        -->
