@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MAP.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--a:#ffb229;--ad:#a06800;
+  --g:#4ade80;--r:#f43f5e;--p:#a855f7;
+  --b:#60a5fa;--c:#22d3ee;--o:#f97316;--dim:rgba(255,178,41,.15);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--a);font-family:'Share Tech Mono',monospace;}
+@keyframes flicker{0%,93%{filter:brightness(1);}94%{filter:brightness(.6);}95%{filter:brightness(1);}}
+@keyframes scan{from{top:0}to{top:100vh}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+#crt{width:100vw;height:100vh;display:flex;flex-direction:column;animation:flicker .22s steps(1) infinite;}
+#scanline{position:fixed;top:0;left:0;right:0;height:2px;background:rgba(255,178,41,.04);pointer-events:none;z-index:999;animation:scan 8s linear infinite;}
+#vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 57%,rgba(0,0,0,.74) 100%);pointer-events:none;z-index:998;}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:997;opacity:.027;}
+#ca{position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:0;transition:opacity .04s;}
+#ca.on{opacity:1;box-shadow:inset -7px 0 0 rgba(255,0,0,.38),inset 7px 0 0 rgba(0,60,255,.33);}
+
+/* ── BOOT ── */
+#boot{position:fixed;inset:0;background:var(--bg);z-index:900;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#bl{font-family:'VT323';font-size:104px;color:var(--a);text-shadow:0 0 50px var(--a),0 0 100px rgba(255,178,41,.26);letter-spacing:10px;}
+#bs{font-size:11px;letter-spacing:7px;color:var(--ad);margin-bottom:44px;}
+#blog{width:640px;max-width:92vw;font-size:12px;line-height:2.1;}
+.bline{opacity:0;display:flex;justify-content:space-between;gap:16px;}.bline.v{opacity:1;}.bok{color:var(--g);}
+#bprog{width:640px;max-width:92vw;height:2px;background:rgba(255,178,41,.1);margin-top:22px;}
+#bfill{height:100%;width:0;background:var(--a);box-shadow:0 0 8px var(--a);transition:width .1s;}
+@keyframes blink{50%{opacity:0}}.bcur{display:inline-block;width:8px;height:13px;background:var(--a);animation:blink .7s step-end infinite;vertical-align:middle;}
+
+/* ── MAIN ── */
+#main{display:none;flex:1;flex-direction:column;height:100vh;}
+#main.show{display:flex;animation:fadein .4s ease;}
+
+/* HEADER */
+#hdr{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid rgba(255,178,41,.2);background:rgba(0,0,0,.7);flex-shrink:0;}
+#logo{font-family:'VT323';font-size:30px;color:var(--a);text-shadow:0 0 16px var(--a);letter-spacing:4px;}
+#tabs{display:flex;gap:3px;flex:1;overflow-x:auto;}
+#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 10px;border:1px solid rgba(255,178,41,.2);color:var(--ad);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .1s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--a);color:var(--a);background:rgba(255,178,41,.08);}
+#snd{font-size:14px;background:transparent;border:1px solid rgba(255,178,41,.18);color:var(--a);padding:2px 7px;cursor:pointer;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+
+/* ━━━━━━━━━━━━━━━ LEFT (canvas) 36% ━━━━━━━━━━━━━━━ */
+#left{width:36%;min-width:320px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz{flex:1;overflow:hidden;position:relative;}
+#vc{display:block;width:100%;height:100%;}
+#pbar-wrap{height:2px;background:rgba(255,178,41,.06);flex-shrink:0;}
+#pbar{height:100%;width:0;background:var(--a);transition:width .18s;}
+/* stats */
+#stats{display:flex;gap:10px;padding:4px 10px;border-top:1px solid rgba(255,178,41,.08);background:rgba(0,0,0,.3);flex-shrink:0;flex-wrap:wrap;}
+.si{display:flex;gap:4px;align-items:baseline;}
+.sl{font-size:7px;color:var(--ad);letter-spacing:1.5px;}
+.sv{font-family:'VT323';font-size:18px;color:var(--a);}
+/* controls */
+#ctrl{display:flex;align-items:center;gap:5px;padding:4px 10px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.35);flex-shrink:0;flex-wrap:wrap;}
+.cb{font-family:'VT323';font-size:13px;padding:2px 9px;border:1px solid rgba(255,178,41,.28);background:transparent;color:var(--a);cursor:pointer;transition:.1s;white-space:nowrap;}
+.cb:hover{background:rgba(255,178,41,.07);}
+#pb.pl{color:var(--r);border-color:var(--r);}
+.csep{width:1px;height:14px;background:rgba(255,178,41,.1);}
+input[type=range]{-webkit-appearance:none;width:52px;height:2px;background:rgba(255,178,41,.2);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--a);cursor:pointer;}
+#sc{font-family:'VT323';font-size:13px;color:var(--ad);}
+#kb{display:flex;gap:8px;padding:2px 10px;background:rgba(0,0,0,.4);border-top:1px solid rgba(255,178,41,.05);flex-shrink:0;flex-wrap:wrap;}
+.kh{font-size:7px;color:rgba(255,178,41,.22);}.kk{border:1px solid rgba(255,178,41,.12);padding:0 3px;font-size:7px;}
+
+/* ━━━━━━━━━━━━━━━ RIGHT 64% ━━━━━━━━━━━━━━━ */
+#right{flex:1;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.12);}
+
+/* ── CODE SECTION (always visible, big) ── */
+#code-section{flex:0 0 52%;display:flex;flex-direction:column;border-bottom:2px solid rgba(255,178,41,.18);overflow:hidden;}
+#code-hdr{height:28px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(0,0,0,.55);border-bottom:1px solid rgba(255,178,41,.12);flex-shrink:0;}
+#code-hdr-title{font-size:9px;letter-spacing:3px;color:var(--ad);}
+#code-hdr-file{font-size:9px;color:rgba(255,178,41,.25);margin-left:auto;font-family:'IBM Plex Mono';}
+#code-area{flex:1;overflow-y:auto;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.9;padding:4px 0;}
+#code-area::-webkit-scrollbar{width:4px;}
+#code-area::-webkit-scrollbar-thumb{background:rgba(255,178,41,.18);}
+.cl{display:flex;padding:1px 6px 1px 0;white-space:pre;border-left:3px solid transparent;}
+.cl.act{background:rgba(255,178,41,.09);border-left-color:var(--a);}
+.cl:hover{background:rgba(255,178,41,.035);}
+.ln{color:rgba(255,178,41,.2);width:28px;text-align:right;margin-right:12px;user-select:none;flex-shrink:0;font-size:11px;}
+.cl.act .ln{color:rgba(255,178,41,.55);}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4a5e6a;font-style:italic;}.op{color:#56b6c2;}.tp{color:#e5c07b;}
+
+/* ── BOTTOM SECTION ── */
+#bottom-section{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* Step explanation — ALWAYS VISIBLE, PROMINENT */
+#explain-bar{flex:0 0 auto;border-bottom:1px solid rgba(255,178,41,.14);background:rgba(0,0,0,.38);overflow:hidden;}
+#explain-inner{padding:12px 18px 14px;}
+.expl-row1{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.badge{font-family:'VT323';font-size:14px;padding:2px 10px;border:1px solid;letter-spacing:3px;flex-shrink:0;}
+.badge.init{color:var(--ad);border-color:var(--ad);}
+.badge.hash{color:var(--b);border-color:var(--b);background:rgba(96,165,250,.08);}
+.badge.insert{color:var(--g);border-color:var(--g);background:rgba(74,222,128,.07);}
+.badge.lookup{color:var(--c);border-color:var(--c);background:rgba(34,211,238,.07);}
+.badge.grow{color:var(--o);border-color:var(--o);background:rgba(249,115,22,.08);}
+.badge.evac{color:var(--p);border-color:var(--p);background:rgba(168,85,247,.07);}
+.badge.crash{color:var(--r);border-color:var(--r);background:rgba(244,63,94,.1);}
+.badge.warn{color:var(--o);border-color:var(--o);}
+.badge.done{color:var(--g);border-color:var(--g);}
+#expl-step{font-size:9px;color:var(--ad);}
+#expl-title{font-family:'VT323';font-size:22px;color:var(--a);letter-spacing:2px;}
+#expl-body{font-size:13px;line-height:1.75;color:rgba(255,178,41,.82);}
+#expl-insight{margin-top:9px;padding:7px 12px;border:1px solid rgba(255,178,41,.2);background:rgba(255,178,41,.03);font-size:11.5px;color:rgba(255,178,41,.6);line-height:1.6;border-left:3px solid var(--a);}
+#expl-insight strong{color:var(--a);}
+#expl-insight code{font-family:'IBM Plex Mono';font-size:11px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+
+/* Tabs panel below explanation */
+#bot-tabs-bar{display:flex;border-bottom:1px solid rgba(255,178,41,.12);background:rgba(0,0,0,.5);flex-shrink:0;}
+.btab{flex:1;font-size:9px;padding:5px 4px;text-align:center;letter-spacing:1.5px;color:var(--ad);cursor:pointer;border-right:1px solid rgba(255,178,41,.07);transition:.1s;}
+.btab:last-child{border-right:none;}
+.btab:hover,.btab.active{color:var(--a);background:rgba(255,178,41,.06);}
+.btab.active{border-bottom:2px solid var(--a);}
+#bot-panels{flex:1;overflow:hidden;position:relative;}
+.bpanel{position:absolute;inset:0;display:none;overflow-y:auto;flex-direction:column;}
+.bpanel.active{display:flex;}
+.bpanel::-webkit-scrollbar{width:4px;}
+.bpanel::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+
+/* ── USAGE EXAMPLES ── */
+.uex{border-bottom:1px solid rgba(255,178,41,.08);}
+.uex-hdr{padding:8px 16px 3px;background:rgba(74,222,128,.03);border-left:3px solid var(--g);}
+.uex-num{font-size:9px;color:rgba(74,222,128,.4);letter-spacing:1px;}
+.uex-title{font-size:12.5px;color:var(--g);letter-spacing:.5px;margin-top:1px;}
+.uex-sub{font-size:10px;color:rgba(74,222,128,.45);margin-top:1px;}
+.uex-code{font-family:'IBM Plex Mono';font-size:11.5px;line-height:1.72;padding:9px 16px 10px;color:rgba(255,178,41,.78);white-space:pre;}
+.uex-note{font-size:10.5px;color:rgba(255,178,41,.35);padding:0 16px 9px;font-style:italic;border-bottom:none;}
+
+/* ── INFO: CONCEPTS ── */
+.icon-row{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,178,41,.07);}
+.icon-row strong{color:#ffcc55;display:block;font-size:11px;margin-bottom:2px;}
+.icon-row p{font-size:11.5px;line-height:1.7;color:rgba(255,178,41,.72);}
+.icon-row code{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+.info-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.info-section{padding:10px 16px;border-bottom:1px solid rgba(255,178,41,.07);}
+.info-section h3{font-family:'VT323';font-size:14px;letter-spacing:3px;color:var(--a);margin-bottom:6px;}
+.info-section p{font-size:12px;line-height:1.75;color:rgba(255,178,41,.72);}
+.info-section code{font-family:'IBM Plex Mono';font-size:11px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+
+/* ── GOTCHAS ── */
+.trap{margin:8px 12px;padding:10px 12px;border:1px solid;font-size:12px;line-height:1.7;display:flex;gap:10px;}
+.trap.warn{border-color:rgba(244,63,94,.35);background:rgba(244,63,94,.04);}
+.trap.ok{border-color:rgba(74,222,128,.28);background:rgba(74,222,128,.03);}
+.trap.info{border-color:rgba(255,178,41,.18);background:rgba(255,178,41,.02);}
+.trap.note{border-color:rgba(96,165,250,.28);background:rgba(96,165,250,.03);}
+.trap-icon{font-size:16px;flex-shrink:0;}
+.trap-body strong{color:#ffcc55;display:block;margin-bottom:2px;font-size:11px;letter-spacing:.5px;}
+.trap-body{font-size:11.5px;color:rgba(255,178,41,.75);}
+.trap-body code{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+
+/* syntax in uex */
+.uex-code .kw{color:#c678dd;}.uex-code .str{color:#98c379;}.uex-code .nm{color:#d19a66;}
+.uex-code .fn{color:#61afef;}.uex-code .cm{color:#4a5e6a;font-style:italic;}
+.uex-code .r{color:var(--r);}.uex-code .g{color:var(--g);}.uex-code .o{color:var(--o);}
+
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scanline"></div>
+<div id="vignette"></div>
+<div id="ca"></div>
+
+<div id="boot">
+  <div id="bl">MAP.VIZ</div>
+  <div id="bs">GO RUNTIME HASHMAP — INTERNALS FROM SOURCE</div>
+  <div id="blog"></div>
+  <div id="bprog"><div id="bfill"></div></div>
+</div>
+
+<div id="crt"><div id="main">
+  <div id="hdr">
+    <div id="logo">MAP.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+
+    <!-- LEFT -->
+    <div id="left">
+      <div id="viz"><canvas id="vc"></canvas></div>
+      <div id="pbar-wrap"><div id="pbar"></div></div>
+      <div id="stats">
+        <div class="si"><span class="sl">COUNT</span><span class="sv" id="s-cnt">—</span></div>
+        <div class="si"><span class="sl">B</span><span class="sv" id="s-b" style="color:var(--b)">—</span></div>
+        <div class="si"><span class="sl">BUCKETS</span><span class="sv" id="s-bk" style="color:var(--o)">—</span></div>
+        <div class="si"><span class="sl">LOAD</span><span class="sv" id="s-lf" style="color:var(--c)">—</span></div>
+        <div class="si"><span class="sl">GROW</span><span class="sv" id="s-gr">—</span></div>
+      </div>
+      <div id="ctrl">
+        <button class="cb" onclick="prev()">◀ PREV</button>
+        <button class="cb" id="pb" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cb" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cb" onclick="doReset()">↺</button>
+        <div class="csep"></div>
+        <span style="font-size:7.5px;color:var(--ad)">SPD</span>
+        <input type="range" id="spd" min="1" max="10" value="4" oninput="setSpd(this.value)">
+        <span id="sc">1/1</span>
+      </div>
+      <div id="kb">
+        <span class="kh"><span class="kk">←→</span>step</span>
+        <span class="kh"><span class="kk">SPC</span>play</span>
+        <span class="kh"><span class="kk">R</span>reset</span>
+        <span class="kh"><span class="kk">M</span>mute</span>
+        <span class="kh"><span class="kk">1–6</span>scene</span>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div id="right">
+
+      <!-- CODE — ALWAYS VISIBLE, LARGE -->
+      <div id="code-section">
+        <div id="code-hdr">
+          <span id="code-hdr-title">▸ SOURCE</span>
+          <span id="code-hdr-file">runtime/map.go</span>
+        </div>
+        <div id="code-area"></div>
+      </div>
+
+      <!-- BOTTOM: explanation + tabs -->
+      <div id="bottom-section">
+        <div id="explain-bar">
+          <div id="explain-inner">
+            <div class="expl-row1">
+              <span class="badge init" id="badge">INIT</span>
+              <span id="expl-title">SELECT A SCENE</span>
+              <span id="expl-step" style="margin-left:auto">—</span>
+            </div>
+            <div id="expl-body">Press 1–6 to select a scenario. Use ← → to step through.</div>
+            <div id="expl-insight" style="display:none"></div>
+          </div>
+        </div>
+        <div id="bot-tabs-bar">
+          <div class="btab active" onclick="showBTab('usage')" id="bt-usage">▸ USAGE EXAMPLES</div>
+          <div class="btab" onclick="showBTab('concepts')" id="bt-concepts">▸ KEY CONCEPTS</div>
+          <div class="btab" onclick="showBTab('traps')" id="bt-traps">▸ GOTCHAS</div>
+        </div>
+        <div id="bot-panels">
+          <div class="bpanel active" id="bp-usage"></div>
+          <div class="bpanel" id="bp-concepts"></div>
+          <div class="bpanel" id="bp-traps"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div></div>
+
+<script>
+/* ── NOISE ── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');
+function r(){c.width=innerWidth;c.height=innerHeight;}r();window.addEventListener('resize',r);
+function d(){const id=x.createImageData(c.width,c.height),da=id.data;
+for(let i=0;i<da.length;i+=4){const v=Math.random()>.97?200:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?80:0;}
+x.putImageData(id,0,0);requestAnimationFrame(d);}d();})();
+function sGlitch(){setTimeout(()=>{const e=document.getElementById('crt');e.style.filter='brightness(.1)';setTimeout(()=>{e.style.filter='';sGlitch();},12+Math.random()*14);},6000+Math.random()*10000);}sGlitch();
+function flashCA(d=240){const e=document.getElementById('ca');e.classList.add('on');setTimeout(()=>e.classList.remove('on'),d);}
+
+/* ── AUDIO ── */
+let AC=null,muted=false;
+function snd(t){if(muted||!AC)return;try{
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.connect(g);g.connect(AC.destination);
+  const f={hash:440,insert:570,lookup:510,grow:310,evac:390,crash:100,warn:220,done:630,init:360};
+  o.frequency.setValueAtTime(f[t]||380,AC.currentTime);
+  o.type=t==='crash'?'sawtooth':'triangle';
+  g.gain.setValueAtTime(.052,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.16);
+  o.start();o.stop(AC.currentTime+.18);
+}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd').textContent=muted?'🔇':'🔊';if(!muted)snd('insert');}
+
+/* ── BOTTOM TABS ── */
+function showBTab(id){
+  document.querySelectorAll('.bpanel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.btab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('bp-'+id).classList.add('active');
+  document.getElementById('bt-'+id).classList.add('active');
+}
+
+/* ── SYNTAX HIGHLIGHT ── */
+function hlLine(line){
+  const ci=line.indexOf('//');
+  const raw=ci>=0?line.slice(0,ci):line;
+  const cmt=ci>=0?line.slice(ci):'';
+  function p(s){
+    s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/`([^`]*)`/g,'<span class="str">`$1`</span>');
+    s=s.replace(/\b(func|go|var|type|struct|const|return|if|else|for|range|defer|make|delete|true|false|nil|unsafe|interface|chan|select|case|default|goto|import|package)\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d[\d_]*)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&amp;&amp;|\|\||&lt;&lt;|&gt;&gt;)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return p(raw)+(cmt?`<span class="cm">${cmt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`:'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-area');
+  el.innerHTML=lines.map((l,i)=>`<div class="cl${i===active?' act':''}"><span class="ln">${i+1}</span><span>${hlLine(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cl')[active];if(a)setTimeout(()=>a.scrollIntoView({block:'nearest'}),50);}
+}
+function hlUsage(code){
+  return code.split('\n').map(line=>{
+    const ci=line.indexOf('//');
+    const raw=ci>=0?line.slice(0,ci):line;
+    const cmt=ci>=0?line.slice(ci):'';
+    function p(s){
+      s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+      s=s.replace(/`([^`]*)`/g,'<span class="str">`$1`</span>');
+      s=s.replace(/\b(func|go|var|type|struct|const|return|if|else|for|range|defer|make|delete|true|false|nil|import|package|chan|select|case|default|interface)\b/g,'<span class="kw">$1</span>');
+      s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+      s=s.replace(/\b(\d[\d_]*)\b/g,'<span class="nm">$1</span>');
+      return s;
+    }
+    return p(raw)+(cmt?`<span class="cm">${cmt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`:'');
+  }).join('\n');
+}
+
+/* ── CANVAS ── */
+const cv=document.getElementById('vc'),cx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){const el=document.getElementById('viz');W=cv.width=el.clientWidth;H=cv.height=el.clientHeight;if(PLAY.steps.length)draw(PLAY.steps[PLAY.idx]);}
+window.addEventListener('resize',resize);
+const C={A:'#ffb229',G:'#4ade80',R:'#f43f5e',B:'#60a5fa',N:'#22d3ee',O:'#f97316',P:'#a855f7',D:'rgba(255,178,41,.14)'};
+function box(x,y,w,h,stroke,fill,glow,lw){
+  cx.save();if(glow){cx.shadowColor=stroke;cx.shadowBlur=16;}
+  cx.lineWidth=lw||1.5;cx.strokeStyle=stroke;cx.fillStyle=fill||stroke+'14';
+  cx.fillRect(x,y,w,h);cx.strokeRect(x,y,w,h);cx.restore();
+}
+function txt(s,x,y,font,col,align,base){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.textAlign=align||'center';cx.textBaseline=base||'middle';cx.fillText(s,x,y);cx.restore();
+}
+function glowtxt(s,x,y,font,col){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.shadowColor=col;cx.shadowBlur=18;cx.textAlign='center';cx.textBaseline='middle';cx.fillText(s,x,y);cx.restore();
+}
+function arrow(x1,y1,x2,y2,col,label,dashed){
+  cx.save();cx.strokeStyle=col;cx.lineWidth=1.5;cx.shadowColor=col;cx.shadowBlur=5;
+  if(dashed)cx.setLineDash([4,3]);
+  cx.beginPath();cx.moveTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();cx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1);
+  cx.fillStyle=col;cx.shadowBlur=0;
+  cx.beginPath();cx.moveTo(x2,y2);cx.lineTo(x2-8*Math.cos(a-.32),y2-8*Math.sin(a-.32));cx.lineTo(x2-8*Math.cos(a+.32),y2-8*Math.sin(a+.32));cx.closePath();cx.fill();
+  if(label){cx.font="9px 'Share Tech Mono'";cx.fillStyle=col;cx.textAlign='center';cx.textBaseline='bottom';cx.shadowBlur=0;cx.fillText(label,(x1+x2)/2,(y1+y2)/2-4);}
+  cx.restore();
+}
+function ann(s,x,y,col){cx.save();cx.font="9px 'Share Tech Mono'";cx.fillStyle=col||'rgba(255,178,41,.45)';cx.textAlign='center';cx.textBaseline='top';cx.fillText(s,x,y);cx.restore();}
+function scHdr(s){cx.save();cx.font="9px 'Share Tech Mono'";cx.fillStyle='rgba(255,178,41,.13)';cx.textAlign='center';cx.textBaseline='top';cx.fillText(s,W/2,4);cx.restore();}
+
+/* ═══════════════════ RENDERERS ═══════════════════ */
+
+function drawHmap(s){
+  scHdr('VAR m map[K]V  ——  POINTER TO 56-BYTE HMAP ON HEAP');
+  const fields=[
+    {n:'count',      t:'int',            sz:'8B',  v:s.count||'0',    c:C.A},
+    {n:'flags',      t:'uint8',          sz:'1B',  v:s.flags||'0x00', c:C.O},
+    {n:'B',          t:'uint8',          sz:'1B',  v:s.B||'0',        c:C.B},
+    {n:'noverflow',  t:'uint16',         sz:'2B',  v:s.noverfl||'0',  c:C.P},
+    {n:'hash0',      t:'uint32',         sz:'4B',  v:s.hash0||'...',  c:C.N},
+    {n:'buckets',    t:'unsafe.Pointer', sz:'8B',  v:s.bptr||'nil',   c:C.G},
+    {n:'oldbuckets', t:'unsafe.Pointer', sz:'8B',  v:s.oldptr||'nil', c:s.growing?C.O:'rgba(255,178,41,.2)'},
+    {n:'nevacuate',  t:'uintptr',        sz:'8B',  v:s.nevac||'0',    c:s.growing?C.P:'rgba(255,178,41,.2)'},
+  ];
+  const fh=Math.min(H*.09,(H*.82)/fields.length);
+  const fw=W*.76,fx=W*.18,fy=H*.09;
+
+  // struct label left
+  txt('hmap{',fx-6,fy-10,"10px 'Share Tech Mono'",'rgba(255,178,41,.25)','right');
+  // stack variable
+  box(W*.02,fy+fh*2.5,W*.12,fh*2,C.A+'55','transparent');
+  glowtxt('m',W*.02+W*.06,fy+fh*3.5,"14px 'VT323'",C.A+'66');
+  ann('stack var\n(*hmap)',W*.02+W*.06,fy+fh*5.5+4,'rgba(255,178,41,.3)');
+  if(s.B)arrow(W*.14,fy+fh*3.5,fx,fy+fh*2.5+fh,C.A+'44','ptr');
+
+  fields.forEach((f,i)=>{
+    const y=fy+i*fh;
+    const hi=s.hi===f.n;
+    const col=f.c;
+    const isActive=typeof col==='string'&&!col.startsWith('rgba');
+    box(fx,y,fw,fh,hi?col:isActive?col+'55':'rgba(255,178,41,.12)',hi?col+'16':isActive?col+'06':'transparent',hi);
+    txt(f.n,fx+10,y+fh/2,"11px 'IBM Plex Mono'",hi?col:isActive?col+'cc':'rgba(255,178,41,.3)','left');
+    txt(f.t,fx+fw*.46,y+fh/2,"9px 'Share Tech Mono'",hi?'rgba(255,178,41,.6)':'rgba(255,178,41,.18)','center');
+    txt(f.sz,fx+fw*.68,y+fh/2,"9px 'Share Tech Mono'",hi?'rgba(255,178,41,.5)':'rgba(255,178,41,.15)','center');
+    txt(f.v,fx+fw-8,y+fh/2,"13px 'VT323'",hi?col:isActive?col+'88':'rgba(255,178,41,.2)','right');
+  });
+  txt('}',fx-6,fy+fh*fields.length+6,"10px 'Share Tech Mono'",'rgba(255,178,41,.25)','right');
+
+  if(s.B&&parseInt(s.B)>0){
+    const nb=1<<parseInt(s.B),show=Math.min(nb,5);
+    const bw=Math.min(40,(W*.76)/(show+1));
+    const bx=fx+fw+12,by=fy+H*.27;
+    ann('buckets  2^'+s.B+'='+nb,bx+show*(bw+2)/2,by-14,C.G+'77');
+    for(let i=0;i<show;i++){
+      box(bx+i*(bw+2),by,bw,26,C.G+'44',C.G+'08');
+      txt(i,bx+i*(bw+2)+bw/2,by+13,"11px 'VT323'",C.G+'55');
+    }
+    if(nb>5)txt('…',bx+show*(bw+2)+4,by+13,"9px 'VT323'",C.G+'33','left');
+    const fi=fields.findIndex(f=>f.n==='buckets');
+    arrow(fx+fw,fy+fi*fh+fh/2,bx,by+13,C.G+'55','');
+  }
+  if(s.note)glowtxt(s.note,W*.5,H*.92,"11px 'VT323'",s.nc||C.A);
+}
+
+function drawBmap(s){
+  scHdr('[8]tophash  [8]keys  [8]values  overflow*bmap');
+  const N=8,SLOT=s.slot>=0?s.slot:-1;
+  const colW=(W*.9)/N,sx=W*.05;
+
+  const sec=[[W*.1,'tophash[8]','uint8×8',C.B],[W*.36,'keys[8]','K×8',C.G],[W*.36,'values[8]','V×8',C.O],[W*.08,'overflow','*bmap',C.P]];
+  let px=sx;
+  sec.forEach(([w,lbl,sub,col])=>{
+    box(px,H*.07,w*W,H*.1,col,col+'0e');
+    txt(lbl,px+w*W/2,H*.07+H*.05*.7,"9px 'Share Tech Mono'",col);
+    txt(sub,px+w*W/2,H*.07+H*.1*.8,"8px 'Share Tech Mono'",col+'55');
+    px+=w*W;
+  });
+
+  if(SLOT>=0){
+    cx.save();cx.fillStyle='rgba(255,178,41,.02)';cx.fillRect(sx+SLOT*colW,H*.22,colW,H*.58);cx.restore();
+    box(sx+SLOT*colW,H*.22,colW,H*.58,'rgba(255,178,41,.08)','transparent');
+    ann('slot '+SLOT,sx+SLOT*colW+colW/2,H*.225,C.A+'88');
+  }
+
+  const rows=[
+    {lbl:'tophash',y:H*.27,h:H*.13,vals:s.th||Array(N).fill('0x00'),col:C.B},
+    {lbl:'key',    y:H*.44,h:H*.15,vals:s.ks||Array(N).fill('—'),   col:C.G},
+    {lbl:'value',  y:H*.63,h:H*.13,vals:s.vs||Array(N).fill('—'),   col:C.O},
+  ];
+  rows.forEach(row=>{
+    txt(row.lbl,sx-4,row.y+row.h/2,"9px 'Share Tech Mono'",row.col+'77','right');
+    for(let i=0;i<N;i++){
+      const act=i===SLOT,filled=row.vals[i]!=='—'&&row.vals[i]!=='0x00';
+      const col=row.col;
+      box(sx+i*colW+1,row.y,colW-3,row.h,act?col:filled?col+'55':col+'18',act?col+'16':filled?col+'09':'transparent',act);
+      txt(row.vals[i],sx+i*colW+colW/2,row.y+row.h/2,"11px 'VT323'",act?col:filled?col+'bb':col+'28');
+    }
+  });
+
+  const ovY=H*.83,ovC=s.ov&&s.ov!=='nil'?C.P:C.D;
+  box(sx,ovY,W*.9,H*.075,ovC,ovC+'09');
+  txt('overflow → '+(s.ov||'nil'),W*.5,ovY+H*.037,"11px 'Share Tech Mono'",ovC);
+  if(s.note)ann(s.note,W*.5,H*.94,s.nc||C.B+'88');
+}
+
+function drawLookup(s){
+  scHdr('mapaccess1: hash(key,seed) → bucket[low B bits] → tophash scan → key.equal');
+  const B=parseInt(s.B||'3');
+  const step=s.step||0;
+
+  // pipeline steps
+  const pipe=['1.hash(key,seed)','2.bucket=hash&mask','3.tophash=hash>>56','4.scan tophash[8]','5.key.equal()'];
+  const sw=(W*.9)/pipe.length,sy=H*.07;
+  pipe.forEach((st,i)=>{
+    const done=step>i,cur=step===i;
+    const col=cur?C.A:done?C.G+'88':'rgba(255,178,41,.18)';
+    box(W*.05+i*sw,sy,sw-3,26,col,cur?col+'16':done?C.G+'07':'transparent',cur);
+    txt(st,W*.05+i*sw+(sw-3)/2,sy+13,"8px 'Share Tech Mono'",col);
+    if(i<pipe.length-1){
+      const ax=W*.05+(i+1)*sw-3;
+      cx.save();cx.fillStyle=done||cur?C.G+'55':'rgba(255,178,41,.12)';
+      cx.beginPath();cx.moveTo(ax,sy+6);cx.lineTo(ax+4,sy+13);cx.lineTo(ax,sy+20);cx.fill();cx.restore();
+    }
+  });
+
+  // hash bar
+  if(step>=1){
+    const bx=W*.05,by=H*.23,bw=W*.9,bh=H*.1;
+    const tp=8/64,bp=B/64,mp=1-tp-bp;
+    ann('64-bit hash = 0x'+(s.hashval||'8FC3'+(s.bucket!==undefined?s.bucket.toString(16).padStart(2,'0'):'02')+'1A'),W*.5,by-14,C.A+'55');
+    box(bx,by,bw*tp,bh,C.B,C.B+'18',step===2||step===0);
+    txt('top 8 bits',bx+bw*tp/2,by+bh*.35,"8px 'Share Tech Mono'",C.B);
+    txt('0x'+(s.top||'8F'),bx+bw*tp/2,by+bh*.72,"14px 'VT323'",C.B);
+    box(bx+bw*tp,by,bw*mp,bh,'rgba(255,178,41,.1)','transparent');
+    txt('middle '+(64-B-8)+' bits',bx+bw*tp+bw*mp/2,by+bh/2,"8px 'Share Tech Mono'",'rgba(255,178,41,.18)');
+    box(bx+bw*(tp+mp),by,bw*bp,bh,C.G,C.G+'18',step===1);
+    txt('low '+B+' bits',bx+bw*(tp+mp)+bw*bp/2,by+bh*.35,"8px 'Share Tech Mono'",C.G);
+    txt(s.bucket!==undefined?'→ bucket #'+s.bucket:'→ bucket',bx+bw*(tp+mp)+bw*bp/2,by+bh*.72,"12px 'VT323'",C.G);
+  }
+
+  // bucket array
+  if(step>=2){
+    const nb=1<<B,show=Math.min(nb,8);
+    const bkw=Math.min(52,W*.86/show);
+    const bkx=(W-show*bkw)/2,bky=H*.42;
+    ann('bucket array [0..'+(nb-1)+']',W*.5,bky-13,C.G+'55');
+    for(let i=0;i<show;i++){
+      const sel=i===s.bucket;
+      box(bkx+i*bkw,bky,bkw-2,34,sel?C.G:C.G+'28',sel?C.G+'14':'transparent',sel);
+      txt(i,bkx+i*bkw+(bkw-2)/2,bky+17,"12px 'VT323'",sel?C.G:C.G+'28');
+    }
+    if(nb>8)txt('…',bkx+show*bkw+4,bky+17,"10px",C.G+'28','left');
+    if(s.bucket!==undefined){
+      const bx=W*.05,bw=W*.9,by=H*.23,bh=H*.1,tp=8/64,bp=B/64,mp=1-tp-bp;
+      arrow(bx+bw*(tp+mp)+bw*bp/2,by+bh,bkx+s.bucket*bkw+(bkw-2)/2,bky,C.G+'66','');
+    }
+  }
+
+  // tophash scan
+  if(step>=3){
+    const N=8,slw=W*.88/N,slx=W*.06,sly=H*.61;
+    ann('scanning tophash[8] in bucket #'+(s.bucket||0)+' — target: 0x'+(s.top||'8F'),W*.5,sly-13,C.B+'66');
+    const ths=s.tophash||['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'];
+    ths.forEach((v,i)=>{
+      const match=v==='0x'+(s.top||'8F')&&v!=='0x00';
+      const scanning=i===(s.scanAt||0)&&step===3;
+      const col=match?(step>=4?C.G:C.B):(scanning?C.A:C.B+'28');
+      const act=match||scanning;
+      box(slx+i*slw,sly,slw-2,36,col,act?col+'12':'transparent',act);
+      txt(v,slx+i*slw+(slw-2)/2,sly+18,"11px 'VT323'",act?col:col);
+      if(match&&step>=4)glowtxt('✓',slx+i*slw+(slw-2)/2,sly+44,"10px 'Share Tech Mono'",C.G);
+      if(scanning)ann('checking',slx+i*slw+(slw-2)/2,sly+42,C.A+'66');
+    });
+  }
+  if(s.result)glowtxt(s.result,W*.5,H*.87,"13px 'VT323'",s.rc||C.G);
+}
+
+function drawInsert(s){
+  scHdr('mapassign: SET FLAG → SCAN BUCKET → WRITE/UPDATE → CHECK GROW');
+  const flagSet=s.flagSet||s.crash;
+  const fc=s.crash?C.R:flagSet?C.O:C.D;
+
+  // write flag
+  const fw=W*.7,fh=38,fx=(W-fw)/2,fy=H*.07;
+  box(fx,fy,fw,fh,fc,fc+(s.crash?'14':flagSet?'08':'03'),flagSet||s.crash);
+  txt('hmap.flags  hashWriting = '+(flagSet?'1':'0'),fx+fw/2,fy+14,"11px 'Share Tech Mono'",fc);
+  txt(s.crash?'FATAL: concurrent map write — fatal(), not panic() — no recover()':(flagSet?'write in progress — concurrent write here → fatal()':'flag clear — safe to proceed'),fx+fw/2,fy+27,"9px 'Share Tech Mono'",fc+'99');
+
+  // 8 slots
+  const N=8,slh=42,slw=W*.9/N,slx=W*.05,sly=H*.3;
+  ann('bucket #'+(s.bucket||0)+' — 8 slots',W*.5,sly-13,'rgba(255,178,41,.38)');
+  const slots=s.slots||Array(N).fill('empty');
+  slots.forEach((state,i)=>{
+    const col=state==='empty'?'rgba(255,178,41,.16)':state==='target'?C.G:state==='match'||state==='update'?C.B:state==='full'?C.O+'66':C.A+'22';
+    const act=state==='target'||state==='match'||state==='update';
+    box(slx+i*slw+1,sly,slw-3,slh,col,act?col+'16':'transparent',act);
+    const lbl=state==='empty'?'—':state==='target'?(s.key||'new'):state==='match'?'KEY✓':state==='update'?'UPDATE':state==='full'?'kv'+i:'?';
+    txt(lbl,slx+i*slw+slw/2,sly+21,"11px 'VT323'",act?col:(typeof col==='string'&&col.startsWith('rgba')?col:'rgba(255,178,41,.25)'));
+    const th=state==='empty'?'0x00':'0x'+( s.top||'??');
+    ann(th,slx+i*slw+slw/2,sly+slh+4,col+(typeof col==='string'&&col.startsWith('#')?'55':''));
+  });
+
+  // load gauge
+  const count=parseFloat(s.count||'0');
+  const Bv=parseInt(s.B||'1');
+  const bkts=Math.pow(2,Bv);
+  const lf=count>0?(count/bkts).toFixed(2):'0.00';
+  const gx=W*.06,gy=H*.59,gw=W*.88,gh=16;
+  ann('LOAD: '+count+'/'+bkts+' = '+lf+'  [threshold 6.5]',W*.5,gy-13,'rgba(255,178,41,.45)');
+  box(gx,gy,gw,gh,'rgba(255,178,41,.1)','transparent');
+  const pct=Math.min(parseFloat(lf)/10,1);
+  const gc=parseFloat(lf)>6.5?C.R:parseFloat(lf)>5?C.O:C.G;
+  cx.save();cx.fillStyle=gc+'cc';cx.fillRect(gx,gy,gw*pct,gh);cx.restore();
+  box(gx,gy,gw,gh,'rgba(255,178,41,.1)','transparent');
+  const tx=gx+gw*(6.5/10);
+  cx.save();cx.strokeStyle=C.R+'aa';cx.lineWidth=2;cx.setLineDash([4,3]);cx.beginPath();cx.moveTo(tx,gy-7);cx.lineTo(tx,gy+gh+7);cx.stroke();cx.setLineDash([]);cx.restore();
+  txt('6.5',tx,gy-11,"9px 'Share Tech Mono'",C.R);
+
+  if(s.overflow)glowtxt('OVERFLOW BUCKET ALLOCATED',W*.5,H*.78,"13px 'VT323'",C.P);
+  if(s.growTrig)glowtxt('hashGrow()  B:'+Bv+'→'+(Bv+1)+'  double buckets',W*.5,H*.84,"13px 'VT323'",C.O);
+  if(s.note&&!s.growTrig&&!s.overflow)ann(s.note,W*.5,H*.82,s.nc||C.A);
+}
+
+function drawGrow(s){
+  scHdr('INCREMENTAL: each write evacuates 1–2 OLD buckets. no STW.');
+  const B=parseInt(s.B||'3');
+  const oldN=1<<(B-1),newN=1<<B;
+  const evac=parseInt(s.nevac||'0');
+  const mo=Math.min(oldN,7),mn=Math.min(newN,7);
+
+  const oh=46,obw=(W*.46-8)/mo,ox=W*.03,oy=H*.18;
+  ann('oldbuckets  [B='+(B-1)+']  '+oldN+' buckets',ox+W*.23,oy-15,C.O+'77');
+  for(let i=0;i<mo;i++){
+    const done=i<evac;
+    const col=done?'rgba(255,178,41,.13)':C.O;
+    box(ox+i*(obw+2),oy,obw,oh,col,done?'transparent':C.O+'11',!done);
+    txt(i,ox+i*(obw+2)+obw/2,oy+oh*.42,"13px 'VT323'",done?'rgba(255,178,41,.2)':C.O);
+    if(done){
+      cx.save();cx.strokeStyle=C.O+'3a';cx.lineWidth=1.5;
+      cx.beginPath();cx.moveTo(ox+i*(obw+2)+5,oy+oh*.5);cx.lineTo(ox+i*(obw+2)+obw*.38,oy+oh*.78);cx.lineTo(ox+i*(obw+2)+obw*.88,oy+oh*.18);cx.stroke();cx.restore();
+    }
+  }
+
+  // progress bar
+  const pw=W*.56,px=W*.22,py=H*.42;
+  const pct=evac/Math.max(oldN,1);
+  ann('nevacuate = '+evac+' / '+oldN+'  (evacuation progress)',W*.5,py-13,C.P+'88');
+  box(px,py,pw,10,'rgba(168,85,247,.2)','transparent');
+  cx.save();cx.fillStyle=C.P;cx.fillRect(px,py,pw*pct,10);cx.restore();
+  box(px,py,pw,10,'rgba(168,85,247,.2)','transparent');
+
+  ann('bit '+(B-1)+'=0 → X (same idx)',W*.26,py+18,C.G+'66');
+  ann('bit '+(B-1)+'=1 → Y (idx+'+oldN+')',W*.74,py+18,C.B+'66');
+
+  for(let i=0;i<Math.min(evac,mo);i++){
+    const midX=ox+i*(obw+2)+obw/2;
+    arrow(midX,oy+oh,midX-obw*.28,H*.55,C.G+'33','X',true);
+    arrow(midX,oy+oh,midX+obw*.48,H*.55,C.B+'33','Y',true);
+  }
+
+  const nh=46,nbw=(W*.46-8)/mn,nx=W*.51,ny=H*.57;
+  ann('buckets  [B='+B+']  '+newN+' buckets',nx+W*.23,ny-15,C.G+'77');
+  for(let i=0;i<mn;i++){
+    const isX=i<evac,isY=i>=oldN&&i<oldN+evac;
+    const col=isX?C.G:isY?C.B:C.G+'1a';
+    box(nx+i*(nbw+2),ny,nbw,nh,col,col+(isX||isY?'10':'03'),isX||isY);
+    txt(i,nx+i*(nbw+2)+nbw/2,ny+nh*.42,"12px 'VT323'",(isX||isY)?col:C.G+'22');
+    if(isX)ann('X',nx+i*(nbw+2)+nbw/2,ny+nh*.75,C.G+'77');
+    if(isY)ann('Y',nx+i*(nbw+2)+nbw/2,ny+nh*.75,C.B+'77');
+  }
+
+  if(s.note)glowtxt(s.note,W*.5,H*.9,"12px 'VT323'",s.nc||C.G);
+}
+
+function drawConcurrent(s){
+  scHdr('NOT GOROUTINE-SAFE — concurrent write = fatal(), not panic()');
+  const gw=W*.27,gh=50,gy=H*.1;
+  const g1x=W*.04,g2x=W*.69;
+  const G1c=s.g1?C.B:C.B+'33',G2c=s.g2?C.O:C.O+'33';
+
+  box(g1x,gy,gw,gh,G1c,C.B+(s.g1?'0c':'03'),s.g1);
+  glowtxt('goroutine 1',g1x+gw/2,gy+18,"11px 'VT323'",G1c);
+  txt(s.g1op||'_ = m["a"]',g1x+gw/2,gy+36,"9px 'Share Tech Mono'",G1c+'cc');
+
+  box(g2x,gy,gw,gh,G2c,C.O+(s.g2?'0c':'03'),s.g2);
+  glowtxt('goroutine 2',g2x+gw/2,gy+18,"11px 'VT323'",G2c);
+  txt(s.g2op||'_ = m["b"]',g2x+gw/2,gy+36,"9px 'Share Tech Mono'",G2c+'cc');
+
+  const mx=W*.34,my=H*.1,mw=W*.32,mh=50;
+  const mc=s.crash?C.R:s.conflict?C.O:C.A+'33';
+  box(mx,my,mw,mh,mc,mc+(s.crash?'13':s.conflict?'07':'03'),s.crash||s.conflict);
+  glowtxt('map[K]V',mx+mw/2,my+18,"14px 'VT323'",mc);
+  txt('flags='+(s.conflict||s.crash?'CONFLICT!':s.g1||s.g2?'writing':'idle'),mx+mw/2,my+37,"9px 'Share Tech Mono'",mc+'99');
+
+  if(s.g1)arrow(g1x+gw,gy+mh/2,mx,my+mh/2,C.B+'77','');
+  if(s.g2)arrow(g2x,gy+mh/2,mx+mw,my+mh/2,C.O+'77','');
+
+  if(s.crash){
+    glowtxt('fatal error: concurrent map write',W*.5,H*.47,"16px 'VT323'",C.R);
+    txt('fatal() — NOT panic() — recover() CANNOT CATCH THIS',W*.5,H*.57,"10px 'Share Tech Mono'",C.R+'88');
+    box(W*.12,H*.63,W*.76,28,C.R+'2a',C.R+'07');
+    txt('hmap.flags & hashWriting (bit 4) checked on every write entry',W*.5,H*.63+14,"9px 'Share Tech Mono'",C.R+'88');
+    flashCA(180);
+  }
+
+  if(s.sol){
+    const sols=[
+      {id:'mutex',l:'sync.Mutex',   n:'universal',   sub:'all patterns',        c:C.G},
+      {id:'rw',   l:'RWMutex',     n:'read-heavy',   sub:'N readers / 1 writer', c:C.B},
+      {id:'smap', l:'sync.Map',    n:'read-mostly',  sub:'stable keys only',    c:C.P},
+    ];
+    ann('GOROUTINE-SAFE ALTERNATIVES:',W*.5,H*.46,'rgba(255,178,41,.35)');
+    const sw=W*.27,sg=W*.025,tot=sols.length*(sw+sg)-sg,startX=(W-tot)/2;
+    sols.forEach((sol,i)=>{
+      const x=startX+i*(sw+sg);
+      const act=s.sol===sol.id;
+      box(x,H*.51,sw,56,sol.c+(act?'':' 33'),act?sol.c+'12':'transparent',act);
+      glowtxt(sol.l,x+sw/2,H*.51+17,"12px 'VT323'",sol.c+(act?'':'33'));
+      txt(sol.n,x+sw/2,H*.51+32,"9px 'Share Tech Mono'",sol.c+(act?'':'33'));
+      txt(sol.sub,x+sw/2,H*.51+47,"8px 'Share Tech Mono'",sol.c+(act?'77':'22'));
+    });
+    ann('⚠ sync.Map write-heavy: worse than Mutex. Benchmark first.',W*.5,H*.77,C.O+'55');
+  }
+}
+
+function draw(step){
+  cx.clearRect(0,0,W,H);
+  switch(SCENE){
+    case 'hmap':       drawHmap(step); break;
+    case 'bmap':       drawBmap(step); break;
+    case 'lookup':     drawLookup(step); break;
+    case 'insert':     drawInsert(step); break;
+    case 'grow':       drawGrow(step); break;
+    case 'concurrent': drawConcurrent(step); break;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCENE DATA — rich steps with title + insight
+═══════════════════════════════════════════════════════ */
+const SCENES = {
+
+hmap:{label:'1. HMAP',
+file:'runtime/map.go',
+code:[
+  '// runtime/map.go — Go 1.22',
+  '// hmap is the in-memory representation of a Go map.',
+  '// map variable = *hmap (just a pointer)',
+  'type hmap struct {',
+  '    count      int            // len(map) — live key count',
+  '    flags      uint8          // hashWriting | iterator flags',
+  '    B          uint8          // log₂ of bucket count',
+  '    noverflow  uint16         // approx # of overflow buckets',
+  '    hash0      uint32         // random seed (fastrand on make)',
+  '    buckets    unsafe.Pointer // ptr to [2^B]bmap. nil if count==0',
+  '    oldbuckets unsafe.Pointer // nil in steady state; != nil during grow',
+  '    nevacuate  uintptr        // grow progress: next bucket to evacuate',
+  '    extra      *mapextra      // rare overflow/iterator fields',
+  '}',
+  '',
+  'func makemap(t *maptype, hint int, h *hmap) *hmap {',
+  '    if h == nil { h = new(hmap) }      // 56-byte alloc on heap',
+  '    h.hash0 = fastrand()               // NEW random seed every call!',
+  '    B := uint8(0)',
+  '    for overLoadFactor(hint, B) { B++ } // pick B: load ≤ 6.5',
+  '    h.B = B',
+  '    if h.B != 0 {',
+  '        h.buckets = newarray(t.bucket, 1<<h.B)',
+  '    }',
+  '    return h',
+  '}',
+  '',
+  '// var m map[K]V  →  h = nil, no allocation',
+  '// nil map read:  OK, returns zero value',
+  '// nil map write: PANIC — assignment to entry in nil map',
+  '// m == nil check before write if uncertain',
+],
+steps:[
+  {phase:'init',  cl:3,  count:'0',B:null,  flags:'0x00',hash0:'?',bptr:'nil',oldptr:'nil',nevac:'0',noverfl:'0',
+   title:'MAP VARIABLE = POINTER',
+   body:'var m map[K]V declares a pointer (8 bytes on 64-bit). The hmap struct is NOT allocated. The pointer is nil. Reading from a nil map is safe (returns zero value). Writing to a nil map causes a panic.',
+   insight:'<strong>Key fact for interviews:</strong> "what is a Go map?" → A pointer to an hmap struct on the heap. The map variable itself is 8 bytes.'},
+  {phase:'hash',  cl:17, count:'0',B:null,  flags:'0x00',hash0:'0x5f3a',bptr:'nil',oldptr:'nil',nevac:'0',noverfl:'0',hi:'hash0',
+   title:'FASTRAND: HASH SEED',
+   body:'make(map[K]V) allocates the hmap header and calls fastrand() to generate a random 32-bit seed unique to this map instance. Even two identical maps have different seeds.',
+   insight:'<strong>Why random seed?</strong> Hash-flooding attack: if the seed were predictable, an attacker could craft keys that all land in bucket 0, turning O(1) into O(n). Go has used per-map seeds since 1.0.'},
+  {phase:'init',  cl:19, count:'0',B:'3',   flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'nil',nevac:'0',noverfl:'0',hi:'B',
+   title:'B = LOG₂(BUCKET COUNT)',
+   body:'B is chosen so the initial load factor stays ≤ 6.5. make(map, 100) → B=4 (16 buckets, room for ~104 keys). Bucket count is always a power of 2: bucket = hash & (2^B - 1) costs one AND, not division.',
+   insight:'<strong>B=3 → 8 buckets. B=4 → 16 buckets.</strong> Doubling on every grow keeps amortized cost O(1). make(map[K]V, N) avoids 3-4 grows for large N.'},
+  {phase:'insert',cl:4,  count:'6', B:'3',  flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'nil',nevac:'0',noverfl:'0',hi:'count',
+   title:'COUNT = LEN(MAP)',
+   body:'After 6 inserts: count=6. B=3 → 8 buckets. Load = 6/8 = 0.75. Well below the 6.5 threshold. count is decremented on delete, incremented on insert (not update). len(m) reads count directly in O(1).',
+   insight:'<strong>len(map) is O(1):</strong> reads hmap.count directly. No traversal. count is modified only on actual insert (new key) or delete, not on updates to existing keys.'},
+  {phase:'grow',  cl:11, count:'53',B:'4',  flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'0xc0...',nevac:'0',noverfl:'0',hi:'oldbuckets',growing:true,
+   title:'GROWING: OLDBUCKETS',
+   body:'count=53, load=6.6 > 6.5: hashGrow() triggered. B: 3→4 (8→16 buckets). Old array saved in oldbuckets. New empty array allocated. Keys are NOT moved yet — incremental evacuation starts on next writes.',
+   insight:'<strong>Two arrays coexist during grow:</strong> oldbuckets (still has all data), buckets (new, empty). Reads check both. No goroutine blocks. Grow is amortized across O(N) subsequent writes.'},
+  {phase:'evac',  cl:12, count:'53',B:'4',  flags:'0x00',hash0:'0x5f3a',bptr:'0xc0...',oldptr:'0xc0...',nevac:'11',noverfl:'0',hi:'nevacuate',growing:true,
+   title:'NEVACUATE = PROGRESS',
+   body:'nevacuate tracks how many old buckets have been moved to the new array. Each write evacuates 1-2 old buckets. When nevacuate reaches oldN, the grow is complete and oldbuckets is freed.',
+   insight:'<strong>No STW (stop-the-world):</strong> unlike Java HashMap resize, Go map grow is incremental. The 1-2 evacuation per write bounds latency. Total work is O(N) spread over O(N) writes.'},
+],
+usage:[
+  {n:1,title:'Pre-size with make hint',sub:'biggest performance win for known-size maps',code:`// BAD — triggers ~4 grows for 10k items
+m := make(map[string]int)
+for _, k := range keys { m[k]++ }
+
+// GOOD — 0 grows, ~40% faster for 10k+ items
+m := make(map[string]int, len(keys))
+for _, k := range keys { m[k]++ }
+
+// How many grows does B=0 trigger for 10k items?
+// B=0:  load>6.5 after  6 keys → grow to B=1
+// B=1:  load>6.5 after 13 keys → grow to B=2
+// B=2:  load>6.5 after 26 keys → grow to B=3
+// ...
+// B=10: threshold 6656 keys — about 4 grows total`,note:'Rule: any map expected to exceed 50 items should use a hint.'},
+  {n:2,title:'nil map guard pattern',sub:'reading vs writing nil maps',code:`var m map[string]int  // m is nil, no allocation
+
+// READ — always safe, returns zero value
+v := m["key"]           // v = 0,     no panic
+v, ok := m["key"]       // v = 0, ok = false
+
+// WRITE — panic!
+m["key"] = 1            // panic: assignment to nil map
+
+// Pattern: lazy initialization
+if m == nil {
+    m = make(map[string]int)
+}
+m["key"] = 1  // safe
+
+// Or use a var block with initialization:
+var m = make(map[string]int)`,note:''},
+  {n:3,title:'Map copy — shallow, by pointer',sub:'map assignments share the same underlying data',code:`a := map[string]int{"x": 1}
+b := a           // b and a point to the SAME hmap!
+b["x"] = 99
+fmt.Println(a["x"])  // 99 — NOT 1
+
+// To get a true copy, iterate:
+func copyMap[K comparable, V any](m map[K]V) map[K]V {
+    cp := make(map[K]V, len(m))
+    for k, v := range m { cp[k] = v }
+    return cp
+}
+c := copyMap(a)
+c["x"] = 1
+fmt.Println(a["x"])  // still 99`,note:'Passing a map to a function also passes the pointer — the function can mutate the caller\'s map.'},
+  {n:4,title:'maps.Clone and maps.Copy (Go 1.21)',sub:'stdlib helpers for map copying',code:`import "maps"
+
+original := map[string]int{"a": 1, "b": 2}
+
+// Clone: full copy, new map
+clone := maps.Clone(original)   // independent copy
+clone["c"] = 3
+fmt.Println(original["c"])  // 0 — not affected
+
+// Copy: merge src into dst
+dst := map[string]int{"a": 99, "x": 10}
+maps.Copy(dst, original)    // original keys override dst
+fmt.Println(dst["a"])  // 1 (from original)
+fmt.Println(dst["x"])  // 10 (kept from dst)`,note:'maps.Clone is O(n) — it iterates and copies. For large maps, pre-size the destination.'},
+  {n:5,title:'Struct embedding to avoid nil-map panic',sub:'safe zero-value pattern with embedded map',code:`// Problem: struct with map field is nil by default
+type Counter struct {
+    counts map[string]int
+}
+var c Counter
+c.counts["x"]++  // panic! counts is nil
+
+// Solution 1: constructor
+func NewCounter() Counter {
+    return Counter{counts: make(map[string]int)}
+}
+
+// Solution 2: lazy init in method
+func (c *Counter) Inc(key string) {
+    if c.counts == nil {
+        c.counts = make(map[string]int)
+    }
+    c.counts[key]++
+}
+
+c2 := Counter{}  // no panic — method handles it
+c2.Inc("hits")`,note:''},
+],
+concepts:[
+  {icon:'🗂️',title:'WHY 56 BYTES?',body:'count(8) + flags(1) + B(1) + noverflow(2) + hash0(4) = 16B header. Then 3 pointers × 8B each = 24B. Plus mapextra pointer(8B) + alignment padding = 56B total on 64-bit.'},
+  {icon:'🎲',title:'HASH SEED SECURITY',body:'Without a random seed, an adversary can find keys with the same hash and collapse a bucket to O(n). Go uses fastrand (a cheap PRNG) per make() call. In HTTP servers this prevents hash-flooding DoS attacks on map-backed routing tables.'},
+  {icon:'⚡',title:'LOAD FACTOR 6.5 VS JAVA 0.75',body:'Java HashMap uses 0.75 (75% full). Go uses 6.5 average keys per bucket. The difference is design: Java uses one slot per bucket, Go uses 8 slots per bucket (bmap). 6.5 / 8 ≈ 81% — similar cache utilization, very different internal structure.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'nil map write = PANIC',body:'var m map[K]V writes panic. Always initialize with make() or a literal. Reading from nil map is safe.'},
+  {t:'warn',icon:'⚠️',title:'map values are not addressable',body:'<code>&m[key]</code> does not compile. To modify a struct field: read, modify, write back. <code>p := m[k]; p.X = 1; m[k] = p</code>'},
+  {t:'ok', icon:'✅',title:'len(m) is O(1)',body:'Reads hmap.count directly. No traversal, no lock. Same O(1) for delete: decrements count.'},
+  {t:'info',icon:'📌',title:'map literal is idiomatic for small static maps',body:'<code>m := map[string]int{"a": 1, "b": 2}</code> — compiled to a series of assignments. No performance difference vs make + assign for small maps.'},
+  {t:'note',icon:'🎯',title:'INTERVIEW: what is a Go map?',body:'A pointer to an hmap struct (56 bytes on 64-bit) allocated on the heap. The map variable itself is just the pointer (8 bytes).'},
+]},
+
+bmap:{label:'2. BUCKET',
+file:'runtime/map.go — bmap',
+code:[
+  '// bmap — one bucket. Holds up to 8 key-value pairs.',
+  '// Actual layout injected by the compiler:',
+  '// type bmap struct {',
+  '//     tophash  [8]uint8  // fast pre-filter: top byte of hash',
+  '//     keys     [8]K      // all keys grouped together',
+  '//     values   [8]V      // all values grouped together',
+  '//     overflow *bmap     // chain to next bucket on overflow',
+  '// }',
+  '',
+  '// tophash special values (0–4 reserved):',
+  'const (',
+  '    emptyRest      = 0 // slot empty, no keys follow in this bucket',
+  '    emptyOne       = 1 // this slot empty, others may not be',
+  '    evacuatedX     = 2 // key moved to lower-half during grow',
+  '    evacuatedY     = 3 // key moved to upper-half during grow',
+  '    evacuatedEmpty = 4 // slot empty and bucket evacuated',
+  '    minTopHash     = 5 // lowest valid tophash for a real key',
+  ')',
+  '',
+  '// Real tophash = max(hash >> 56, minTopHash)',
+  '// Adjusted to ≥5 to avoid collision with state flags.',
+  '',
+  '// WHY keys then values — NOT interleaved {key,val} pairs?',
+  '// map[int32]bool interleaved: {int32, pad×3, bool, pad×3} × 8',
+  '//   = (4+3+1+3) × 8 = 88 bytes   // 24 bytes wasted on padding',
+  '// map[int32]bool grouped:  [int32×8][bool×8]',
+  '//   = (4×8) + (1×8) = 40 bytes   // 0 bytes padding wasted',
+],
+steps:[
+  {phase:'init',  cl:0,  slot:-1,th:Array(8).fill('0x00'),ks:Array(8).fill('—'),vs:Array(8).fill('—'),ov:null,
+   title:'EMPTY BMAP: ALL EMPTYREST',
+   body:'Fresh bucket: all tophash slots = 0 (emptyRest). This signals "empty slot, AND nothing exists at this position or beyond". During lookup, the first emptyRest (0x00) slot causes an early exit — no need to scan further.',
+   insight:'<strong>emptyRest (0) vs emptyOne (1):</strong> emptyRest lets lookup short-circuit after the first delete. emptyOne is written on delete when later slots still have keys.'},
+  {phase:'insert',cl:0,  slot:0,th:['0xAB','0x00','0x00','0x00','0x00','0x00','0x00','0x00'],ks:['"cat"','—','—','—','—','—','—','—'],vs:['42','—','—','—','—','—','—','—'],ov:null,
+   title:'INSERT: TOPHASH FIRST',
+   body:'Insert "cat" → hash >> 56 = 0xAB. Stored in tophash[0]. keys[0] = "cat", values[0] = 42. The tophash is stored FIRST so it can be scanned independently of the larger key array. On the next lookup, 0xAB is compared before any key equality check.',
+   insight:'<strong>tophash pre-filter:</strong> 1 byte comparison rejects ~255/256 slot candidates before calling the expensive key.equal(). For a 32-byte string key, this avoids 32 bytes of memory comparison per miss.'},
+  {phase:'insert',cl:0,  slot:3,th:['0xAB','0x3F','0xC2','0x77','0x00','0x00','0x00','0x00'],ks:['"cat"','"dog"','"elk"','"fox"','—','—','—','—'],vs:['42','7','99','13','—','—','—','—'],ov:null,
+   title:'GROUPED LAYOUT: KEYS THEN VALUES',
+   body:'Keys are packed together [cat,dog,elk,fox], values are packed together [42,7,99,13]. This is NOT interleaved {cat,42},{dog,7}... The grouped layout avoids struct alignment padding between mismatched types.',
+   insight:'<strong>For map[int32]bool:</strong> interleaved layout wastes 24B per bucket on padding. Grouped layout: zero waste. The Go compiler generates the actual bmap struct with the right type-aware layout.'},
+  {phase:'insert',cl:0,  slot:7,th:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'],ks:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'],vs:['42','7','99','13','5','88','17','2'],ov:null,
+   title:'BUCKET FULL: 8/8 SLOTS',
+   body:'All 8 tophash slots have non-zero values. Bucket is full. The next insert for this hash bucket cannot fit — a new overflow bmap must be allocated on the heap and chained via the overflow pointer.',
+   insight:'<strong>Why 8 slots?</strong> 8 tophash bytes = 64 bits = one cache line on most CPUs. A full scan of tophash[] touches exactly one cache line before checking the keys.'},
+  {phase:'warn',  cl:0,  slot:-1,th:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'],ks:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'],vs:['42','7','99','13','5','88','17','2'],ov:'0xc000ab00',
+   title:'OVERFLOW BUCKET CHAINED',
+   body:'overflow pointer points to a new bmap. This bucket is now a chain of length 2. Lookup must traverse the chain. Too many overflow buckets (hmap.noverflow) triggers a "same-size" compaction grow: B stays the same but chains are consolidated.',
+   insight:'<strong>noverflow counter:</strong> hmap.noverflow ≈ number of overflow buckets. When noverflow ≥ 2^B (roughly as many overflow as regular), tooManyOverflowBuckets() returns true and triggers a compaction grow.'},
+],
+usage:[
+  {n:1,title:'Key type determines tophash quality',sub:'fast vs slow key equality checks',code:`// FAST keys (builtin hash, cheap equal):
+m1 := map[int]string{}         // int: single CPU instruction
+m2 := map[string]int{}         // string: len + memcmp
+m3 := map[[16]byte]int{}       // fixed array: 16-byte memcmp
+
+// SLOW keys — avoid in hot paths:
+type Big [256]byte
+m4 := map[Big]int{}             // every full match: 256B compare
+
+// For large keys: hash the key manually
+import "crypto/sha256"
+fingerprint := sha256.Sum256(bigData[:])
+m5 := map[[32]byte]int{}        // only 32B on tophash match
+
+// tophash cuts most comparisons — but when tophash matches,
+// key.equal() is called. Key type determines that cost.`,note:'tophash pre-filter eliminates ~255/256 mismatches. Remaining 1/256: full key.equal() call.'},
+  {n:2,title:'Map of maps — nil inner map trap',sub:'nested maps need explicit initialization',code:`groups := make(map[string]map[string]int)
+
+// WRONG — inner map is nil!
+groups["team"]["alice"] = 1  // panic: nil map
+
+// Pattern 1: check and init
+func getOrCreate(m map[string]map[string]int, k string) map[string]int {
+    if m[k] == nil {
+        m[k] = make(map[string]int)
+    }
+    return m[k]
+}
+getOrCreate(groups, "team")["alice"] = 1
+
+// Pattern 2: use setdefault helper (Go 1.21 maps package)
+import "maps"
+// No stdlib helper yet — write your own or pattern 1`,note:'Inner maps are zero-valued (nil) even after the outer map is created.'},
+  {n:3,title:'Iteration order is randomized — by design',sub:'intentional Go spec decision since 1.0',code:`m := map[string]int{"a": 1, "b": 2, "c": 3}
+
+for k, v := range m {
+    fmt.Println(k, v)  // order changes on every run
+}
+
+// SORTED iteration:
+import "slices"
+keys := make([]string, 0, len(m))
+for k := range m { keys = append(keys, k) }
+slices.Sort(keys)
+for _, k := range keys {
+    fmt.Printf("%s: %d\n", k, m[k])
+}
+
+// PARALLEL MAP BUILD (Go 1.22 range-over-func proposal):
+// Still use sorted keys for deterministic output.`,note:'Map iteration randomization was introduced in Go 1 to prevent code from accidentally relying on a specific (implementation-defined) order.'},
+  {n:4,title:'Bucket inspection via reflect.MapIter',sub:'iterate without materializing all keys',code:`import "reflect"
+
+m := map[string]int{"a": 1, "b": 2, "c": 3}
+
+// reflect.MapIter does NOT allocate all keys at once
+iter := reflect.ValueOf(m).MapRange()
+for iter.Next() {
+    k := iter.Key().String()
+    v := iter.Value().Int()
+    fmt.Printf("%s=%d\n", k, v)
+}
+
+// Use case: generic code that can't use range directly
+func printMap(m any) {
+    v := reflect.ValueOf(m)
+    if v.Kind() != reflect.Map { return }
+    for _, k := range v.MapKeys() {
+        fmt.Println(k, v.MapIndex(k))
+    }
+}`,note:''},
+  {n:5,title:'Comparable constraint — what can be a map key',sub:'not all types work as map keys',code:`// VALID key types:
+m1 := map[int]string{}
+m2 := map[string]int{}
+m3 := map[[4]int]int{}      // arrays of comparable: OK
+m4 := map[struct{ X, Y int }]int{}  // comparable struct: OK
+
+// INVALID — will not compile:
+// m5 := map[[]int]int{}    // slice: not comparable
+// m6 := map[map[K]V]int{}  // map: not comparable
+// m7 := map[func()]int{}   // func: not comparable
+
+// Workaround for slice keys: convert to string or use [N]byte
+func sliceKey(s []int) string {
+    return fmt.Sprint(s)  // slow but works
+}`,note:'The Go spec requires map keys to support ==. Slices, maps, and functions do not.'},
+],
+concepts:[
+  {icon:'⚡',title:'WHY 8 SLOTS PER BUCKET?',body:'8 bytes of tophash = 64 bits = exactly one CPU cache line on modern hardware. A lookup that misses all 8 tophash slots pays only 1 cache miss before proceeding to the overflow chain or declaring "not found".'},
+  {icon:'🔢',title:'TOPHASH STATE FLAGS (0–4)',body:'Values 0–4 are reserved for bucket state: emptyRest(0), emptyOne(1), evacuatedX(2), evacuatedY(3), evacuatedEmpty(4). Real key hashes are stored as max(hash>>56, 5). This lets evacuation be tracked per-slot inside the same byte.'},
+  {icon:'📐',title:'GROUPED LAYOUT REDUCES PADDING',body:'Struct alignment: Go aligns fields to their size. For map[int32]bool: interleaved {int32, bool} pairs need 3B padding after each bool. Grouped [int32×8][bool×8] has no padding. Saves up to 24B per bucket for mixed-type maps.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Keys must be comparable (== must work)',body:'Slices, maps, and functions cannot be map keys — compiler error. Arrays of comparable types can. Structs with only comparable fields can.'},
+  {t:'info',icon:'📌',title:'tophash 0–4 reserved — no silent bugs',body:'If a key\'s hash >> 56 is in 0–4, the runtime bumps it to 5. Transparent to users. You cannot observe or trigger a hash collision with state flags.'},
+  {t:'ok', icon:'🎯',title:'INTERVIEW: why store tophash separately?',body:'Fast rejection via 1-byte comparison before calling key.equal(). All 8 tophashes fit in one cache line. Rejects ~255/256 candidate slots without touching the key array.'},
+  {t:'note',icon:'📌',title:'overflow chains = performance signal',body:'Long overflow chains mean either a bad hash distribution or the map needs a grow. In practice, Go\'s hash functions are excellent — overflow chains are rare under normal use.'},
+]},
+
+lookup:{label:'3. LOOKUP',
+file:'runtime/map.go — mapaccess1',
+code:[
+  '// m[key] compiles to mapaccess1(t, h, key)',
+  'func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {',
+  '    if h == nil || h.count == 0 { return zeroptr }',
+  '    // Detect concurrent read + write',
+  '    if h.flags&hashWriting != 0 {',
+  '        fatal("concurrent map read and map write")',
+  '    }',
+  '    // Step 1: hash the key with map-specific seed',
+  '    hash := t.hasher(key, uintptr(h.hash0))',
+  '    // Step 2: pick bucket (cheap bitwise AND)',
+  '    m    := bucketMask(h.B)               // = (1 << B) - 1',
+  '    b    := (*bmap)(add(h.buckets,',
+  '               (hash&m)*bucketsize))',
+  '    // Step 3: growing? may need to check old array',
+  '    if c := h.oldbuckets; c != nil {',
+  '        oldb := (*bmap)(add(c, (hash&(m>>1))*bucketsize))',
+  '        if !evacuated(oldb) { b = oldb } // key still in old bucket',
+  '    }',
+  '    // Step 4: compute tophash (top 8 bits)',
+  '    top := tophash(hash)               // = hash >> 56, min 5',
+  '    // Step 5: scan bucket chain',
+  '    for ; b != nil; b = b.overflow(t) {',
+  '        for i := uintptr(0); i < bucketCnt; i++ {',
+  '            if b.tophash[i] != top {',
+  '                if b.tophash[i] == emptyRest { break }',
+  '                continue    // cheap: 1 byte compare, skip slot',
+  '            }',
+  '            // tophash matched — do full key comparison',
+  '            k := add(unsafe.Pointer(b), dataOffset+i*keysize)',
+  '            if t.key.equal(key, k) {',
+  '                v := add(unsafe.Pointer(b), valOffset+i*valsize)',
+  '                return v  // found!',
+  '            }',
+  '        }',
+  '    }',
+  '    return zeroptr // not found: zero value, no panic',
+  '}',
+],
+steps:[
+  {phase:'init',  cl:1, step:0, key:'hello',B:'3',hashval:'8FC302',bucket:undefined,top:undefined,tophash:Array(8).fill('0x00'),result:null,scanAt:0,
+   title:'CALL mapaccess1',
+   body:'m["hello"] compiles to mapaccess1(t, h, unsafe.Pointer(&key)). First: check nil map and zero count — early return. Check hashWriting flag — fatal if set (concurrent read + write detected).',
+   insight:'<strong>Two-value form</strong> m[k], ok := m[k] compiles to mapaccess2 which also returns a bool. The compiler selects the variant based on the assignment form.'},
+  {phase:'hash',  cl:8, step:1, key:'hello',B:'3',hashval:'8FC302',bucket:undefined,top:undefined,tophash:Array(8).fill('0x00'),result:null,scanAt:0,
+   title:'HASH THE KEY',
+   body:'t.hasher(key, h.hash0) produces a 64-bit hash. The hasher is type-specific (string hasher, int hasher, etc.) and uses the map\'s random seed. The same key hashes to different values in different map instances.',
+   insight:'<strong>Built-in key types use AES hardware acceleration</strong> on CPUs that support it (amd64, arm64). Software fallback for other platforms. String hashing for "hello" takes ~2ns.'},
+  {phase:'hash',  cl:10,step:2, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:undefined,tophash:Array(8).fill('0x00'),result:null,scanAt:0,
+   title:'SELECT BUCKET: hash & mask',
+   body:'bucketMask(B=3) = 7 (0b0111). hash & 7 = low 3 bits of hash = bucket index. Navigate to &h.buckets[index]. This is a single bitwise AND — much cheaper than modulo.',
+   insight:'<strong>Why powers of 2?</strong> hash % N requires division. hash & (N-1) works identically but costs 1 cycle instead of 20+. This is why bucket count is always 2^B, never arbitrary.'},
+  {phase:'lookup',cl:19,step:2, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:'8F',tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'],result:null,scanAt:0,
+   title:'COMPUTE TOPHASH: hash >> 56',
+   body:'tophash = hash >> 56 = top 8 bits = 0x8F. Enter bucket[2]. It has 4 filled slots. Prepare to scan tophash[8] looking for 0x8F. This scan is a tight loop over 8 bytes — fits entirely in registers.',
+   insight:'<strong>0x8F in 8 slots → ~3% false positive rate</strong> per slot (1/256 chance of collision). With 4 filled slots, expected 4/256 ≈ 0.016 false positives per lookup, requiring one spurious key.equal() call.'},
+  {phase:'lookup',cl:22,step:3, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:'8F',tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'],result:null,scanAt:1,
+   title:'SCAN TOPHASH: 1 BYTE AT A TIME',
+   body:'tophash[0]=0x44 ≠ 0x8F → skip (1 byte comparison, no memory access to keys/values). tophash[1]=0x8F → MATCH → now call key.equal("hello", keys[1]). Only on tophash match do we touch the key memory.',
+   insight:'<strong>Scan efficiency:</strong> for a key NOT in the map, the scan rejects all 8 slots with 8 byte comparisons. No key.equal() is ever called. emptyRest (0x00) causes early exit: scan stops at first empty slot.'},
+  {phase:'done',  cl:28,step:4, key:'hello',B:'3',hashval:'8FC302',bucket:2,top:'8F',tophash:['0x44','0x8F','0x12','0x8F','0x00','0x00','0x00','0x00'],result:'FOUND → &values[1]  (O(1) amortized)',rc:'#4ade80',scanAt:1,
+   title:'KEY.EQUAL → FOUND',
+   body:'key.equal("hello", keys[1]) returns true. Return pointer to values[1]. The caller reads the value through this pointer. For NOT FOUND: scan exhausts all tophashes, returns zeroptr (no panic).',
+   insight:'<strong>Return value is a pointer into the bucket:</strong> the caller writes through it (for mapassign) or reads through it (for mapaccess). No copy happens inside the map operation.'},
+],
+usage:[
+  {n:1,title:'Two-value form — the correct way to check existence',sub:'v, ok := m[k] — always use when absence matters',code:`m := map[string]int{"active": 0, "count": 5}
+
+// ONE-VALUE form: cannot distinguish missing from zero
+v := m["active"]   // v = 0 — is it zero or missing? unclear!
+v  = m["missing"]  // v = 0 — same as above!
+
+// TWO-VALUE form: always explicit
+v, ok := m["active"]   // v=0, ok=true  — key present, value is 0
+v, ok  = m["missing"]  // v=0, ok=false — key absent
+v, ok  = m["count"]    // v=5, ok=true  — key present
+
+// Idiomatic pattern: guard with ok
+if result, ok := m[key]; ok {
+    process(result)
+} else {
+    handleMissing(key)
+}`,note:'Always use the two-value form when you need to distinguish "key absent" from "key maps to zero value". Common bug: checking v == 0 instead of !ok.'},
+  {n:2,title:'getOrDefault and zero-value tricks',sub:'zero value semantics make many patterns clean',code:`// Counting — zero value of int is 0, so ++ works
+freq := make(map[string]int)
+words := strings.Fields(text)
+for _, w := range words {
+    freq[w]++   // first time: 0+1=1; subsequent: prev+1
+}
+
+// Grouping — zero value of []T is nil, append works on nil
+groups := make(map[string][]string)
+for _, item := range items {
+    groups[item.Category] = append(groups[item.Category], item.Name)
+}
+
+// Set — map[T]struct{} uses zero allocation for values
+seen := make(map[string]struct{})
+for _, s := range slice {
+    seen[s] = struct{}{}
+}
+_, exists := seen["foo"]`,note:'map[K]struct{} is the canonical Go set. struct{} takes 0 bytes. Vs map[K]bool: identical lookup performance, slightly less memory.'},
+  {n:3,title:'Reading during iteration — what is safe',sub:'delete during range is spec-guaranteed safe',code:`m := map[string]int{"a": 1, "b": 2, "c": 3, "d": 4}
+
+// SAFE: delete the current key during range
+for k, v := range m {
+    if v < 2 {
+        delete(m, k)  // safe per Go spec
+    }
+}
+
+// SAFE: update existing key during range
+for k := range m {
+    m[k] *= 10   // OK — only modifies existing keys
+}
+
+// UNDEFINED: add NEW keys during range
+// Go spec: "If a map entry is created during iteration,
+//  that entry may or may not be produced during iteration."
+for k := range m {
+    m["new_"+k] = 0  // may or may not appear in this range
+}`,note:''},
+  {n:4,title:'Concurrent read-only: safe without locks',sub:'reads do not set hashWriting flag',code:`// Multiple goroutines reading the SAME map: SAFE
+// (as long as NO goroutine writes concurrently)
+
+var cache = map[string][]byte{...}  // built once, read-only
+
+// Start N goroutines reading cache concurrently:
+for i := 0; i < 100; i++ {
+    go func() {
+        data := cache["some-key"]  // safe: no writer
+        _ = data
+    }()
+}
+
+// Concurrent reads do NOT set hashWriting.
+// hashWriting is only set by mapassign/mapdelete.
+
+// BUT: if ANY goroutine writes, ALL reads need sync.
+// One write + many reads = fatal() if unsynchronized.`,note:''},
+  {n:5,title:'map[K]V vs sync.Map vs mutex+map performance',sub:'benchmark guidance for choosing the right primitive',code:`// Benchmark: 8 goroutines, 90% reads, 10% writes, 1M ops
+// map + sync.Mutex:   ~140 ns/op
+// map + sync.RWMutex: ~80  ns/op  (at 90% reads)
+// sync.Map:           ~60  ns/op  (stable keys, read-mostly)
+
+// Benchmark: 8 goroutines, 50% reads, 50% writes, 1M ops
+// map + sync.Mutex:   ~160 ns/op
+// map + sync.RWMutex: ~180 ns/op  (write starvation risk)
+// sync.Map:           ~220 ns/op  (dirty map mutex bottleneck)
+
+// Conclusion:
+// - 90%+ reads, stable keys: sync.Map wins
+// - Mixed or write-heavy: sync.Mutex + plain map
+// - Always benchmark YOUR specific workload`,note:'These numbers are approximate. Cache pressure, key size, and goroutine count all affect results significantly.'},
+],
+concepts:[
+  {icon:'🔍',title:'TWO-LEVEL LOOKUP',body:'Level 1: hash & mask → O(1) bucket select. Level 2: tophash scan → O(1) in-bucket search (max 8 slots per bucket). Only on tophash hit: key.equal() called. Average lookup cost: 1 hash + 1–8 byte comparisons + 0–1 key.equal().'},
+  {icon:'🌱',title:'GROW SAFETY DURING LOOKUP',body:'If oldbuckets != nil (grow in progress), lookup checks evacuated(old_bucket). If not evacuated: reads from old array. If evacuated: reads from new array. Transparent to callers. Slightly slower during grow.'},
+  {icon:'💀',title:'CONCURRENT READ + WRITE = FATAL',body:'hashWriting flag checked at the start of every lookup. If set by a concurrent write: fatal("concurrent map read and map write"). This is NOT a panic — it cannot be recovered. go test -race catches this at test time.'},
+],
+traps:[
+  {t:'ok', icon:'✅',title:'Missing key returns zero value — no panic',body:'m["missing"] returns the zero value for V. Use v, ok := m[k] to distinguish absent from zero.'},
+  {t:'warn',icon:'💥',title:'Concurrent read + write = fatal',body:'Unlike panics, fatal() cannot be caught with recover(). The process terminates. go test -race is mandatory.'},
+  {t:'info',icon:'📌',title:'Time complexity: O(1) amortized average',body:'O(n) theoretical worst case if hash function degenerates (all keys to same bucket). In practice: O(1) with Go\'s built-in hashers.'},
+  {t:'ok', icon:'🎯',title:'INTERVIEW: how many steps in a map lookup?',body:'1. hash(key) with seed. 2. bucket = hash & mask. 3. tophash scan. 4. key.equal() on tophash match. 5. Return value pointer or zero.'},
+]},
+
+insert:{label:'4. INSERT',
+file:'runtime/map.go — mapassign',
+code:[
+  '// m[key] = val  →  mapassign(t *maptype, h *hmap, key unsafe.Pointer)',
+  '// Returns pointer to value slot; caller writes value through it.',
+  'func mapassign(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {',
+  '    // 1. detect concurrent write',
+  '    if h.flags&hashWriting != 0 {',
+  '        fatal("concurrent map writes")  // NOT panic',
+  '    }',
+  '    h.flags ^= hashWriting              // set flag',
+  '',
+  '    hash := t.hasher(key, uintptr(h.hash0))',
+  '    b    := (*bmap)(add(h.buckets, (hash&bucketMask(h.B))*bucketsize))',
+  '    top  := tophash(hash)',
+  '',
+  '    var inserti *uint8',
+  '    var insertk, val unsafe.Pointer',
+  '',
+  '    // 2. scan: simultaneously find existing key OR empty slot',
+  '    for {',
+  '        for i := uintptr(0); i < bucketCnt; i++ {',
+  '            if b.tophash[i] != top {',
+  '                if isEmpty(b.tophash[i]) && inserti == nil {',
+  '                    inserti = &b.tophash[i] // save first empty slot',
+  '                    insertk = keyptr(b, i)',
+  '                    val     = valptr(b, i)',
+  '                }',
+  '                if b.tophash[i] == emptyRest { break }',
+  '                continue',
+  '            }',
+  '            // 3. tophash match — check full key equality',
+  '            k := keyptr(b, i)',
+  '            if !t.key.equal(key, k) { continue }',
+  '            // 4. EXISTING KEY → UPDATE path (in-place)',
+  '            val = valptr(b, i)',
+  '            goto done',
+  '        }',
+  '        ovf := b.overflow(t)',
+  '        if ovf == nil { break }',
+  '        b = ovf',
+  '    }',
+  '    // 5. not found — grow if needed, then use inserti',
+  '    if overLoadFactor(h.count+1, h.B) ||',
+  '       tooManyOverflowBuckets(h.noverflow, h.B) {',
+  '        hashGrow(t, h)',
+  '        goto again  // retry after grow',
+  '    }',
+  '    if inserti == nil {  // no empty slot found',
+  '        inserti, insertk, val = newoverflow(t, h, b)',
+  '    }',
+  '    *inserti = top; *insertk = key; h.count++',
+  'done:',
+  '    h.flags &^= hashWriting // clear flag',
+  '    return val',
+  '}',
+],
+steps:[
+  {phase:'init',  cl:4,  flagSet:true, slots:Array(8).fill('empty'),bucket:'0',count:'0',B:'1',key:'newkey',top:'AB',overflow:false,growTrig:false,
+   title:'SET hashWriting FLAG',
+   body:'mapassign enters. Checks h.flags & hashWriting: zero (safe). Sets the flag: h.flags ^= hashWriting. Now if any other goroutine enters mapassign or mapdelete concurrently, it will see the flag and call fatal().',
+   insight:'<strong>fatal() vs panic():</strong> The write flag triggers fatal(), not panic(). You cannot recover() from fatal(). The goroutine stack trace shows both goroutines. Always use go test -race.'},
+  {phase:'insert',cl:18, flagSet:true, slots:['target','empty','empty','empty','empty','empty','empty','empty'],bucket:'0',count:'1',B:'1',key:'newkey',top:'AB',overflow:false,growTrig:false,
+   title:'SCAN: SAVE FIRST EMPTY SLOT',
+   body:'The loop scans all tophash slots. Slot 0 is empty → save its address in inserti (insert target). Continue scanning to check if the key already exists. No existing key found → use inserti. tophash[0] = 0xAB, keys[0] = "newkey", count++.',
+   insight:'<strong>Dual-purpose scan:</strong> one pass simultaneously finds the insert slot (first empty) AND checks for existing key (update path). If key found mid-scan, the saved inserti is discarded and we jump to "done".'},
+  {phase:'lookup',cl:27, flagSet:true, slots:['match','match','match','empty','empty','empty','empty','empty'],bucket:'0',count:'3',B:'1',key:'key0',top:'AB',overflow:false,growTrig:false,
+   title:'UPDATE PATH: IN-PLACE WRITE',
+   body:'Key "key0" already exists: tophash match + key.equal() = true. Return existing &values[0]. Caller writes the new value in-place. No count increment. No memory allocation. No tophash change. Update is the fast path.',
+   insight:'<strong>Update never allocates:</strong> returns the existing value pointer. The compiler emits a simple store through the pointer. No GC pressure. Compare to Java HashMap.put() which may allocate a new Entry.'},
+  {phase:'warn',  cl:37, flagSet:true, slots:Array(8).fill('full'),bucket:'0',count:'8',B:'1',key:'9th',top:'EE',overflow:false,growTrig:false,
+   title:'OVERFLOW BUCKET NEEDED',
+   body:'All 8 slots full, inserti=nil. newoverflow() allocates a new bmap on the heap, chains it via overflow pointer, increments hmap.noverflow. Next insert for this bucket goes into the overflow bucket.',
+   insight:'<strong>newoverflow() allocation:</strong> the runtime maintains a pool of overflow buckets in mapextra to reduce GC pressure. Only falls back to heap allocation when the pool is empty.'},
+  {phase:'grow',  cl:34, flagSet:false,slots:Array(8).fill('full'),bucket:'0',count:'14',B:'1',key:null,top:null,overflow:false,growTrig:true,
+   title:'GROW TRIGGERED: LOAD > 6.5',
+   body:'count=15 would make load = 15/2 = 7.5 > 6.5. Before inserting: hashGrow() is called. B: 1→2 (2→4 buckets). Old array saved in oldbuckets. New empty array allocated. Function jumps to "again:" to retry with the new B.',
+   insight:'<strong>Grow happens BEFORE insert:</strong> not after. The new key is always inserted into a properly-sized map. After grow, the bucket index recomputes with the new B — the key may go to a different bucket.'},
+  {phase:'done',  cl:41, flagSet:false,slots:['match','match','match','target','empty','empty','empty','empty'],bucket:'0',count:'6',B:'2',key:'newkey',top:'AB',overflow:false,growTrig:false,
+   title:'CLEAR FLAG, RETURN',
+   body:'Insert complete. h.flags &^= hashWriting clears the write flag. Return value pointer to caller. count=6, B=2, load=1.5. Well below threshold. Next grow at count=26.',
+   insight:'<strong>Amortized O(1):</strong> most inserts are O(1) (no grow). Grow costs O(n) but is spread across O(n) subsequent writes via incremental evacuation. Total cost per insert: O(1) amortized.'},
+],
+usage:[
+  {n:1,title:'Insert vs update — same syntax, different paths',sub:'runtime chooses based on key existence',code:`m := map[string]int{}
+
+// INSERT path (key not found):
+m["alice"] = 100   // new slot, count: 0→1
+m["bob"]   = 200   // new slot, count: 1→2
+
+// UPDATE path (key exists — in-place, no allocation):
+m["alice"] = 150   // same slot, count stays 2
+
+// COMMON PATTERN: increment (zero-value trick):
+m["visits"]++   // first time: insert 0+1=1
+m["visits"]++   // update: 1+1=2
+m["visits"]++   // update: 2+1=3
+
+// COMMON PATTERN: conditional set
+if _, ok := m[key]; !ok {
+    m[key] = expensiveCompute()  // only if not exists
+}`,note:''},
+  {n:2,title:'Maps never shrink — memory trap in long-running servers',sub:'peak allocation is retained even after mass delete',code:`// Insert 1 million keys:
+m := make(map[int]string)
+for i := 0; i < 1_000_000; i++ {
+    m[i] = strconv.Itoa(i)
+}
+// hmap.count = 1M, B is large, bucket array allocated
+
+// Delete all keys:
+for k := range m { delete(m, k) }
+// hmap.count = 0
+// BUT: bucket array is STILL ALLOCATED at peak size!
+// Memory is NOT returned to the OS.
+
+// FIX: rebuild the map
+func rebuild[K comparable, V any](m map[K]V) map[K]V {
+    n := make(map[K]V, len(m))
+    for k, v := range m { n[k] = v }
+    return n  // old map GC'd
+}
+m = rebuild(m)  // now memory is released`,note:'This is a known Go issue. For long-running servers that process then discard large maps, explicit rebuild is the only way to return memory.'},
+  {n:3,title:'Concurrent write protection with sync.Mutex',sub:'simplest correct pattern for any write workload',code:`type SafeCounter struct {
+    mu   sync.Mutex
+    data map[string]int
+}
+
+func NewSafeCounter() *SafeCounter {
+    return &SafeCounter{data: make(map[string]int)}
+}
+
+// write: exclusive lock
+func (c *SafeCounter) Inc(key string) {
+    c.mu.Lock()
+    c.data[key]++
+    c.mu.Unlock()  // defer is fine too, slightly slower
+}
+
+// read: also needs lock (write could be in progress)
+func (c *SafeCounter) Get(key string) int {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    return c.data[key]
+}
+
+// snapshot: lock, copy, release
+func (c *SafeCounter) Snapshot() map[string]int {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    cp := make(map[string]int, len(c.data))
+    for k, v := range c.data { cp[k] = v }
+    return cp
+}`,note:''},
+  {n:4,title:'maps.Delete and maps.DeleteFunc (Go 1.21)',sub:'conditional delete with a predicate',code:`import "maps"
+
+m := map[string]int{"a": 1, "b": -1, "c": 3, "d": -4}
+
+// Delete all entries where value < 0:
+maps.DeleteFunc(m, func(k string, v int) bool {
+    return v < 0
+})
+// m = {"a": 1, "c": 3}
+
+// Equivalent manual version:
+for k, v := range m {
+    if v < 0 { delete(m, k) }
+}
+
+// maps.Keys and maps.Values (also Go 1.21):
+import "maps", "slices"
+keys := slices.Collect(maps.Keys(m))
+slices.Sort(keys)`,note:'maps package requires Go 1.21. Equivalent iteration patterns work in all Go versions.'},
+  {n:5,title:'Struct map values are not addressable — pattern',sub:'pointer map vs value map tradeoffs',code:`type User struct{ Name string; Visits int }
+
+// VALUE map — values are copies, NOT addressable
+users := map[string]User{}
+users["alice"] = User{"Alice", 0}
+
+// WRONG — does not compile:
+// users["alice"].Visits++
+// Error: cannot assign to users["alice"].Visits
+
+// Pattern A: read-modify-write (simple)
+u := users["alice"]
+u.Visits++
+users["alice"] = u
+
+// Pattern B: pointer map (direct mutation)
+ptrs := map[string]*User{}
+ptrs["alice"] = &User{"Alice", 0}
+ptrs["alice"].Visits++  // OK — pointer is addressable
+
+// Trade-off: pointer map = GC pressure (each *User is heap-tracked)
+// Value map = no GC for values, but no direct mutation`,note:''},
+],
+concepts:[
+  {icon:'🚩',title:'hashWriting FLAG MECHANICS',body:'A single bit in hmap.flags. Set at entry to mapassign/mapdelete. Cleared at exit. Check on every entry. Cost: one bitwise AND per operation. If set: fatal(). The flag does not survive across goroutine switches — it\'s not a lock, just a detector.'},
+  {icon:'🔍',title:'DUAL-PURPOSE SCAN',body:'The scan loop does two things simultaneously: tracks the first empty slot (inserti) as a candidate for insert, and looks for an existing key (for update). Single O(bucketCount) pass instead of two passes. If key found: inserti is never used.'},
+  {icon:'📈',title:'TWO GROW TRIGGERS',body:'1. overLoadFactor: count > 6.5 × 2^B → B++ (double buckets). 2. tooManyOverflowBuckets: too many overflow chains → same B, compaction. Compaction redistributes overflow chains without allocating more memory.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Concurrent writes = fatal, no recover',body:'fatal() called by hashWriting flag detection. The process terminates. Run go test -race in CI to catch this at test time.'},
+  {t:'warn',icon:'💥',title:'Maps never shrink after grow',body:'Deleting all keys reduces count but NOT the bucket array. Explicit rebuild needed to free memory in long-running processes.'},
+  {t:'ok', icon:'✅',title:'Update is allocation-free',body:'Updating an existing key returns the existing value pointer. No allocation, no GC pressure. Fast path.'},
+  {t:'ok', icon:'🎯',title:'INTERVIEW: two grow conditions?',body:'1. Load factor > 6.5 → B++ (double). 2. tooManyOverflowBuckets → same B (compaction). The second handles delete-heavy workloads that create sparse overflow chains.'},
+]},
+
+grow:{label:'5. GROW',
+file:'runtime/map.go — hashGrow + evacuate',
+code:[
+  '// hashGrow: called when load>6.5 or too many overflow chains',
+  'func hashGrow(t *maptype, h *hmap) {',
+  '    bigger := uint8(1)          // assume B++ (double buckets)',
+  '    if !overLoadFactor(h.count+1, h.B) {',
+  '        // same-B grow: compaction, no doubling',
+  '        bigger = 0',
+  '    }',
+  '    oldbuckets := h.buckets',
+  '    newbuckets  = newarray(t.bucket, 1<<(h.B+bigger))',
+  '    h.oldbuckets = oldbuckets  // save old array (all data here)',
+  '    h.buckets    = newbuckets  // new array (empty)',
+  '    h.B         += bigger',
+  '    h.nevacuate  = 0           // start evacuation from bucket 0',
+  '    // Keys NOT moved yet. Incremental evacuation starts now.',
+  '}',
+  '',
+  '// evacuate: called 1-2x per write/delete during grow',
+  'func evacuate(t *maptype, h *hmap, oldbucket uintptr) {',
+  '    b      := oldbuckets[oldbucket]',
+  '    newbit := h.noldbuckets()   // = 1 << (B - 1)',
+  '    for ; b != nil; b = b.overflow(t) {',
+  '        for i := 0; i < bucketCnt; i++ {',
+  '            hash  := t.hasher(bucketKey(b, i), h.hash0)',
+  '            // New bit determines X or Y destination:',
+  '            useY  := (hash & newbit) != 0  // bit (B-1)',
+  '            dst   := &xy[useY]  // xy[0]=X, xy[1]=Y',
+  '            dst.b.tophash[dst.i] = b.tophash[i]',
+  '            *dst.k = *bucketKey(b, i)',
+  '            *dst.v = *bucketVal(b, i)',
+  '            dst.i++',
+  '        }',
+  '    }',
+  '    h.nevacuate++',
+  '    if h.nevacuate == newbit {',
+  '        advanceEvacMark(h) // all done, free old array',
+  '    }',
+  '}',
+  '',
+  '// Load factor: count > 6.5 * 2^B',
+  '// At B=3 (8 buckets): grows at count=53',
+  '// At B=10 (1024 buckets): grows at count=6656',
+],
+steps:[
+  {phase:'init',  cl:1,  B:'3',nevac:'0',
+   title:'GROW TRIGGERED',
+   body:'B=2: 4 buckets. count=27, load=6.75 > 6.5. hashGrow() called. bigger=1 (load-based grow, not compaction). New 8-bucket array allocated. B: 2→3. nevacuate reset to 0.',
+   insert:'<strong>Two grow modes:</strong> (1) Load grow: B++ → double buckets. (2) Compaction: same B, no doubling, just consolidates overflow chains. Today: load grow.'},
+  {phase:'grow',  cl:10, B:'3',nevac:'0',
+   title:'TWO ARRAYS COEXIST',
+   body:'oldbuckets = old 4-bucket array (has all data). h.buckets = new empty 8-bucket array. Keys are NOT moved yet. Reads transparently check both arrays. No goroutine is blocked.',
+   insight:'<strong>Concurrent safety during grow:</strong> reads use evacuated(oldb) to decide which array to query. Writes always go to the new array (after evacuating the old bucket first).'},
+  {phase:'evac',  cl:17, B:'3',nevac:'1',
+   title:'EVACUATE BUCKET 0',
+   body:'First write after grow calls evacuate(oldbucket=0). For each key in old bucket 0: compute hash, check bit B-1. Bit=0 → X (new bucket 0). Bit=1 → Y (new bucket 4). Bucket 0 is now marked evacuated. nevacuate: 0→1.',
+   insight:'<strong>X/Y split explained:</strong> old bucket 0 served hashes where low 2 bits = 00. New bucket 0 serves low 3 bits = 000 (X). New bucket 4 serves low 3 bits = 100 (Y). One extra bit distinguishes them.'},
+  {phase:'evac',  cl:17, B:'3',nevac:'2',
+   title:'INCREMENTAL: 1–2 PER WRITE',
+   body:'nevacuate=2. Old buckets 0,1 evacuated. Buckets 2,3 still in old array. Lookups routing to any of these old buckets are correctly served from oldbuckets (evacuated() check).',
+   insight:'<strong>Why 1–2 per write?</strong> Bounding evacuation per operation keeps worst-case write latency predictable. Total O(n) evacuation cost is amortized across O(n) writes: O(1) amortized per insert.'},
+  {phase:'evac',  cl:17, B:'3',nevac:'3',
+   title:'ALMOST DONE',
+   body:'nevacuate=3. One old bucket remains. Normal map operations continue. Concurrent readers use the correct array automatically. Concurrent writes continue to trigger evacuation.',
+   insight:'<strong>evacuated() check cost:</strong> one pointer read + one comparison per lookup during grow. ~2 extra ns per lookup. Growth is not free but latency is bounded.'},
+  {phase:'done',  cl:31, B:'3',nevac:'4',
+   title:'GROW COMPLETE',
+   body:'nevacuate=4=oldN. advanceEvacMark() called. oldbuckets=nil. GC reclaims old array. B=3: 8 buckets. load=27/8=3.4. No goroutine was ever paused.',
+   insight:'<strong>Grow never shrinks B:</strong> once B increases, it stays. Deleting keys reduces count but not B. The bucket array stays at peak size forever. Rebuild the map to downsize.'},
+],
+usage:[
+  {n:1,title:'Visualize grow triggers with B thresholds',sub:'how many keys before each grow',code:`// Grow threshold = 6.5 * 2^B keys
+// B=0:  ≥ 6.5  * 1   =  7 keys → grow
+// B=1:  ≥ 6.5  * 2   = 13 keys → grow
+// B=2:  ≥ 6.5  * 4   = 26 keys → grow
+// B=3:  ≥ 6.5  * 8   = 52 keys → grow
+// B=4:  ≥ 6.5  * 16  = 104 keys → grow
+// B=10: ≥ 6.5  * 1024 = 6,656 keys → grow
+
+// Without hint: ~log2(N/6.5) grows for N keys
+// With hint N: 0 grows (pre-sized to correct B)
+
+m := make(map[string]int, 1_000_000)
+// B = ceil(log2(1000000/6.5)) = ceil(17.2) = 18
+// 2^18 = 262144 buckets allocated upfront
+// threshold: 6.5 * 262144 = 1,703,936 keys
+// No grow until 1.7M keys inserted`,note:''},
+  {n:2,title:'Detect grow with runtime/debug metrics',sub:'observe allocation spikes from map grows',code:`import (
+    "runtime"
+    "testing"
+)
+
+func BenchmarkMapGrow(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        b.ReportAllocs()
+
+        m := make(map[int]int)  // no hint
+        for j := 0; j < 10000; j++ {
+            m[j] = j           // ~8 grows triggered here
+        }
+        _ = m
+    }
+}
+// Output: ~12 allocs/op  (bucket arrays from each grow)
+
+func BenchmarkMapNoGrow(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        m := make(map[int]int, 10000)  // pre-sized
+        for j := 0; j < 10000; j++ {
+            m[j] = j           // 0 grows
+        }
+        _ = m
+    }
+}
+// Output: 2 allocs/op  (hmap header + initial buckets)`,note:''},
+  {n:3,title:'Same-size grow: compaction after mass delete',sub:'noverflow > 2^B triggers B-unchanged grow',code:`// Scenario: insert 100k keys, delete 90k
+m := make(map[int]int, 100_000)
+for i := 0; i < 100_000; i++ { m[i] = i }
+
+for i := 0; i < 90_000; i++ { delete(m, i) }
+// count = 10_000, but many overflow chains are now mostly empty
+// hmap.noverflow is still high from the original insertions
+
+// Next insert may trigger tooManyOverflowBuckets:
+// noverflow ≈ 2^B → compaction grow (bigger=0)
+// Old overflow chains merged into fewer, denser buckets
+// B stays the same — no doubling
+
+// Result: same B, fewer overflow chains, better lookup perf
+// The bucket array size doesn't change — memory not freed!`,note:''},
+  {n:4,title:'Grow interaction with sync.RWMutex',sub:'grow affects read performance transiently',code:`var (
+    mu    sync.RWMutex
+    cache = make(map[string][]byte, 1000)
+)
+
+// WRITER:
+func set(k string, v []byte) {
+    mu.Lock()
+    defer mu.Unlock()
+    cache[k] = v  // may trigger grow inside the write lock!
+    // grow = atomic pointer swaps + memory allocation
+    // All readers are blocked for duration of Lock()
+    // Grow duration: ~microseconds for typical maps
+}
+
+// TIP: pre-size cache to avoid grow under lock:
+// cache = make(map[string][]byte, expectedMaxSize)
+// No grow → no spike under write lock`,note:'Grow under a write lock blocks all readers for the duration. Pre-sizing avoids this entirely.'},
+  {n:5,title:'Compaction grow vs doubling grow at scale',sub:'understanding which mode triggers and why',code:`// DOUBLING GROW (bigger=1):
+//   Condition: count > 6.5 * 2^B
+//   Effect: B++, 2x buckets allocated
+//   Use case: map is genuinely getting fuller
+
+// COMPACTION GROW (bigger=0):
+//   Condition: noverflow >= max(1, 2^(B-4))
+//              (i.e., many overflow chains)
+//   Effect: B unchanged, keys redistributed
+//   Use case: insert-heavy + delete-heavy maps
+//             that accumulate empty overflow buckets
+
+// Example that triggers compaction, NOT doubling:
+m := make(map[int]int)
+for i := 0; i < 1000; i++ { m[i] = i }   // B grows
+for i := 0; i < 990; i++ { delete(m, i) } // noverflow stays high
+m[9999] = 9999  // may trigger compaction grow (not B++)
+
+// Key insight: two separate growth mechanisms for two
+// different pathological cases.`,note:''},
+],
+concepts:[
+  {icon:'📊',title:'WHY 6.5 AND NOT 0.75?',body:'Go buckets hold 8 slots. 6.5/8 = 81% fill. Java HashMap buckets hold 1 slot. 0.75/1 = 75% fill. Both target similar cache utilization, but Go\'s bucket structure amortizes pointer chasing across 8 items.'},
+  {icon:'🔄',title:'INCREMENTAL EVACUATION',body:'1–2 old buckets evacuated per write during grow. Amortizes O(n) rehash across O(n) subsequent operations. Maximum extra work per insert during grow: evacuate 2 buckets (bounded). No goroutine blocks, no stop-the-world.'},
+  {icon:'✂️',title:'X/Y SPLIT MECHANICS',body:'Old bucket i serves hashes where hash & oldMask = i. After grow (B++), old bucket i splits into new bucket i (X) and new bucket i+oldN (Y). Selector: bit B-1 of hash. 0→X, 1→Y. Only one extra bit determines destination.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Maps never shrink after grow',body:'Once B increases, it never decreases. Deleting keys reduces count but not B or the bucket array. For long-running processes: explicit rebuild.'},
+  {t:'ok', icon:'✅',title:'Grow is not stop-the-world',body:'Incremental, 1–2 buckets per write. Reads continue during grow. No goroutine blocks. Latency spike is bounded.'},
+  {t:'info',icon:'📌',title:'Grow happens inside the write critical section',body:'If you use sync.Mutex, grow happens while holding the lock — blocking readers. Pre-size to prevent grow under lock.'},
+  {t:'ok', icon:'🎯',title:'INTERVIEW: is Go map grow concurrent-safe?',body:'No — grow requires a write (sets hashWriting flag). But grow is non-blocking for reads: they transparently read from the correct array during grow.'},
+]},
+
+concurrent:{label:'6. CONCURRENT',
+file:'runtime/map.go — race detection',
+code:[
+  '// Maps are NOT goroutine-safe. Concurrent writes = FATAL.',
+  '// Concurrent read + write = FATAL. fatal() ≠ panic().',
+  '// Run: go test -race to detect races.',
+  '',
+  '// ── OPTION 1: sync.Mutex (universal) ───────────────────',
+  'type SafeMap[K comparable, V any] struct {',
+  '    mu sync.Mutex',
+  '    m  map[K]V',
+  '}',
+  'func (s *SafeMap[K,V]) Set(k K, v V) {',
+  '    s.mu.Lock()',
+  '    s.m[k] = v',
+  '    s.mu.Unlock()',
+  '}',
+  'func (s *SafeMap[K,V]) Get(k K) (V, bool) {',
+  '    s.mu.Lock()',
+  '    defer s.mu.Unlock()',
+  '    v, ok := s.m[k]',
+  '    return v, ok',
+  '}',
+  '',
+  '// ── OPTION 2: sync.RWMutex (read-heavy) ─────────────────',
+  'var rw sync.RWMutex',
+  'rw.Lock();  m[key] = val; rw.Unlock()  // writer: exclusive',
+  'rw.RLock(); v := m[key]; rw.RUnlock() // reader: shared, N ok',
+  '',
+  '// ── OPTION 3: sync.Map (read-mostly, stable keys) ───────',
+  'var sm sync.Map',
+  'sm.Store("key", value)',
+  'v, ok := sm.Load("key")           // lock-free if in read map',
+  'sm.LoadOrStore("key", default)',
+  'sm.Range(func(k, v any) bool {',
+  '    fmt.Println(k, v)',
+  '    return true',
+  '})',
+  '',
+  '// sync.Map internals:',
+  '// read map (atomic, lock-free reads)',
+  '// dirty map (mutex, has new/updated keys)',
+  '// misses → dirty promoted to read (atomic swap)',
+],
+steps:[
+  {phase:'init',  cl:0, g1:false,g2:false,g1op:'_ = m["a"]',g2op:'_ = m["b"]',conflict:false,crash:false,sol:null,
+   title:'MAPS: NOT GOROUTINE-SAFE',
+   body:'A Go map has no internal lock. Concurrent writes, or a concurrent read and write, both trigger fatal(). This is intentional: adding a lock would slow down all single-goroutine map operations. The choice is: pay the lock cost always, or synchronize explicitly. Go chose explicit.',
+   insight:'<strong>Why fatal() and not panic()?</strong> A race condition indicates a programming error — corrupted map internals. Allowing recover() could hide the bug and let the process continue with corrupted state.'},
+  {phase:'hash',  cl:9, g1:true, g2:false,g1op:'m["a"] = 1',g2op:'waiting...',conflict:false,crash:false,sol:null,
+   title:'GOROUTINE 1: SETS hashWriting',
+   body:'Goroutine 1 enters mapassign. h.flags & hashWriting = 0 (clear). Sets h.flags |= hashWriting. Now processing the insert: hashing key, finding bucket, scanning slots. The write flag is set for the duration.',
+   insight:'<strong>The flag is NOT a lock:</strong> it does not block other goroutines. It only detects if a concurrent entry happens. Detection cost: one bitwise AND per operation — essentially free.'},
+  {phase:'crash', cl:5, g1:true, g2:true, g1op:'m["a"] = 1',g2op:'m["b"] = 2',conflict:true,crash:true,sol:null,
+   title:'GOROUTINE 2: DETECTS FLAG → FATAL',
+   body:'Goroutine 2 enters mapassign. Checks h.flags & hashWriting — it\'s set by goroutine 1! Calls fatal("concurrent map writes"). The runtime prints both goroutine stacks and terminates the process. No recovery possible.',
+   insight:'<strong>go test -race would have caught this:</strong> the race detector instruments all memory accesses, including map reads/writes. It detects the race before fatal() is triggered, with a clear goroutine stack report.'},
+  {phase:'warn',  cl:0, g1:false,g2:false,g1op:'terminated',g2op:'terminated',conflict:false,crash:false,sol:null,
+   title:'PROCESS TERMINATED',
+   body:'fatal() terminates the process via throw(), which calls exit(). The stack trace shows both goroutines involved. No cleanup, no deferred functions run for the goroutine that called fatal().',
+   insight:'<strong>Prevention:</strong> (1) go test -race in all CI pipelines. (2) Run production with GORACE=halt_on_error=1 to catch production races. (3) Use one of the three sync options below.'},
+  {phase:'insert',cl:5, g1:false,g2:false,g1op:'mu.Lock(); m["a"]=1',g2op:'mu.Lock(); m["b"]=2',conflict:false,crash:false,sol:'mutex',
+   title:'FIX 1: sync.Mutex',
+   body:'Lock before every map access (read AND write). Single goroutine holds the mutex at a time. All other goroutines block. Simple, universal, correct for all patterns. Overhead ~20–30 ns per operation.',
+   insight:'<strong>Common mistake:</strong> locking writes but not reads. A read concurrent with a write is equally fatal. Mutex must wrap both read and write paths.'},
+  {phase:'lookup',cl:21,g1:false,g2:false,g1op:'rw.RLock();v=m["a"]',g2op:'rw.Lock();m["b"]=2',conflict:false,crash:false,sol:'rw',
+   title:'FIX 2: sync.RWMutex',
+   body:'N goroutines can hold RLock() simultaneously. Lock() is exclusive (blocks readers+writers). Better than Mutex when reads >> writes (>10:1 ratio). If reads < 10x writes, Mutex is often faster (lower acquisition overhead).',
+   insight:'<strong>Write starvation risk:</strong> with many readers constantly holding RLock, a writer may wait a long time for Lock(). Go\'s sync.RWMutex prevents complete starvation but write latency increases under read pressure.'},
+  {phase:'done',  cl:26,g1:false,g2:false,g1op:'sm.Load("a")',g2op:'sm.Store("b",2)',conflict:false,crash:false,sol:'smap',
+   title:'FIX 3: sync.Map',
+   body:'Two internal maps: a read map (accessed atomically, no lock) and a dirty map (mutex-protected). Reads check read map first (lock-free). If not there: check dirty map (lock). New keys go to dirty. Dirty promoted to read on miss threshold.',
+   insight:'<strong>sync.Map sweet spot:</strong> stable key set, many concurrent readers. Bad fit: frequent new key insertions (dirty map mutex becomes bottleneck). Benchmark before choosing over Mutex.'},
+],
+usage:[
+  {n:1,title:'Generic safe map wrapper (Go 1.18+)',sub:'type-safe wrapper using generics',code:`type Map[K comparable, V any] struct {
+    mu sync.RWMutex
+    m  map[K]V
+}
+
+func NewMap[K comparable, V any]() *Map[K, V] {
+    return &Map[K, V]{m: make(map[K]V)}
+}
+
+func (m *Map[K,V]) Set(k K, v V) {
+    m.mu.Lock()
+    m.m[k] = v
+    m.mu.Unlock()
+}
+
+func (m *Map[K,V]) Get(k K) (V, bool) {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    v, ok := m.m[k]
+    return v, ok
+}
+
+func (m *Map[K,V]) Delete(k K) {
+    m.mu.Lock()
+    delete(m.m, k)
+    m.mu.Unlock()
+}
+
+func (m *Map[K,V]) Len() int {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    return len(m.m)
+}`,note:'Generics eliminate interface{} type assertions. Works for any comparable key type.'},
+  {n:2,title:'sync.Map for a service registry (ideal use case)',sub:'stable keys + many readers = sync.Map wins',code:`// Good fit: routes/handlers registered once, read on every request
+var routes sync.Map
+
+// Registration (startup, rare):
+func Register(path string, h http.HandlerFunc) {
+    routes.Store(path, h)
+}
+
+// Dispatch (hot path, very frequent):
+func Dispatch(w http.ResponseWriter, r *http.Request) {
+    v, ok := routes.Load(r.URL.Path)  // lock-free after warmup!
+    if !ok {
+        http.NotFound(w, r)
+        return
+    }
+    v.(http.HandlerFunc)(w, r)
+}
+
+// LoadOrStore: atomic get-or-create (no double-init)
+actual, loaded := routes.LoadOrStore("/new", newHandler)
+if loaded {
+    fmt.Println("already registered:", actual)
+}`,note:'After the first few requests, the read map is fully populated and Load() is lock-free. This is the pattern sync.Map was designed for.'},
+  {n:3,title:'Channel-based serialization pattern',sub:'one goroutine owns the map — no locks needed',code:`type op struct {
+    key    string
+    val    int
+    write  bool
+    result chan<- int
+}
+
+func mapWorker(ops <-chan op) {
+    m := make(map[string]int)
+    for o := range ops {
+        if o.write {
+            m[o.key] = o.val
+            o.result <- 0  // ack
+        } else {
+            o.result <- m[o.key]
+        }
+    }
+}
+
+ch := make(chan op, 128)  // buffered for throughput
+go mapWorker(ch)
+
+// Caller:
+result := make(chan int, 1)
+ch <- op{key: "hits", result: result}
+v := <-result
+
+// Advantage: natural backpressure, no lock contention.
+// Disadvantage: higher per-op latency (~goroutine schedule).`,note:''},
+  {n:4,title:'race detector in CI — mandatory',sub:'how to enable and what it catches',code:`// go test -race: instruments all memory accesses
+// Catches: concurrent map read+write, concurrent writes
+
+// .github/workflows/test.yml:
+// - run: go test -race ./...
+
+// Local:
+// go test -race ./...
+// go run -race main.go
+
+// Example output when race detected:
+// ==================
+// WARNING: DATA RACE
+// Write at 0x... by goroutine 7:
+//   main.main.func2()
+//       main.go:15
+// Previous read at 0x... by goroutine 6:
+//   main.main.func1()
+//       main.go:10
+// ==================
+
+// -race overhead: ~5-10x slowdown, 5-10x memory
+// Run in CI/staging, NOT in production (usually)`,note:'go test -race is the most important tool for catching map races before production.'},
+  {n:5,title:'Sharded map — reduce lock contention at scale',sub:'N independent maps, each with own lock',code:`// For very high concurrency: shard the map to reduce contention
+const shards = 64
+
+type ShardedMap struct {
+    shards [shards]struct {
+        sync.RWMutex
+        m map[string]int
+    }
+}
+
+func NewShardedMap() *ShardedMap {
+    sm := &ShardedMap{}
+    for i := range sm.shards {
+        sm.shards[i].m = make(map[string]int)
+    }
+    return sm
+}
+
+func (s *ShardedMap) shard(k string) int {
+    h := fnv.New32()
+    h.Write([]byte(k))
+    return int(h.Sum32()) % shards
+}
+
+func (s *ShardedMap) Set(k string, v int) {
+    sh := &s.shards[s.shard(k)]
+    sh.Lock()
+    sh.m[k] = v
+    sh.Unlock()
+}`,note:'64 shards → 64x less contention. Useful for hot-path caches with many goroutines. Trade-off: no atomic len(), Range() requires locking all shards.'},
+],
+concepts:[
+  {icon:'💀',title:'WHY FATAL AND NOT PANIC?',body:'A concurrent map write indicates corrupted map internals — tophash, pointers, count are in an inconsistent state. Continuing execution with a corrupted map would cause unpredictable crashes later. fatal() ensures the process stops immediately with a useful stack trace.'},
+  {icon:'🔬',title:'RACE DETECTOR MECHANICS',body:'go test -race uses ThreadSanitizer (TSan). Every memory access is instrumented to record "last written by goroutine X at time T". On read: check if last writer is different goroutine and clocks don\'t synchronize. O(1) check per access, 5-10x runtime overhead.'},
+  {icon:'🗺️',title:'SYNC.MAP INTERNALS',body:'Two maps: readOnly (atomic pointer to immutable snapshot) and dirty (mutex-protected, has new keys). Read path: atomic load + map lookup, lock-free. Miss path: lock dirty map, lookup, record miss. After (misses > dirtyLen): dirty becomes new readOnly, dirty rebuilt lazily.'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'fatal() cannot be recovered with recover()',body:'Unlike panics, fatal() bypasses the defer/recover mechanism. Process terminates immediately. No cleanup. Use go test -race to catch races at test time.'},
+  {t:'warn',icon:'⚠️',title:'Concurrent reads with no writes: safe',body:'Multiple goroutines reading the same map concurrently is safe. hashWriting is only set by writes. Zero readers need synchronization if no writer runs concurrently.'},
+  {t:'warn',icon:'⚠️',title:'sync.Map is NOT a general map replacement',body:'Write-heavy workloads: the dirty-map mutex is a bottleneck. sync.Map outperforms Mutex only for read-mostly, stable-key workloads. Benchmark first.'},
+  {t:'ok', icon:'🎯',title:'INTERVIEW: describe 3 sync options',body:'Mutex (universal), RWMutex (read-heavy), sync.Map (stable keys, read-mostly). Explain when each is appropriate and why sync.Map is not a drop-in replacement.'},
+  {t:'note',icon:'📌',title:'Channel-based map avoids all locks',body:'One goroutine owns the map. All access through channel messages. Natural backpressure, no contention. Trade-off: goroutine scheduling overhead (~1µs vs ~20ns for mutex).'},
+]},
+};
+
+/* ── PLAYBACK ── */
+let SCENE='hmap';
+const PLAY={steps:[],idx:0,playing:false,timer:null,speed:950};
+
+function applyStep(step){
+  draw(step);
+  // badge + phase
+  const b=document.getElementById('badge');
+  b.textContent=step.phase.toUpperCase();b.className='badge '+step.phase;
+  // title
+  document.getElementById('expl-title').textContent=step.title||step.phase.toUpperCase();
+  // body
+  document.getElementById('expl-body').textContent=step.body||step.desc||'';
+  // insight
+  const ins=document.getElementById('expl-insight');
+  if(step.insight){ins.innerHTML=step.insight;ins.style.display='block';}
+  else{ins.style.display='none';}
+  // step counter
+  const tot=PLAY.steps.length;
+  document.getElementById('expl-step').textContent=(PLAY.idx+1)+' / '+tot;
+  document.getElementById('pbar').style.width=(tot>1?(PLAY.idx/(tot-1)*100):0)+'%';
+  document.getElementById('sc').textContent=(PLAY.idx+1)+'/'+tot;
+  // stats
+  document.getElementById('s-cnt').textContent=step.count||'—';
+  document.getElementById('s-b').textContent=step.B||'—';
+  const bv=parseInt(step.B||'0');
+  document.getElementById('s-bk').textContent=bv>0?Math.pow(2,bv):'—';
+  const lf=step.count&&step.B?(parseFloat(step.count)/Math.pow(2,bv)).toFixed(2):'—';
+  const lfEl=document.getElementById('s-lf');lfEl.textContent=lf;
+  lfEl.style.color=parseFloat(lf)>6.5?'var(--r)':parseFloat(lf)>5?'var(--o)':'var(--c)';
+  document.getElementById('s-gr').textContent=step.growing?'YES':(step.nevac&&step.nevac!=='0'?'evac':( step.growTrig?'GROW!':'no'));
+  document.getElementById('s-gr').style.color=step.growing||step.growTrig?'var(--o)':'rgba(255,178,41,.4)';
+  renderCode(SCENES[SCENE].code,step.cl>=0?step.cl:-1);
+  snd(step.phase);
+}
+function next(){if(PLAY.idx<PLAY.steps.length-1){PLAY.idx++;applyStep(PLAY.steps[PLAY.idx]);}}
+function prev(){if(PLAY.idx>0){PLAY.idx--;applyStep(PLAY.steps[PLAY.idx]);}}
+function togglePlay(){
+  if(PLAY.playing){
+    clearInterval(PLAY.timer);PLAY.playing=false;
+    document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');
+  }else{
+    PLAY.playing=true;document.getElementById('pb').textContent='⏸ PAUSE';document.getElementById('pb').classList.add('pl');
+    PLAY.timer=setInterval(()=>{
+      if(PLAY.idx<PLAY.steps.length-1){next();}
+      else{clearInterval(PLAY.timer);PLAY.playing=false;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}
+    },PLAY.speed);
+  }
+}
+function doReset(){if(PLAY.playing)togglePlay();PLAY.idx=0;if(PLAY.steps.length)applyStep(PLAY.steps[0]);}
+function setSpd(v){PLAY.speed=Math.round(2500-v*230);if(PLAY.playing){clearInterval(PLAY.timer);PLAY.timer=setInterval(()=>{if(PLAY.idx<PLAY.steps.length-1)next();else{clearInterval(PLAY.timer);PLAY.playing=false;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}},PLAY.speed);}}
+
+/* ── RENDER RIGHT PANELS ── */
+function renderUsage(sc){
+  document.getElementById('bp-usage').innerHTML=sc.usage.map(u=>`
+    <div class="uex">
+      <div class="uex-hdr">
+        <div class="uex-num">EXAMPLE ${u.n}</div>
+        <div class="uex-title">${u.title}</div>
+        <div class="uex-sub">${u.sub}</div>
+      </div>
+      <div class="uex-code">${hlUsage(u.code)}</div>
+      ${u.note?`<div class="uex-note">${u.note}</div>`:''}
+    </div>`).join('');
+}
+function renderConcepts(sc){
+  document.getElementById('bp-concepts').innerHTML=sc.concepts.map(c=>`
+    <div class="icon-row">
+      <div class="info-icon">${c.icon}</div>
+      <div><strong>${c.title}</strong><p>${c.body}</p></div>
+    </div>`).join('');
+}
+function renderTraps(sc){
+  document.getElementById('bp-traps').innerHTML=sc.traps.map(t=>`
+    <div class="trap ${t.t}">
+      <div class="trap-icon">${t.icon}</div>
+      <div class="trap-body"><strong>${t.title}</strong>${t.body}</div>
+    </div>`).join('');
+}
+
+function selectScene(key){
+  if(PLAY.playing)togglePlay();
+  SCENE=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENES[key];
+  PLAY.steps=sc.steps;PLAY.idx=0;
+  document.getElementById('code-hdr-file').textContent=sc.file||'runtime/map.go';
+  renderUsage(sc);renderConcepts(sc);renderTraps(sc);
+  renderCode(sc.code,-1);
+  applyStep(sc.steps[0]);
+}
+function buildTabs(){
+  const order=[['hmap','1·HMAP'],['bmap','2·BUCKET'],['lookup','3·LOOKUP'],['insert','4·INSERT'],['grow','5·GROW'],['concurrent','6·CONCURRENT']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  if(e.key==='ArrowRight'||e.key===']')next();
+  else if(e.key==='ArrowLeft'||e.key==='[')prev();
+  else if(e.key===' '){e.preventDefault();togglePlay();}
+  else if(e.key==='r'||e.key==='R')doReset();
+  else if(e.key==='m'||e.key==='M')toggleMute();
+  else if(e.key==='1')selectScene('hmap');
+  else if(e.key==='2')selectScene('bmap');
+  else if(e.key==='3')selectScene('lookup');
+  else if(e.key==='4')selectScene('insert');
+  else if(e.key==='5')selectScene('grow');
+  else if(e.key==='6')selectScene('concurrent');
+});
+
+/* ── BOOT ── */
+(function boot(){
+  const term=document.getElementById('blog'),fill=document.getElementById('bfill');
+  const lines=[
+    ['Allocating hmap header (56B on amd64)','OK'],
+    ['Calling fastrand() — hash seed','0x5f3a1c2b'],
+    ['Computing B from load factor 6.5','B=3 → 8 buckets'],
+    ['Checking bmap tophash layout','emptyRest = 0'],
+    ['Loading incremental evacuator','1–2 per write'],
+    ['Verifying hashWriting detection','fatal≠panic'],
+    ['MAP.VIZ READY',''],
+  ];
+  let i=0;
+  function nxt(){
+    if(i>=lines.length){setTimeout(start,350);return;}
+    const[msg,ok]=lines[i];
+    const d=document.createElement('div');d.className='bline';
+    d.innerHTML=`<span>${msg}</span><span class="bok">${ok||(i===lines.length-1?'<span class="bcur"></span>':'')}</span>`;
+    term.appendChild(d);setTimeout(()=>d.classList.add('v'),20);
+    fill.style.width=((i+1)/lines.length*100)+'%';
+    i++;setTimeout(nxt,i===lines.length?300:100);
+  }
+  setTimeout(nxt,200);
+})();
+function start(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  window.addEventListener('resize',resize);
+  resize();
+  setTimeout(()=>selectScene('hmap'),150);
+}
+</script>
+</body>
+</html>

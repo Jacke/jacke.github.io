@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RETRY.VIZ v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;--font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.48) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,.05);}
+.tab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#op-bar{display:flex;align-items:center;gap:7px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.38);flex-shrink:0;flex-wrap:wrap;}
+.obtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all .1s;}.obtn:hover{background:rgba(255,178,41,.08);}
+.op-label{font-size:8.5px;color:var(--amber-dim);letter-spacing:1px;}
+select.op-sel{font-family:var(--font-code);font-size:11px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 5px;outline:none;cursor:pointer;}
+select.op-sel option{background:#111;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.attempt{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.07);}
+.pbadge.fail{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.07);}
+.pbadge.wait{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,.07);}
+.pbadge.success{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.open{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.1);}
+.pbadge.halfopen{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.08);}
+.pbadge.closed{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.exhaust{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.12);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}.cline.active{background:rgba(255,178,41,.09);}
+.cline.active .cc{position:relative;}.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,.4),1px 0 1px rgba(50,80,255,.4);pointer-events:none;}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}#r-scroll::-webkit-scrollbar{width:3px;}#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas><div id="scan-line"></div><div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">RETRY.VIZ</div>
+  <div id="boot-tagline">RESILIENCE PATTERNS VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">RETRY.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="op-bar">
+        <span class="op-label">BASE_MS</span>
+        <select class="op-sel" id="base-ms"><option>100</option><option selected>250</option><option>500</option><option>1000</option></select>
+        <span class="op-label">MAX_RETRY</span>
+        <select class="op-sel" id="max-retry"><option>3</option><option selected>5</option><option>7</option></select>
+        <span class="op-label">JITTER</span>
+        <select class="op-sel" id="jitter-mode"><option value="none">none</option><option value="full" selected>full</option><option value="equal">equal</option><option value="decorr">decorr</option></select>
+        <button class="obtn" style="border-color:rgba(74,222,128,.5);color:#86efac" onclick="runScenario()">▶ RUN</button>
+        <button class="obtn" style="border-color:rgba(244,63,94,.35);color:#fda4af" onclick="doReset()">↺ RESET</button>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc"><span class="pbadge init" id="pbadge">INIT</span><span id="step-txt">Select scenario and RUN.</span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">ATTEMPT</span><span class="sv" id="s-att">0</span></div>
+        <div class="si"><span class="sl">DELAY_MS</span><span class="sv" id="s-delay">—</span></div>
+        <div class="si"><span class="sl">TOTAL_MS</span><span class="sv" id="s-total">0</span></div>
+        <div class="si"><span class="sl">CB_STATE</span><span class="sv" id="s-cb" style="font-size:12px">—</span></div>
+        <div class="si"><span class="sl">FAILURES</span><span class="sv" id="s-fail">0</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–4</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE CODE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ COMPLEXITY</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ INTERVIEW FACTS</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+/* NOISE */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+
+/* AUDIO */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const g=AC.createGain(),ws=AC.createWaveShaper();const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}ws.curve=cv;ws.connect(AC.destination);g.connect(ws);const o=AC.createOscillator();o.connect(g);const p={attempt:[400,.06],fail:[160,.1],wait:[280,.07],success:[560,.1],open:[180,.12],halfopen:[340,.07],closed:[500,.08],exhaust:[140,.14],click:[360,.04]};const[f,d]=p[type]||[360,.05];o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* SYNTAX */
+function hlGo(l){let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');s=s.replace(/\b(func|for|if|else|return|var|const|type|struct|int|float64|bool|string|time|make|nil|true|false|math|rand|Sleep|Duration)\b/g,'<span class="kw">$1</span>');s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');s=s.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="nm">$1</span>');return s;}
+function renderCode(lines,active){const el=document.getElementById('code-scroll');el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}}
+
+/* SCENARIOS */
+const SCENARIOS={
+  expo:{label:'EXP BACKOFF',
+    code:['// Exponential backoff: delay doubles each retry','func Retry(op func() error) error {','    base := 250 * time.Millisecond','    for i := 0; i < maxRetries; i++ {','        err := op()','        if err == nil { return nil }','        delay := base * (1 << i)  // 2^i','        if delay > maxDelay { delay = maxDelay }','        time.Sleep(delay)','    }','    return ErrExhausted','}'],
+    cx:`<strong>Delay formula</strong>: base × 2^attempt<br><strong>Max delay</strong>: typically capped at 30–60s<br><strong>Total wait (N retries)</strong>: base × (2^N - 1)<br><strong>Thundering herd risk</strong>: all clients retry in sync`,
+    how:`After each failed attempt, wait <code>base × 2^i</code> before next retry. Attempt 0: 250ms. Attempt 1: 500ms. Attempt 2: 1s. Attempt 3: 2s. Attempt 4: 4s.<br><br>The exponential growth gives the server time to recover without bombarding it continuously.`,
+    facts:`<span class="rw-tag">AWS SDK</span> default: max 10 retries, base 100ms<br><span class="rw-tag">gRPC</span> retries configurable per method in service config<br><span class="rw-tag">Idempotent</span> only: never retry non-idempotent writes blindly<br><span class="rw-tag">HTTP 429</span> Retry-After header should override backoff calc`,
+  },
+  jitter:{label:'JITTER',
+    code:['// Full jitter: randomize entire delay window','func fullJitter(base, cap time.Duration, n int) time.Duration {','    sleep := base * (1 << n)','    if sleep > cap { sleep = cap }','    return time.Duration(rand.Int63n(int64(sleep)))','    // range: [0, min(cap, base*2^n)]','}','','// Equal jitter: half fixed + half random','func equalJitter(base, cap time.Duration, n int) time.Duration {','    sleep := base * (1 << n)','    if sleep > cap { sleep = cap }','    return sleep/2 + time.Duration(rand.Int63n(int64(sleep/2)))','    // range: [cap/2, cap]','}','','// Decorrelated: previous delay influences next','func decorrelated(prev, base time.Duration) time.Duration {','    return time.Duration(rand.Int63n(int64(3*prev - base))) + base','}'],
+    cx:`<strong>Full jitter</strong>: range [0, cap]. Best for spreading load<br><strong>Equal jitter</strong>: [cap/2, cap]. More predictable min wait<br><strong>Decorrelated</strong>: [base, 3×prev]. Can grow beyond cap<br><strong>No jitter</strong>: thundering herd — all clients hit server simultaneously`,
+    how:`Jitter desynchronizes retry storms. Without jitter, all N clients that failed at time T will retry at exactly T+delay, T+2×delay, etc. — creating synchronized waves.<br><br>Full jitter spreads retries uniformly. AWS recommends full jitter for most distributed systems.`,
+    facts:`<span class="rw-tag">Thundering herd</span> avoided by jitter — retries spread across time window<br><span class="rw-tag">AWS blog 2015</span> "Exponential Backoff And Jitter" — canonical reference<br><span class="rw-tag">Full jitter</span> wins in simulations: lowest server load<br><span class="rw-tag">Decorrelated</span> converges faster but unpredictable timing`,
+  },
+  circuit:{label:'CIRCUIT BREAKER',
+    code:['// Circuit breaker: 3 states','type CB struct {','    state     State  // CLOSED | OPEN | HALF_OPEN','    failures  int','    threshold int    // e.g. 5','    resetAt   time.Time','    halfProbes int','}','','func (cb *CB) Call(op func() error) error {','    switch cb.state {','    case OPEN:','        if time.Now().Before(cb.resetAt) {','            return ErrCircuitOpen // fast fail','        }','        cb.state = HALF_OPEN','    }','    err := op()','    if err != nil {','        cb.failures++','        if cb.failures >= cb.threshold {','            cb.state = OPEN','            cb.resetAt = time.Now().Add(30*time.Second)','        }','        return err','    }','    cb.failures = 0; cb.state = CLOSED','    return nil','}'],
+    cx:`<strong>CLOSED</strong>: normal, track failures<br><strong>OPEN</strong>: fast fail, no calls to downstream<br><strong>HALF-OPEN</strong>: probe 1 request to test recovery<br><strong>Overhead</strong>: O(1) per call (just state check)`,
+    how:`Circuit breaker wraps downstream calls with a state machine:<br><br><strong>CLOSED</strong>: calls pass through. On threshold failures → OPEN.<br><strong>OPEN</strong>: all calls immediately return error (fast fail). After timeout → HALF-OPEN.<br><strong>HALF-OPEN</strong>: one probe call. If succeeds → CLOSED. If fails → back to OPEN.`,
+    facts:`<span class="rw-tag">Netflix Hystrix</span> — original circuit breaker library<br><span class="rw-tag">Resilience4j</span> — modern Go/JVM implementation<br><span class="rw-tag">Fast fail</span> prevents cascading failures, preserves resources<br><span class="rw-tag">Threshold</span> usually: 5 failures in 10s sliding window<br><span class="rw-tag">Half-open</span> prevents thundering herd on recovery`,
+  },
+  combined:{label:'COMBINED',
+    code:['// Retry + backoff + jitter + circuit breaker','func CallWithResilience(op func() error) error {','    cb := GetCircuitBreaker("service-x")','    base := 250 * time.Millisecond','    for i := 0; i < maxRetries; i++ {','        // circuit breaker check','        err := cb.Call(op)','        if err == nil { return nil }','        if err == ErrCircuitOpen {','            return err // no point retrying','        }','        // only retry transient errors','        if !isRetryable(err) { return err }','        // full jitter backoff','        sleep := min(cap, base*(1<<i))','        sleep = time.Duration(rand.Int63n(int64(sleep)))','        time.Sleep(sleep)','    }','    return ErrMaxRetriesExhausted','}'],
+    cx:`<strong>Combined</strong>: CB check → retry → jitter backoff<br><strong>Circuit open</strong>: skip retry loop entirely (fast fail)<br><strong>Non-retryable errors</strong>: 4xx, validation → no retry<br><strong>Retryable</strong>: 503, timeout, 429 → retry with backoff`,
+    how:`Production-grade resilience combines all three patterns:<br>1. Check circuit breaker before each attempt<br>2. On failure, check if error is retryable (not 400 Bad Request)<br>3. Apply jitter backoff before next retry<br>4. If circuit opens mid-loop, abort immediately`,
+    facts:`<span class="rw-tag">go-retryablehttp</span> — hashicorp's retry HTTP client<br><span class="rw-tag">grpc retry policy</span> configured in service config JSON<br><span class="rw-tag">Deadline propagation</span> — total timeout > sum of all retries = bug<br><span class="rw-tag">Context</span> always check ctx.Done() before sleeping`,
+  },
+};
+
+/* STEP BUILDING */
+function buildSteps(scenarioKey){
+  const baseMsEl=document.getElementById('base-ms');
+  const maxRetEl=document.getElementById('max-retry');
+  const jitterEl=document.getElementById('jitter-mode');
+  const baseMs=parseInt(baseMsEl.value)||250;
+  const maxRet=parseInt(maxRetEl.value)||5;
+  const jitterMode=jitterEl.value||'full';
+  const capMs=baseMs*Math.pow(2,maxRet)*2;
+
+  // seeded random for reproducibility
+  let seed=42;function rng(){seed=(seed*1664525+1013904223)&0xffffffff;return(seed>>>0)/0xffffffff;}
+
+  const steps=[];
+  function snap(phase,desc,cl,attempts=[],cbState=null,totalMs=0,failCount=0,delayMs=null){
+    steps.push({phase,desc,cl,attempts:[...attempts],cbState,totalMs,failCount,delayMs});
+  }
+
+  if(scenarioKey==='expo'){
+    snap('init',`Exponential backoff. base=${baseMs}ms, maxRetries=${maxRet}. Formula: delay = base × 2^attempt.`,0,[],null,0,0);
+    const attempts=[];let total=0,fails=0;
+    for(let i=0;i<maxRet;i++){
+      attempts.push({n:i+1,status:'attempt',delay:0});
+      snap('attempt',`Attempt ${i+1}/${maxRet}: calling downstream service...`,5,[...attempts],null,total,fails);
+      const isLast=i===maxRet-1;
+      const succeed=(i===maxRet-2);// succeed on second-to-last
+      if(succeed){
+        attempts[i]={n:i+1,status:'success',delay:0};
+        snap('success',`Attempt ${i+1}: SUCCESS! Service responded OK. Total retries: ${i}. Total wait: ${total}ms.`,6,[...attempts],null,total,fails);
+        break;
+      }
+      attempts[i]={n:i+1,status:'fail',delay:0};fails++;
+      const delay=Math.min(capMs,baseMs*Math.pow(2,i));total+=delay;
+      snap('fail',`Attempt ${i+1}: FAIL (503 Service Unavailable). Exponential delay: ${baseMs}ms × 2^${i} = ${delay}ms.`,7,[...attempts],null,total,fails,delay);
+      attempts.push({n:i+1,status:'wait',delay});
+      snap('wait',`Waiting ${delay}ms before retry ${i+2}. Delay bar shows backoff growth.`,8,[...attempts],null,total,fails,delay);
+      attempts.pop();
+    }
+  }
+
+  else if(scenarioKey==='jitter'){
+    snap('init',`Jitter mode: ${jitterMode}. base=${baseMs}ms. Randomizes delay to prevent thundering herd.`,0,[],null,0,0);
+    const attempts=[];let total=0,fails=0;
+    let prevDelay=baseMs;
+    for(let i=0;i<maxRet;i++){
+      attempts.push({n:i+1,status:'attempt'});
+      snap('attempt',`Attempt ${i+1}/${maxRet}: calling service...`,4,[...attempts],null,total,fails);
+      const succeed=(i===maxRet-2);
+      if(succeed){
+        attempts[i]={n:i+1,status:'success',delay:0};
+        snap('success',`SUCCESS on attempt ${i+1}. Jitter spread retries: no synchronized storm.`,5,[...attempts],null,total,fails);
+        break;
+      }
+      attempts[i]={n:i+1,status:'fail'};fails++;
+      const cap2=Math.min(capMs,baseMs*Math.pow(2,i));
+      let delay;
+      if(jitterMode==='full'){delay=Math.round(rng()*cap2);}
+      else if(jitterMode==='equal'){delay=Math.round(cap2/2+rng()*cap2/2);}
+      else if(jitterMode==='decorr'){delay=Math.round(baseMs+rng()*(3*prevDelay-baseMs));prevDelay=delay;}
+      else{delay=cap2;}
+      total+=delay;
+      snap('fail',`FAIL. ${jitterMode} jitter: theoretical_cap=${cap2}ms → jittered_delay=${delay}ms.`,jitterMode==='full'?2:jitterMode==='equal'?8:13,[...attempts],null,total,fails,delay);
+      attempts.push({n:i+1,status:'wait',delay});
+      snap('wait',`Waiting ${delay}ms. Jittered value within [${jitterMode==='equal'?Math.round(cap2/2):0}, ${cap2}]ms window.`,0,[...attempts],null,total,fails,delay);
+      attempts.pop();
+    }
+  }
+
+  else if(scenarioKey==='circuit'){
+    const threshold=3;const resetMs=2000;
+    snap('init',`Circuit Breaker. threshold=${threshold} failures → OPEN. resetTimeout=2s. Currently CLOSED.`,3,[],null,0,0);
+    const attempts=[];let total=0,fails=0;let cbState='CLOSED';
+    // phase 1: normal calls succeed
+    for(let i=0;i<2;i++){
+      attempts.push({n:attempts.length+1,status:'success',delay:0});
+      snap('closed',`CB=CLOSED. Call ${i+1}: SUCCESS. failures=0/${threshold}.`,9,[...attempts],cbState,total,0);
+    }
+    // phase 2: failures accumulate → OPEN
+    for(let i=0;i<threshold;i++){
+      fails++;
+      attempts.push({n:attempts.length+1,status:'fail',delay:0});
+      snap('fail',`CB=CLOSED. Call fails! failures=${fails}/${threshold}. ${fails>=threshold?'THRESHOLD REACHED → OPEN!':'Tracking...'}`,21,[...attempts],cbState,total,fails);
+      if(fails>=threshold){cbState='OPEN';snap('open',`CIRCUIT OPENS! Timeout=2s. All calls fast-fail immediately. Downstream gets no traffic.`,15,[...attempts],cbState,total,fails);triggerCA&&triggerCA();}
+    }
+    // phase 3: fast fail
+    for(let i=0;i<3;i++){
+      attempts.push({n:attempts.length+1,status:'fastfail',delay:0});
+      snap('open',`CB=OPEN. Call ${i+1} FAST-FAILED (ErrCircuitOpen). No network request made. Latency: ~0ms.`,12,[...attempts],cbState,total,fails);
+    }
+    // phase 4: half-open probe
+    cbState='HALF_OPEN';
+    attempts.push({n:attempts.length+1,status:'probe',delay:0});
+    snap('halfopen',`Timeout expired. CB → HALF-OPEN. Sending 1 probe request to test if downstream recovered.`,16,[...attempts],cbState,total,fails);
+    // probe succeeds
+    attempts[attempts.length-1]={n:attempts[attempts.length-1].n,status:'success',delay:0};
+    cbState='CLOSED';fails=0;
+    snap('closed',`Probe SUCCESS! CB → CLOSED. Failures counter reset. Normal traffic resumes.`,22,[...attempts],cbState,total,0);
+    snap('closed',`Circuit breaker fully CLOSED. System protected: only 3 real failures hit the downstream instead of many.`,22,[...attempts],cbState,total,0);
+  }
+
+  else if(scenarioKey==='combined'){
+    const threshold=3;
+    snap('init',`Combined: CB + exponential backoff + full jitter. base=${baseMs}ms, maxRetry=${maxRet}.`,0,[],null,0,0);
+    const attempts=[];let total=0,fails=0;let cbState='CLOSED';
+
+    // initial success
+    attempts.push({n:1,status:'success',delay:0});
+    snap('closed',`CB=CLOSED. Call 1: SUCCESS. System nominal.`,2,[...attempts],cbState,0,0);
+
+    // 3 failures → circuit opens
+    for(let i=0;i<threshold;i++){
+      fails++;const delay=Math.round(rng()*Math.min(capMs,baseMs*Math.pow(2,i)));total+=delay;
+      attempts.push({n:attempts.length+1,status:'fail',delay});
+      snap('fail',`CB=CLOSED. Attempt fails. Jitter backoff: ${delay}ms. failures=${fails}/${threshold}.`,14,[...attempts],cbState,total,fails,delay);
+    }
+    cbState='OPEN';
+    snap('open',`failures=${threshold}. CIRCUIT OPENS! Next retry immediately aborts.`,8,[...attempts],cbState,total,fails);
+    triggerCA&&triggerCA();
+
+    // fast fail on retry loop
+    attempts.push({n:attempts.length+1,status:'fastfail',delay:0});
+    snap('open',`Retry loop: CB.Call() → ErrCircuitOpen. Abort retry loop entirely. Return error to caller.`,8,[...attempts],cbState,total,fails);
+
+    // half-open + recover
+    cbState='HALF_OPEN';
+    attempts.push({n:attempts.length+1,status:'probe',delay:0});
+    snap('halfopen',`CB timeout expired. HALF-OPEN. Probe attempt...`,16,[...attempts],cbState,total,fails);
+    cbState='CLOSED';fails=0;
+    attempts[attempts.length-1]={n:attempts[attempts.length-1].n,status:'success',delay:0};
+    snap('closed',`Probe SUCCESS. CB → CLOSED. Retry policy: next request proceeds normally.`,22,[...attempts],cbState,total,0);
+
+    // final success
+    attempts.push({n:attempts.length+1,status:'success',delay:0});
+    snap('success',`Call succeeds. System recovered. Combined strategy: minimal blast radius, automatic recovery.`,6,[...attempts],cbState,total,0);
+  }
+
+  return steps;
+}
+
+/* CANVAS */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const wrap=document.getElementById('viz-wrap');CW=canvas.width=wrap.clientWidth;CH=canvas.height=wrap.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+
+const STATUS_COLOR={attempt:'#fbbf24',fail:'#f43f5e',success:'#4ade80',wait:'#60a5fa',fastfail:'#f43f5e',probe:'#a855f7'};
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+  const{attempts,cbState,totalMs,delayMs}=step;
+
+  // title
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`SCENARIO: ${curScene.toUpperCase()}  |  total_wait=${totalMs||0}ms`,12,4);
+
+  // circuit breaker state badge (top right)
+  if(cbState){
+    const cbCol={CLOSED:'#4ade80',OPEN:'#f43f5e',HALF_OPEN:'#f97316'}[cbState]||'#aaa';
+    ctx.font=`20px 'VT323'`;ctx.fillStyle=cbCol;ctx.textAlign='right';ctx.textBaseline='top';
+    ctx.strokeStyle=cbCol+'44';ctx.lineWidth=1;
+    const tw=ctx.measureText(`CB: ${cbState}`).width;
+    ctx.strokeRect(CW-tw-22,2,tw+16,22);
+    ctx.fillText(`CB: ${cbState}`,CW-12,5);
+  }
+
+  if(!attempts||!attempts.length)return;
+
+  // timeline layout
+  const PAD=40,TOP=50;
+  const rowH=52;
+  const maxAtt=attempts.length;
+  const timelineW=CW-PAD*2;
+
+  // draw attempt rows
+  // Also compute max delay for bar scaling
+  const maxDelay=Math.max(1,...attempts.filter(a=>a.delay>0).map(a=>a.delay));
+
+  attempts.forEach((att,i)=>{
+    const y=TOP+i*rowH;
+    if(y>CH-10)return;
+    const col=STATUS_COLOR[att.status]||'#aaa';
+
+    // attempt number
+    ctx.font=`14px 'VT323'`;ctx.fillStyle='rgba(255,178,41,0.3)';ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(`#${att.n}`,PAD-6,y+rowH/2-8);
+
+    // circle icon
+    ctx.save();
+    if(att.status==='success'){ctx.shadowColor='#4ade80';ctx.shadowBlur=10;}
+    if(att.status==='fail'||att.status==='fastfail'){ctx.shadowColor='#f43f5e';ctx.shadowBlur=8;}
+    ctx.beginPath();ctx.arc(PAD+12,y+14,10,0,Math.PI*2);
+    ctx.fillStyle=col+'22';ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.fill();ctx.stroke();
+    ctx.font=`14px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+    const icon={attempt:'?',fail:'✗',success:'✓',wait:'…',fastfail:'⚡',probe:'?'}[att.status]||'?';
+    ctx.fillText(icon,PAD+12,y+14);
+    ctx.restore();
+
+    // status label
+    ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=col+'cc';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(att.status.toUpperCase(),PAD+28,y+8);
+
+    // delay bar
+    if(att.delay>0){
+      const barW=Math.round((att.delay/maxDelay)*(timelineW-80));
+      const barX=PAD+28;const barY=y+26;const barH=10;
+      ctx.fillStyle='rgba(96,165,250,0.12)';ctx.fillRect(barX,barY,barW,barH);
+      ctx.strokeStyle='rgba(96,165,250,0.4)';ctx.lineWidth=1;ctx.strokeRect(barX,barY,barW,barH);
+      ctx.font=`10px 'IBM Plex Mono'`;ctx.fillStyle='#93c5fd';ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(`wait ${att.delay}ms`,barX+barW+6,barY+barH/2);
+    }
+
+    // connector line to next
+    if(i<attempts.length-1){
+      ctx.save();ctx.strokeStyle='rgba(255,178,41,0.12)';ctx.lineWidth=1;ctx.setLineDash([2,4]);
+      ctx.beginPath();ctx.moveTo(PAD+12,y+24);ctx.lineTo(PAD+12,y+rowH);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+    }
+  });
+
+  // backoff visualization (right side) — show delay curve
+  if(attempts.some(a=>a.delay>0)){
+    const delays=attempts.filter(a=>a.delay>0).map(a=>a.delay);
+    if(delays.length>=2){
+      const chartX=CW-120;const chartY=TOP+10;const chartW=100;const chartH=Math.min(CH-TOP-60,120);
+      ctx.save();
+      ctx.strokeStyle='rgba(255,178,41,0.15)';ctx.lineWidth=1;ctx.strokeRect(chartX,chartY,chartW,chartH);
+      ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.25)';ctx.textAlign='center';
+      ctx.fillText('DELAY CURVE',chartX+chartW/2,chartY-6);
+      const maxD=Math.max(...delays)||1;
+      ctx.strokeStyle='#60a5fa';ctx.lineWidth=1.5;ctx.beginPath();
+      delays.forEach((d,i)=>{
+        const px=chartX+4+(i/(delays.length-1||1))*(chartW-8);
+        const py=chartY+chartH-4-(d/maxD)*(chartH-8);
+        i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+      });
+      ctx.stroke();
+      // dots
+      delays.forEach((d,i)=>{
+        const px=chartX+4+(i/(delays.length-1||1))*(chartW-8);
+        const py=chartY+chartH-4-(d/maxD)*(chartH-8);
+        ctx.fillStyle='#93c5fd';ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fill();
+      });
+      ctx.restore();
+    }
+  }
+}
+
+/* PLAYBACK */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:420};
+let curScene='expo';
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  const phase=step.phase||'init';
+  badge.className='pbadge '+phase;
+  badge.textContent=phase.toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-att').textContent=(step.attempts||[]).filter(a=>a.status==='attempt'||a.status==='success'||a.status==='fail'||a.status==='fastfail'||a.status==='probe').length||0;
+  document.getElementById('s-delay').textContent=step.delayMs!=null?step.delayMs+'ms':'—';
+  document.getElementById('s-total').textContent=(step.totalMs||0)+'ms';
+  document.getElementById('s-cb').textContent=step.cbState||'—';
+  document.getElementById('s-fail').textContent=step.failCount||0;
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SCENARIOS[curScene].code,step.cl>=0?step.cl:-1);
+  if(phase&&phase!=='init')snd(phase);
+}
+
+function runScenario(){initAudio();if(ST.playing)pause();ST.steps=buildSteps(curScene);ST.idx=0;if(ST.steps.length){applyStep(ST.steps[0]);setTimeout(()=>play(),250);}snd('click');}
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){if(!ST.steps.length)return;if(ST.idx>=ST.steps.length-1)ST.idx=0;ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.steps=[];ST.idx=0;ctx.clearRect(0,0,CW,CH);document.getElementById('pbadge').className='pbadge init';document.getElementById('pbadge').textContent='INIT';document.getElementById('step-txt').textContent='Select scenario and RUN.';document.getElementById('step-ctr').textContent='0 / 0';document.getElementById('prog-bar').style.width='0%';snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENARIOS[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  doReset();
+  setTimeout(()=>runScenario(),200);
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectScene('expo');break;case'2':selectScene('jitter');break;case'3':selectScene('circuit');break;case'4':selectScene('combined');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['expo','1. EXP BACKOFF'],['jitter','2. JITTER'],['circuit','3. CIRCUIT BREAKER'],['combined','4. COMBINED']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+
+function boot(){
+  const term=document.getElementById('boot-terminal');const fill=document.getElementById('boot-fill');
+  const lines=[{t:'RETRY.VIZ v1.0 — INITIALIZING...',s:'',d:180},{t:'LOADING: BACKOFF_ENGINE.MOD (exp + jitter)',s:'OK',d:130},{t:'LOADING: CIRCUIT_BREAKER.MOD (3-state FSM)',s:'OK',d:130},{t:'LOADING: JITTER_RNG.MOD (full/equal/decorr)',s:'OK',d:140},{t:'LOADING: TIMELINE_RENDERER.MOD',s:'OK',d:130},{t:'MOUNTING CANVAS...',s:'DONE',d:150},{t:'RESILIENCE PATTERNS ONLINE.',s:'',d:220}];
+  let li=0;
+  function al(){if(li>=lines.length){setTimeout(sa,300);return;}const bl=lines[li];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));fill.style.width=Math.round((li/lines.length)*100)+'%';li++;setTimeout(al,bl.d);}al();
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();window.addEventListener('resize',resizeCanvas);resizeCanvas();const sc=SCENARIOS['expo'];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);setTimeout(()=>selectScene('expo'),300);}
+boot();
+</script>
+</body>
+</html>

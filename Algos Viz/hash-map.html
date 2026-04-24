@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HASH.MAP v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;
+  --green:#4ade80;--red:#f43f5e;--purple:#a855f7;
+  --blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;
+  --font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.48) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.84)contrast(1.1);}96%{filter:brightness(1);};}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.24),inset 3px 0 0 rgba(30,80,255,.24);}100%{opacity:0;}}
+
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber),0 0 80px rgba(255,178,41,.28);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}
+.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+
+/* HEADER */
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#algo-tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}
+#algo-tabs::-webkit-scrollbar{display:none;}
+.atab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.atab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,.05);}
+.atab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;background:var(--bg);overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+
+/* OP BAR */
+#op-bar{display:flex;align-items:center;gap:7px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.38);flex-shrink:0;flex-wrap:wrap;}
+.obtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;letter-spacing:1px;transition:all .1s;}
+.obtn:hover{background:rgba(255,178,41,.08);}
+.obtn.run{border-color:rgba(96,165,250,.5);color:#93c5fd;}
+.obtn.demo{border-color:rgba(168,85,247,.5);color:#d8b4fe;}
+.op-sep{width:1px;height:18px;background:rgba(255,178,41,.12);}
+.op-label{font-size:8.5px;color:var(--amber-dim);letter-spacing:1px;}
+#key-inp{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 7px;width:64px;outline:none;}
+#key-inp:focus{border-color:var(--amber);}
+#val-inp{font-family:var(--font-code);font-size:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,178,41,.3);color:var(--amber);padding:2px 7px;width:54px;outline:none;}
+#val-inp:focus{border-color:var(--amber);}
+
+/* STEP */
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.hash{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.07);}
+.pbadge.probe{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,.07);}
+.pbadge.insert{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.07);}
+.pbadge.found{color:#10b981;border-color:#10b981;background:rgba(16,185,129,.07);}
+.pbadge.miss{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.07);}
+.pbadge.rehash{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.1);}
+.pbadge.collide{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.07);}
+.pbadge.delete{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.07);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+
+/* STATS */
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+
+/* CONTROLS */
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+
+/* RIGHT */
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:195px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.09);}
+.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,.4),1px 0 1px rgba(50,80,255,.4);pointer-events:none;}
+.cline.active .cc{position:relative;}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}
+.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+
+<div id="boot">
+  <div id="boot-logo">HASH.MAP</div>
+  <div id="boot-tagline">HASHMAP INTERNALS VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+
+<div id="crt-wrap">
+<div id="main">
+  <div id="header">
+    <div id="logo">HASH.MAP</div>
+    <div id="algo-tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="op-bar">
+        <span class="op-label">KEY</span>
+        <input type="text" id="key-inp" placeholder="name" maxlength="8">
+        <span class="op-label">VAL</span>
+        <input type="text" id="val-inp" placeholder="42" maxlength="6">
+        <button class="obtn run" onclick="doInsert()">⊕ INSERT</button>
+        <button class="obtn" onclick="doLookup()" style="border-color:rgba(34,211,238,.5);color:#67e8f9">⊙ LOOKUP</button>
+        <button class="obtn" onclick="doDelete()" style="border-color:rgba(244,63,94,.45);color:#fda4af">⊖ DELETE</button>
+        <div class="op-sep"></div>
+        <button class="obtn demo" onclick="loadDemo()">🎬 DEMO</button>
+        <button class="obtn" onclick="clearMap()" style="border-color:rgba(244,63,94,.35);color:#fda4af">⊘ CLEAR</button>
+      </div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a mode (tabs), then INSERT / DEMO.</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">SIZE</span><span class="sv" id="s-size">0</span></div>
+        <div class="si"><span class="sl">CAP</span><span class="sv" id="s-cap">8</span></div>
+        <div class="si"><span class="sl">LOAD</span><span class="sv" id="s-load">0.00</span></div>
+        <div class="si"><span class="sl">COLLIDE</span><span class="sv" id="s-col">0</span></div>
+        <div class="si"><span class="sl">REHASH</span><span class="sv" id="s-reh">0</span></div>
+        <div class="si"><span class="sl">PROBES</span><span class="sv" id="s-prob">0</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–3</span> Mode</span>
+        <span class="kbh"><span class="kbk">ENTER</span> Insert</span>
+      </div>
+    </div>
+
+    <div id="right">
+      <div class="psec">
+        <div class="phdr">▸ GO SOURCE CODE</div>
+        <div id="code-scroll"></div>
+      </div>
+      <div id="r-scroll">
+        <div class="psec">
+          <div class="phdr">▸ COMPLEXITY</div>
+          <div id="cx-info" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ HOW IT WORKS</div>
+          <div id="how-it-works" class="info-block"></div>
+        </div>
+        <div class="psec">
+          <div class="phdr">▸ INTERVIEW FACTS</div>
+          <div id="facts" class="info-block"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ══════ NOISE ══════ */
+(()=>{
+  const c=document.getElementById('noise'),x=c.getContext('2d');
+  const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);
+  const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();
+})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5000);}sGlitch();
+
+/* ══════ AUDIO ══════ */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){
+  if(muted||!AC)return;
+  try{
+    const g=AC.createGain(),ws=AC.createWaveShaper();
+    const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}
+    ws.curve=cv;ws.connect(AC.destination);g.connect(ws);
+    const o=AC.createOscillator();o.connect(g);
+    const p={hash:[400,.06],probe:[280,.06],insert:[480,.07],found:[550,.09],miss:[160,.12],rehash:[600,.15],collide:[220,.08],delete:[180,.08],click:[360,.04]};
+    const[f,d]=p[type]||[360,.05];
+    o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';
+    g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);
+    o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);
+  }catch(e){}
+}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ══════ SYNTAX ══════ */
+function hlGo(l){
+  let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>');
+  s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+  s=s.replace(/\b(func|for|if|else|return|var|const|make|len|cap|nil|true|false|uint32|int|float64|string|type|struct)\b/g,'<span class="kw">$1</span>');
+  s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+  s=s.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="nm">$1</span>');
+  return s;
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ══════ HASH FUNCTION ══════ */
+function hashStr(s,cap){
+  let h=5381;
+  for(let i=0;i<s.length;i++)h=((h<<5)+h)+s.charCodeAt(i);
+  return((h>>>0)%cap+cap)%cap;
+}
+
+/* ══════ MODES ══════ */
+const MODES={
+  chaining:{
+    label:'CHAINING',
+    code:[
+      '// Separate Chaining HashMap',
+      'type Entry struct { Key, Val string; Next *Entry }',
+      'type HashMap struct {',
+      '    buckets []*Entry',
+      '    size    int',
+      '}',
+      '',
+      'func (m *HashMap) hash(key string) int {',
+      '    h := fnv32(key)',
+      '    return int(h) % len(m.buckets)',
+      '}',
+      '',
+      'func (m *HashMap) Set(key, val string) {',
+      '    idx := m.hash(key)',
+      '    for e := m.buckets[idx]; e != nil; e = e.Next {',
+      '        if e.Key == key { e.Val = val; return }',
+      '    }',
+      '    // prepend to chain',
+      '    m.buckets[idx] = &Entry{key, val, m.buckets[idx]}',
+      '    m.size++',
+      '    if float64(m.size)/float64(len(m.buckets)) > 0.75 {',
+      '        m.rehash()',
+      '    }',
+      '}',
+    ],
+    cx:`<strong>Average</strong>: O(1) insert/lookup/delete<br>
+       <strong>Worst (all to 1 bucket)</strong>: O(n)<br>
+       <strong>Space</strong>: O(n + capacity)<br>
+       <strong>Load factor threshold</strong>: typically 0.75`,
+    how:`Each bucket is the head of a linked list.<br><br>
+       <strong>Insert</strong>: hash(key) → bucket index → prepend node to chain.<br>
+       <strong>Lookup</strong>: hash(key) → traverse chain comparing keys.<br>
+       <strong>Delete</strong>: traverse chain, unlink node.<br><br>
+       Handles collisions gracefully — chains can grow. Used by Java HashMap, many libc implementations.`,
+    facts:`<span class="rw-tag">Java</span> HashMap uses chaining (since Java 8: linked list → red-black tree when chain > 8)<br>
+           <span class="rw-tag">Load factor</span> 0.75 = industry standard tradeoff<br>
+           <span class="rw-tag">Rehash</span> doubles capacity, re-inserts all entries: O(n)<br>
+           <span class="rw-tag">Go map</span> uses chaining with bucket arrays (8 keys/bucket)<br>
+           <span class="rw-tag">Worst</span> O(n) if hash function is bad (all keys → same bucket)`,
+  },
+  linear:{
+    label:'LINEAR PROBE',
+    code:[
+      '// Open Addressing: Linear Probing',
+      'type Slot struct { Key, Val string; Dead bool }',
+      'type HashMap struct {',
+      '    slots []*Slot',
+      '    size  int',
+      '}',
+      '',
+      'func (m *HashMap) Set(key, val string) {',
+      '    idx := hash(key) % len(m.slots)',
+      '    for m.slots[idx] != nil {',
+      '        if m.slots[idx].Key == key {',
+      '            m.slots[idx].Val = val; return',
+      '        }',
+      '        idx = (idx + 1) % len(m.slots) // linear',
+      '    }',
+      '    m.slots[idx] = &Slot{key, val, false}',
+      '    m.size++',
+      '}',
+      '',
+      'func (m *HashMap) Get(key string) string {',
+      '    idx := hash(key) % len(m.slots)',
+      '    for m.slots[idx] != nil {',
+      '        if !m.slots[idx].Dead && m.slots[idx].Key==key {',
+      '            return m.slots[idx].Val',
+      '        }',
+      '        idx = (idx + 1) % len(m.slots)',
+      '    }',
+      '    return ""',
+      '}',
+    ],
+    cx:`<strong>Best/Average</strong>: O(1) with low load<br>
+       <strong>Worst</strong>: O(n) — full table, long probe sequences<br>
+       <strong>Space</strong>: O(capacity) — no pointers<br>
+       <strong>Cache friendly</strong>: slots in contiguous memory`,
+    how:`One flat array. All entries stored inline.<br><br>
+       <strong>Insert</strong>: hash(key) → if occupied, try next slot (+1) until empty.<br>
+       <strong>Lookup</strong>: same probe sequence — stop at empty slot (miss) or match (found).<br>
+       <strong>Delete</strong>: mark slot as "tombstone" (dead) — can't use nil or lookup breaks.<br><br>
+       Primary clustering: consecutive occupied runs grow → longer probe chains. Best load < 0.7.`,
+    facts:`<span class="rw-tag">Python dict</span> uses open addressing (pseudo-random probing)<br>
+           <span class="rw-tag">Tombstone</span> deletion — must mark deleted slots, not clear them<br>
+           <span class="rw-tag">Primary clustering</span> — long runs of occupied slots near popular hashes<br>
+           <span class="rw-tag">Cache friendly</span> — better L1/L2 than chaining (no pointer chasing)<br>
+           <span class="rw-tag">Max load</span> ~0.7 recommended (performance degrades sharply above)`,
+  },
+  gomap:{
+    label:'GO MAP',
+    code:[
+      '// Go runtime map internals (simplified)',
+      'const bucketCnt = 8  // keys per bucket',
+      '',
+      'type bmap struct {',
+      '    tophash  [8]uint8   // cached hash[56:64]',
+      '    keys     [8]K',
+      '    values   [8]V',
+      '    overflow *bmap      // overflow bucket',
+      '}',
+      '',
+      'type hmap struct {',
+      '    count     int',
+      '    B         uint8     // 2^B buckets',
+      '    buckets   unsafe.Pointer',
+      '    oldbuckets unsafe.Pointer // during grow',
+      '}',
+      '',
+      '// Assign: m[key] = val',
+      '// 1. hash := hash(key)',
+      '// 2. bucket := hash & (2^B - 1)',
+      '// 3. check tophash[0..7] for fast match',
+      '// 4. if match: compare full key',
+      '// 5. if load > 6.5: grow (incremental)',
+    ],
+    cx:`<strong>Average</strong>: O(1) amortized insert/lookup<br>
+       <strong>Grow threshold</strong>: load factor > 6.5 (keys/bucket)<br>
+       <strong>8 keys per bucket</strong>: tophash for fast comparison<br>
+       <strong>Incremental rehash</strong>: old+new buckets coexist`,
+    how:`Go's built-in map uses bucket chaining with 8 slots/bucket.<br><br>
+       <strong>tophash</strong>: top 8 bits of hash stored per slot — fast O(1) reject before comparing keys.<br>
+       <strong>Buckets</strong>: 2^B buckets selected by low B bits of hash.<br>
+       <strong>Overflow buckets</strong>: when 8 slots full, chain an overflow bucket.<br>
+       <strong>Incremental grow</strong>: on grow, old and new buckets coexist. Each map write evacuates 1–2 old buckets.`,
+    facts:`<span class="rw-tag">Not thread-safe</span> — concurrent read+write = panic (use sync.Map or RWMutex)<br>
+           <span class="rw-tag">Iteration order</span> is random (by design, since Go 1.0)<br>
+           <span class="rw-tag">Zero value</span> of map is nil — must make() before write<br>
+           <span class="rw-tag">Delete</span> doesn't shrink — only grow triggers rehash<br>
+           <span class="rw-tag">Comparable keys</span> only: slices/maps/funcs cannot be keys<br>
+           <span class="rw-tag">tophash[0]</span> 0..3 reserved for special states (empty, evacuated…)`,
+  },
+};
+
+/* ══════ STATE ══════ */
+let curMode='chaining';
+let HM={};  // live hashmap state
+let ST={steps:[],idx:0,playing:false,timer:null,speed:320};
+let totalCollisions=0,totalRehashes=0,totalProbes=0;
+
+function resetHM(cap=8){
+  if(curMode==='chaining'){
+    HM={type:'chaining',cap,buckets:Array.from({length:cap},()=>[]),size:0};
+  } else if(curMode==='linear'){
+    HM={type:'linear',cap,slots:Array(cap).fill(null),size:0};
+  } else {
+    // Go map sim: B=3 → 8 buckets, each bucket has 8 slots
+    const B=3;
+    HM={type:'gomap',B,cap:1<<B,buckets:Array.from({length:1<<B},()=>({slots:Array(8).fill(null),tophash:Array(8).fill(0),overflow:null})),size:0};
+  }
+  totalCollisions=0;totalRehashes=0;totalProbes=0;
+}
+
+/* ══════ CHAINING OPS ══════ */
+function chainingInsert(key,val){
+  const steps=[];
+  const cap=HM.buckets.length;
+  const idx=hashStr(key,cap);
+  const h=hashStr(key,cap);
+
+  function snap(phase,desc,cl,highlight=null,newNode=null){
+    steps.push({
+      phase,desc,cl,
+      buckets:HM.buckets.map(b=>b.map(e=>({...e}))),
+      highlight,newNode,
+      size:HM.size,cap:HM.buckets.length,
+      collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes,
+    });
+  }
+
+  snap('init',`Insert key="${key}" val="${val}". cap=${cap}`,0);
+  snap('hash',`hash("${key}") = ${idx}  →  bucket[${idx}]  (mod ${cap})`,7);
+
+  // check existing
+  let found=false;
+  HM.buckets[idx].forEach((e,i)=>{
+    totalProbes++;
+    if(e.key===key){
+      snap('probe',`Bucket[${idx}]: chain[${i}].key="${e.key}" == "${key}" — UPDATE in place.`,13,{bucket:idx,chainIdx:i});
+      e.val=val;found=true;
+    }
+  });
+
+  if(!found){
+    if(HM.buckets[idx].length>0){
+      totalCollisions++;
+      snap('collide',`Bucket[${idx}] already has ${HM.buckets[idx].length} entry(ies). COLLISION! Prepend to chain.`,16,{bucket:idx});
+    }
+    HM.buckets[idx].unshift({key,val,new:true});
+    HM.size++;
+    snap('insert',`Prepended {${key}:${val}} to bucket[${idx}]. size=${HM.size}  load=${(HM.size/HM.buckets.length).toFixed(2)}`,18,{bucket:idx},0);
+
+    const load=HM.size/HM.buckets.length;
+    if(load>0.75){
+      snap('rehash',`Load factor ${load.toFixed(2)} > 0.75 — REHASH! New cap = ${HM.buckets.length*2}`,20,null);
+      chainingRehash();
+      totalRehashes++;
+      snap('rehash',`Rehash complete. All entries redistributed. New cap=${HM.buckets.length}`,20,null);
+    }
+  }
+
+  return steps;
+}
+
+function chainingRehash(){
+  const newCap=HM.buckets.length*2;
+  const old=HM.buckets;
+  HM.buckets=Array.from({length:newCap},()=>[]);
+  HM.size=0;
+  old.forEach(b=>b.forEach(e=>{
+    const ni=hashStr(e.key,newCap);
+    HM.buckets[ni].unshift({key:e.key,val:e.val});
+    HM.size++;
+  }));
+}
+
+function chainingLookup(key){
+  const steps=[];
+  const cap=HM.buckets.length;
+  const idx=hashStr(key,cap);
+
+  function snap(phase,desc,cl,highlight=null){
+    steps.push({phase,desc,cl,buckets:HM.buckets.map(b=>b.map(e=>({...e}))),highlight,
+      size:HM.size,cap,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+
+  snap('hash',`GET "${key}" → hash=${idx}  →  bucket[${idx}]`,7);
+  const chain=HM.buckets[idx];
+  if(chain.length===0){snap('miss',`Bucket[${idx}] empty. "${key}" not found.`,21,{bucket:idx});return steps;}
+
+  for(let i=0;i<chain.length;i++){
+    totalProbes++;
+    if(chain[i].key===key){
+      snap('found',`Bucket[${idx}] chain[${i}]: key match! val="${chain[i].val}". O(1) average.`,21,{bucket:idx,chainIdx:i});
+      return steps;
+    }
+    snap('probe',`Bucket[${idx}] chain[${i}]: "${chain[i].key}" ≠ "${key}". Continue chain.`,15,{bucket:idx,chainIdx:i});
+  }
+  snap('miss',`Chain exhausted. "${key}" not in map.`,21,{bucket:idx});
+  return steps;
+}
+
+function chainingDelete(key){
+  const steps=[];
+  const cap=HM.buckets.length;
+  const idx=hashStr(key,cap);
+  function snap(phase,desc,cl,highlight=null){
+    steps.push({phase,desc,cl,buckets:HM.buckets.map(b=>b.map(e=>({...e}))),highlight,
+      size:HM.size,cap,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+  snap('hash',`DELETE "${key}" → bucket[${idx}]`,7);
+  const chain=HM.buckets[idx];
+  const i=chain.findIndex(e=>e.key===key);
+  if(i<0){snap('miss',`"${key}" not found in bucket[${idx}].`,21,{bucket:idx});return steps;}
+  snap('found',`Found "${key}" at bucket[${idx}] chain[${i}]. Removing node.`,16,{bucket:idx,chainIdx:i});
+  chain.splice(i,1);HM.size--;
+  snap('delete',`Deleted. size=${HM.size}. Chain[${idx}] now has ${chain.length} entries.`,18,{bucket:idx});
+  return steps;
+}
+
+/* ══════ LINEAR PROBE OPS ══════ */
+function linearInsert(key,val){
+  const steps=[];
+  const cap=HM.slots.length;
+  let idx=hashStr(key,cap);
+  const startIdx=idx;
+
+  function snap(phase,desc,cl,probeIdx=null,newSlot=false){
+    steps.push({phase,desc,cl,slots:HM.slots.map(s=>s?{...s}:null),probeIdx,newSlot,
+      size:HM.size,cap,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+
+  snap('init',`Insert key="${key}". cap=${cap}`,0);
+  snap('hash',`hash("${key}") = ${startIdx}  →  slot[${startIdx}]`,7,startIdx);
+
+  let probeCount=0;
+  while(HM.slots[idx]!==null&&!HM.slots[idx].dead){
+    if(HM.slots[idx].key===key){
+      snap('probe',`slot[${idx}]: key="${HM.slots[idx].key}" matches — UPDATE.`,11,idx);
+      HM.slots[idx].val=val;return steps;
+    }
+    totalCollisions++;totalProbes++;probeCount++;
+    snap('collide',`slot[${idx}] occupied by "${HM.slots[idx].key}". COLLISION probe ${probeCount}. Try slot[${(idx+1)%cap}].`,12,idx);
+    idx=(idx+1)%cap;
+    if(idx===startIdx){snap('miss','Table full! Cannot insert.',20,idx);return steps;}
+  }
+
+  HM.slots[idx]={key,val,dead:false};HM.size++;
+  snap('insert',`Placed {${key}:${val}} at slot[${idx}]${probeCount>0?` after ${probeCount} probe(s)`:' (no collision)'}. load=${(HM.size/cap).toFixed(2)}`,14,idx,true);
+
+  if(HM.size/cap>0.7){
+    totalRehashes++;
+    snap('rehash',`Load ${(HM.size/cap).toFixed(2)} > 0.70 — REHASH! Rebuild with cap=${cap*2}`,18,null);
+    linearRehash();
+    snap('rehash',`Rehash done. cap=${HM.slots.length}. All entries re-probed to new positions.`,18,null);
+  }
+  return steps;
+}
+
+function linearRehash(){
+  const newCap=HM.slots.length*2;
+  const old=HM.slots.filter(s=>s&&!s.dead);
+  HM.slots=Array(newCap).fill(null);HM.size=0;
+  old.forEach(e=>{
+    let idx=hashStr(e.key,newCap);
+    while(HM.slots[idx]!==null)idx=(idx+1)%newCap;
+    HM.slots[idx]={key:e.key,val:e.val,dead:false};HM.size++;
+  });
+}
+
+function linearLookup(key){
+  const steps=[];
+  const cap=HM.slots.length;
+  let idx=hashStr(key,cap);
+  const start=idx;
+  function snap(phase,desc,cl,probeIdx=null){
+    steps.push({phase,desc,cl,slots:HM.slots.map(s=>s?{...s}:null),probeIdx,
+      size:HM.size,cap,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+  snap('hash',`GET "${key}" → hash=${start} → slot[${start}]`,20,start);
+  let i=0;
+  while(HM.slots[idx]!==null){
+    totalProbes++;
+    if(!HM.slots[idx].dead&&HM.slots[idx].key===key){
+      snap('found',`slot[${idx}]: MATCH key="${key}" val="${HM.slots[idx].val}".`,21,idx);return steps;
+    }
+    snap('probe',`slot[${idx}]: ${HM.slots[idx].dead?'[tombstone]':'"'+HM.slots[idx].key+'"'} ≠ "${key}". Probe next.`,21,idx);
+    idx=(idx+1)%cap;if(idx===start||i++>cap){break;}
+  }
+  snap('miss',`slot[${idx}] is null (or full scan). "${key}" not found.`,21,idx);
+  return steps;
+}
+
+function linearDelete(key){
+  const steps=[];
+  const cap=HM.slots.length;
+  let idx=hashStr(key,cap);
+  const start=idx;
+  function snap(phase,desc,cl,probeIdx=null){
+    steps.push({phase,desc,cl,slots:HM.slots.map(s=>s?{...s}:null),probeIdx,
+      size:HM.size,cap,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+  snap('hash',`DELETE "${key}" → slot[${start}]`,20,start);
+  while(HM.slots[idx]!==null){
+    if(!HM.slots[idx].dead&&HM.slots[idx].key===key){
+      snap('found',`Found "${key}" at slot[${idx}]. Mark as TOMBSTONE (not null!).`,21,idx);
+      HM.slots[idx].dead=true;HM.size--;
+      snap('delete',`slot[${idx}] = tombstone ⚰. Lookup can step over it; null would falsely break probe chain.`,22,idx);
+      return steps;
+    }
+    snap('probe',`slot[${idx}]: no match. Next.`,21,idx);
+    idx=(idx+1)%cap;if(idx===start)break;
+  }
+  snap('miss',`"${key}" not found.`,21,idx);
+  return steps;
+}
+
+/* ══════ GOMAP OPS (simplified visual) ══════ */
+function gomapInsert(key,val){
+  const steps=[];
+  const h=hashStr(key,0xFFFFFFFF);
+  const B=HM.B;
+  const bucketIdx=h&((1<<B)-1);
+  const toph=(h>>>24)&0xFF;
+  const bucket=HM.buckets[bucketIdx];
+
+  function snap(phase,desc,cl,bIdx=null,slotIdx=null){
+    steps.push({phase,desc,cl,gomap:HM.buckets.map(b=>({slots:[...b.slots],tophash:[...b.tophash],overflow:b.overflow})),
+      B:HM.B,bIdx,slotIdx,
+      size:HM.size,cap:1<<HM.B,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+
+  snap('init',`Insert "${key}". 2^${B}=${1<<B} buckets. Each bucket holds 8 key/val slots.`,0);
+  snap('hash',`hash("${key}") = 0x${h.toString(16).padStart(8,'0')}.  low ${B} bits = ${bucketIdx} → bucket[${bucketIdx}].  tophash = 0x${toph.toString(16).padStart(2,'0')} (top 8 bits).`,8,bucketIdx);
+
+  // check existing
+  for(let i=0;i<8;i++){
+    if(bucket.slots[i]&&bucket.slots[i].key===key){
+      snap('found',`bucket[${bucketIdx}] slot[${i}]: tophash match + key match. UPDATE val.`,14,bucketIdx,i);
+      bucket.slots[i].val=val;return steps;
+    }
+  }
+
+  snap('probe',`Scan bucket[${bucketIdx}] tophash array for 0x${toph.toString(16)} or empty slot…`,10,bucketIdx);
+
+  // find empty slot
+  let placed=false;
+  for(let i=0;i<8;i++){
+    totalProbes++;
+    if(!bucket.slots[i]){
+      snap('insert',`bucket[${bucketIdx}] slot[${i}] empty. Place key="${key}" tophash=0x${toph.toString(16).padStart(2,'0')}.`,15,bucketIdx,i);
+      bucket.slots[i]={key,val};bucket.tophash[i]=toph;HM.size++;placed=true;break;
+    }
+  }
+
+  if(!placed){
+    totalCollisions++;
+    snap('collide',`bucket[${bucketIdx}] FULL (8 slots). Overflow bucket needed.`,17,bucketIdx);
+    if(!bucket.overflow)bucket.overflow={slots:Array(8).fill(null),tophash:Array(8).fill(0),overflow:null};
+    bucket.overflow.slots[0]={key,val};bucket.overflow.tophash[0]=toph;HM.size++;
+    snap('insert',`Placed in overflow bucket of bucket[${bucketIdx}].`,17,bucketIdx);
+  }
+
+  const load=HM.size/(1<<HM.B);
+  if(load>6.5){
+    totalRehashes++;
+    HM.B++;
+    snap('rehash',`Load factor ${load.toFixed(2)} > 6.5. GROW: B=${HM.B-1}→${HM.B}. New cap=${1<<HM.B}. Incremental evacuation starts.`,19);
+    gomapRehash();
+    snap('rehash',`Grow complete. Entries evacuated to new bucket layout.`,19);
+  }
+  return steps;
+}
+
+function gomapRehash(){
+  const newCap=1<<HM.B;
+  const entries=[];
+  HM.buckets.forEach(b=>{
+    b.slots.forEach(s=>{if(s)entries.push(s);});
+    if(b.overflow)b.overflow.slots.forEach(s=>{if(s)entries.push(s);});
+  });
+  HM.buckets=Array.from({length:newCap},()=>({slots:Array(8).fill(null),tophash:Array(8).fill(0),overflow:null}));
+  HM.size=0;
+  entries.forEach(e=>{
+    const h=hashStr(e.key,0xFFFFFFFF);
+    const bi=h&(newCap-1);const tp=(h>>>24)&0xFF;
+    const b=HM.buckets[bi];
+    for(let i=0;i<8;i++){if(!b.slots[i]){b.slots[i]={key:e.key,val:e.val};b.tophash[i]=tp;HM.size++;return;}}
+  });
+}
+
+function gomapLookup(key){
+  const steps=[];
+  const h=hashStr(key,0xFFFFFFFF);
+  const B=HM.B;
+  const bi=h&((1<<B)-1);
+  const toph=(h>>>24)&0xFF;
+  const bucket=HM.buckets[bi];
+  function snap(phase,desc,cl,bIdx=null,slotIdx=null){
+    steps.push({phase,desc,cl,gomap:HM.buckets.map(b=>({slots:[...b.slots],tophash:[...b.tophash],overflow:b.overflow})),B,bIdx,slotIdx,
+      size:HM.size,cap:1<<B,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+  snap('hash',`GET "${key}" → bucket[${bi}]. tophash=0x${toph.toString(16).padStart(2,'0')}.`,8,bi);
+  snap('probe',`Scan tophash[0..7] for 0x${toph.toString(16)} — fast rejection before key compare.`,10,bi);
+  for(let i=0;i<8;i++){
+    totalProbes++;
+    if(bucket.tophash[i]===toph&&bucket.slots[i]){
+      if(bucket.slots[i].key===key){snap('found',`tophash match + key match at slot[${i}]. val="${bucket.slots[i].val}".`,14,bi,i);return steps;}
+      snap('probe',`tophash match but key "${bucket.slots[i].key}" ≠ "${key}". Continue.`,12,bi,i);
+    }
+  }
+  snap('miss',`No match in bucket[${bi}]. "${key}" not found.`,21,bi);
+  return steps;
+}
+
+function gomapDelete(key){
+  const steps=[];
+  const h=hashStr(key,0xFFFFFFFF);
+  const bi=h&((1<<HM.B)-1);
+  const toph=(h>>>24)&0xFF;
+  const bucket=HM.buckets[bi];
+  function snap(phase,desc,cl,bIdx=null,slotIdx=null){
+    steps.push({phase,desc,cl,gomap:HM.buckets.map(b=>({slots:[...b.slots],tophash:[...b.tophash],overflow:b.overflow})),B:HM.B,bIdx,slotIdx,
+      size:HM.size,cap:1<<HM.B,collisions:totalCollisions,rehashes:totalRehashes,probes:totalProbes});
+  }
+  snap('hash',`DELETE "${key}" → bucket[${bi}].`,8,bi);
+  for(let i=0;i<8;i++){
+    if(bucket.tophash[i]===toph&&bucket.slots[i]&&bucket.slots[i].key===key){
+      snap('found',`Found "${key}" at bucket[${bi}] slot[${i}].`,14,bi,i);
+      bucket.slots[i]=null;bucket.tophash[i]=0;HM.size--;
+      snap('delete',`Cleared slot[${i}] in bucket[${bi}]. No tombstone needed (bucket slots can be nil).`,20,bi,i);
+      return steps;
+    }
+  }
+  snap('miss',`"${key}" not found.`,21,bi);
+  return steps;
+}
+
+/* ══════ CANVAS RENDER ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){
+  const wrap=document.getElementById('viz-wrap');
+  CW=canvas.width=wrap.clientWidth;CH=canvas.height=wrap.clientHeight;
+  if(ST.steps.length)renderFrame(ST.steps[ST.idx]);
+}
+
+const BH=36,BPAD=6,CELL_W=52,CELL_H=28;
+const PAD_L=14,PAD_T=22;
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+  if(step.buckets)renderChaining(step);
+  else if(step.slots!==undefined)renderLinear(step);
+  else if(step.gomap)renderGomap(step);
+}
+
+/* --- CHAINING RENDER --- */
+function renderChaining(step){
+  const{buckets,highlight}=step;
+  const cap=buckets.length;
+  const colW=Math.min(180,Math.floor((CW-PAD_L*2)/Math.ceil(cap/8)));
+  const cols=Math.ceil(cap/8);
+  const rows=Math.ceil(cap/cols);
+
+  ctx.font=`11px 'Share Tech Mono'`;
+  ctx.fillStyle='rgba(255,178,41,0.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`SEPARATE CHAINING  |  cap=${cap}  |  size=${step.size}  |  load=${(step.size/cap).toFixed(2)}`,PAD_L,4);
+
+  buckets.forEach((chain,i)=>{
+    const col=Math.floor(i/rows);
+    const row=i%rows;
+    const bx=PAD_L+col*colW;
+    const by=PAD_T+16+row*(BH+BPAD);
+    const isHL=highlight&&highlight.bucket===i;
+
+    // bucket label
+    ctx.font=`12px 'VT323'`;
+    ctx.fillStyle=isHL?'var(--amber)':'rgba(255,178,41,0.35)';
+    ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(`[${i}]`,bx+28,by+BH/2);
+
+    // bucket box
+    ctx.strokeStyle=isHL?'rgba(255,178,41,0.7)':'rgba(255,178,41,0.2)';
+    ctx.lineWidth=isHL?1.5:1;
+    ctx.fillStyle=isHL?'rgba(255,178,41,0.06)':'rgba(0,0,0,0.3)';
+    ctx.fillRect(bx+32,by,44,BH);
+    ctx.strokeRect(bx+32,by,44,BH);
+
+    // chain nodes
+    chain.forEach((e,ci)=>{
+      const nx=bx+32+44+8+ci*78;
+      const isHLNode=isHL&&highlight.chainIdx===ci;
+      const isNew=e.new&&ci===0;
+
+      ctx.save();
+      if(isHLNode||isNew){ctx.shadowColor=isNew?'#4ade80':'#fbbf24';ctx.shadowBlur=10;}
+      ctx.fillStyle=isNew?'rgba(74,222,128,0.12)':isHLNode?'rgba(251,191,36,0.12)':'rgba(96,165,250,0.06)';
+      ctx.strokeStyle=isNew?'#4ade80':isHLNode?'#fbbf24':'rgba(96,165,250,0.4)';
+      ctx.lineWidth=isHLNode||isNew?1.5:1;
+      ctx.fillRect(nx,by+2,70,BH-4);ctx.strokeRect(nx,by+2,70,BH-4);
+      ctx.font=`10px 'IBM Plex Mono'`;
+      ctx.fillStyle=isNew?'#86efac':isHLNode?'#fcd34d':'rgba(255,178,41,0.7)';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(`${e.key}:${e.val}`,nx+35,by+BH/2);
+      ctx.restore();
+
+      // arrow from bucket or prev node
+      const ax=ci===0?bx+76:nx-8;
+      const ay=by+BH/2;
+      ctx.strokeStyle='rgba(255,178,41,0.25)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(nx,ay);ctx.stroke();
+      // arrow tip
+      ctx.fillStyle='rgba(255,178,41,0.25)';
+      ctx.beginPath();ctx.moveTo(nx,ay);ctx.lineTo(nx-6,ay-4);ctx.lineTo(nx-6,ay+4);ctx.closePath();ctx.fill();
+    });
+
+    if(chain.length===0){
+      ctx.font=`10px 'IBM Plex Mono'`;ctx.fillStyle='rgba(255,178,41,0.15)';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('nil',bx+54,by+BH/2);
+    }
+  });
+}
+
+/* --- LINEAR PROBE RENDER --- */
+function renderLinear(step){
+  const{slots,probeIdx}=step;
+  const cap=slots.length;
+  const cols=Math.min(cap,Math.floor((CW-PAD_L*2)/(CELL_W+4)));
+  const rows=Math.ceil(cap/cols);
+
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';
+  ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`OPEN ADDRESSING (LINEAR PROBE)  |  cap=${cap}  |  load=${(step.size/cap).toFixed(2)}`,PAD_L,4);
+
+  slots.forEach((s,i)=>{
+    const col=i%cols;const row=Math.floor(i/cols);
+    const x=PAD_L+col*(CELL_W+4);
+    const y=PAD_T+16+row*(CELL_H+4);
+    const isHL=i===probeIdx;
+    const isTomb=s&&s.dead;
+
+    ctx.save();
+    if(isHL){ctx.shadowColor='#fbbf24';ctx.shadowBlur=12;}
+    ctx.fillStyle=!s?'rgba(0,0,0,0.3)':isTomb?'rgba(244,63,94,0.08)':isHL?'rgba(251,191,36,0.14)':'rgba(96,165,250,0.08)';
+    ctx.strokeStyle=!s?'rgba(255,178,41,0.12)':isTomb?'rgba(244,63,94,0.45)':isHL?'#fbbf24':'rgba(96,165,250,0.45)';
+    ctx.lineWidth=isHL?1.5:1;
+    ctx.fillRect(x,y,CELL_W,CELL_H);ctx.strokeRect(x,y,CELL_W,CELL_H);
+
+    // index label
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.2)';
+    ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(i,x+2,y+1);
+
+    if(s&&!isTomb){
+      ctx.font=`10px 'IBM Plex Mono'`;
+      ctx.fillStyle=isHL?'#fcd34d':'rgba(96,165,250,0.85)';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(`${s.key}`,x+CELL_W/2,y+CELL_H/2-4);
+      ctx.font=`8px 'IBM Plex Mono'`;ctx.fillStyle='rgba(255,178,41,0.45)';
+      ctx.fillText(`${s.val}`,x+CELL_W/2,y+CELL_H/2+6);
+    } else if(isTomb){
+      ctx.font=`14px 'VT323'`;ctx.fillStyle='rgba(244,63,94,0.5)';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⚰',x+CELL_W/2,y+CELL_H/2);
+    }
+    ctx.restore();
+  });
+}
+
+/* --- GOMAP RENDER --- */
+function renderGomap(step){
+  const{gomap,B,bIdx,slotIdx}=step;
+  const cap=1<<B;
+  const BW=Math.min(Math.floor((CW-PAD_L*2-20)/cap)-4,64);
+  const SLOT_H=18;
+
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';
+  ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`GO RUNTIME MAP  |  B=${B}  cap=2^${B}=${cap} buckets  |  8 slots/bucket  |  size=${step.size}`,PAD_L,4);
+
+  // legend
+  ctx.font=`9px 'Share Tech Mono'`;
+  ctx.fillStyle='rgba(255,178,41,0.25)';ctx.fillText('tophash↑ key↓',CW-110,4);
+
+  gomap.forEach((b,bi)=>{
+    const x=PAD_L+bi*(BW+4);
+    const isHL=bi===bIdx;
+
+    // bucket header
+    ctx.font=`12px 'VT323'`;
+    ctx.fillStyle=isHL?'var(--amber)':'rgba(255,178,41,0.35)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(`B[${bi}]`,x+BW/2,PAD_T+12);
+
+    // 8 slots
+    for(let si=0;si<8;si++){
+      const sy=PAD_T+30+si*(SLOT_H+2);
+      const isHLS=isHL&&si===slotIdx;
+      const slot=b.slots[si];
+
+      ctx.save();
+      if(isHLS){ctx.shadowColor='#fbbf24';ctx.shadowBlur=10;}
+      ctx.fillStyle=!slot?'rgba(0,0,0,0.3)':isHLS?'rgba(251,191,36,0.15)':'rgba(96,165,250,0.08)';
+      ctx.strokeStyle=!slot?'rgba(255,178,41,0.1)':isHLS?'#fbbf24':'rgba(96,165,250,0.35)';
+      ctx.lineWidth=isHLS?1.5:1;
+      ctx.fillRect(x,sy,BW,SLOT_H);ctx.strokeRect(x,sy,BW,SLOT_H);
+
+      if(slot){
+        ctx.font=`9px 'IBM Plex Mono'`;
+        ctx.fillStyle=isHLS?'#fcd34d':'rgba(96,165,250,0.8)';
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(slot.key.slice(0,5),x+BW/2,sy+SLOT_H/2);
+        // tophash
+        ctx.font=`7px 'IBM Plex Mono'`;ctx.fillStyle='rgba(255,178,41,0.3)';
+        ctx.textBaseline='top';ctx.fillText(`0x${b.tophash[si].toString(16).padStart(2,'0')}`,x+1,sy+1);
+      }
+      ctx.restore();
+    }
+
+    // overflow indicator
+    if(b.overflow){
+      const oy=PAD_T+30+8*(SLOT_H+2)+4;
+      ctx.font=`10px 'VT323'`;ctx.fillStyle='rgba(249,115,22,0.7)';
+      ctx.textAlign='center';ctx.fillText('↓OVF',x+BW/2,oy);
+    }
+  });
+}
+
+/* ══════ USER ACTIONS ══════ */
+function doInsert(){
+  initAudio();
+  const key=document.getElementById('key-inp').value.trim()||'key';
+  const val=document.getElementById('val-inp').value.trim()||'val';
+  let steps;
+  if(curMode==='chaining')steps=chainingInsert(key,val);
+  else if(curMode==='linear')steps=linearInsert(key,val);
+  else steps=gomapInsert(key,val);
+  applySteps(steps);
+  snd('click');
+}
+
+function doLookup(){
+  initAudio();
+  const key=document.getElementById('key-inp').value.trim()||'key';
+  let steps;
+  if(curMode==='chaining')steps=chainingLookup(key);
+  else if(curMode==='linear')steps=linearLookup(key);
+  else steps=gomapLookup(key);
+  applySteps(steps);
+  snd('click');
+}
+
+function doDelete(){
+  initAudio();
+  const key=document.getElementById('key-inp').value.trim()||'key';
+  let steps;
+  if(curMode==='chaining')steps=chainingDelete(key);
+  else if(curMode==='linear')steps=linearDelete(key);
+  else steps=gomapDelete(key);
+  applySteps(steps);
+  snd('click');
+}
+
+function loadDemo(){
+  initAudio();clearMap();
+  const pairs=[['name','alice'],['age','27'],['city','london'],['lang','go'],['role','sre'],['team','infra'],['id','x9q2']];
+  let allSteps=[];
+  pairs.forEach(([k,v])=>{
+    let s;
+    if(curMode==='chaining')s=chainingInsert(k,v);
+    else if(curMode==='linear')s=linearInsert(k,v);
+    else s=gomapInsert(k,v);
+    allSteps=allSteps.concat(s);
+  });
+  applySteps(allSteps);
+  snd('click');
+}
+
+function clearMap(){
+  if(ST.playing)pause();
+  resetHM();
+  ST.steps=[];ST.idx=0;
+  renderFrame(null);
+  ctx.clearRect(0,0,CW,CH);
+  updateStats({size:0,cap:HM.cap||8,collisions:0,rehashes:0,probes:0});
+  document.getElementById('pbadge').className='pbadge init';
+  document.getElementById('pbadge').textContent='INIT';
+  document.getElementById('step-txt').textContent='Map cleared. INSERT keys or load DEMO.';
+  document.getElementById('step-ctr').textContent='0 / 0';
+  document.getElementById('prog-bar').style.width='0%';
+  snd('click');
+}
+
+function applySteps(steps){
+  if(ST.playing)pause();
+  ST.steps=steps;ST.idx=0;
+  if(!steps.length)return;
+  applyStep(steps[0]);
+  setTimeout(()=>play(),250);
+}
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  badge.className='pbadge '+(step.phase||'init');
+  badge.textContent=(step.phase||'INIT').toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  updateStats(step);
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(MODES[curMode].code,step.cl>=0?step.cl:-1);
+  if(step.phase&&step.phase!=='init')snd(step.phase);
+  if(step.phase==='rehash')triggerCA();
+}
+
+function updateStats(step){
+  const cap=step.cap||(curMode==='chaining'?HM.buckets&&HM.buckets.length:curMode==='linear'?HM.slots&&HM.slots.length:1<<(HM.B||3))||8;
+  document.getElementById('s-size').textContent=step.size||0;
+  document.getElementById('s-cap').textContent=cap;
+  document.getElementById('s-load').textContent=cap>0?((step.size||0)/cap).toFixed(2):'0.00';
+  document.getElementById('s-col').textContent=step.collisions||0;
+  document.getElementById('s-reh').textContent=step.rehashes||0;
+  document.getElementById('s-prob').textContent=step.probes||0;
+}
+
+/* ══════ PLAYBACK ══════ */
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){
+  if(!ST.steps.length)return;
+  if(ST.idx>=ST.steps.length-1)ST.idx=0;
+  ST.playing=true;
+  document.getElementById('play-btn').textContent='⏸ PAUSE';
+  document.getElementById('play-btn').classList.add('playing');
+  ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);
+}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:900,2:700,3:500,4:380,5:280,6:200,7:140,8:90,9:55,10:25};ST.speed=m[v]||280;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+/* ══════ KEYBOARD ══════ */
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  if(e.target.tagName==='INPUT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'Enter':doInsert();break;
+    case'1':selectMode('chaining');break;case'2':selectMode('linear');break;case'3':selectMode('gomap');break;
+  }
+});
+
+/* ══════ TABS ══════ */
+function selectMode(key){
+  curMode=key;
+  document.querySelectorAll('.atab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const m=MODES[key];
+  document.getElementById('cx-info').innerHTML=m.cx;
+  document.getElementById('how-it-works').innerHTML=m.how;
+  document.getElementById('facts').innerHTML=m.facts;
+  renderCode(m.code,-1);
+  clearMap();snd('click');
+}
+
+function buildTabs(){
+  const order=[['chaining','CHAINING'],['linear','LINEAR PROBE'],['gomap','GO MAP']];
+  document.getElementById('algo-tabs').innerHTML=order.map(([k,l],i)=>
+    `<button class="atab${k===curMode?' active':''}" data-key="${k}" onclick="selectMode('${k}')">${i+1}. ${l}</button>`
+  ).join('');
+}
+
+/* ══════ BOOT ══════ */
+function boot(){
+  const term=document.getElementById('boot-terminal');
+  const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'HASH.MAP v1.0 — INITIALIZING...',s:'',d:180},
+    {t:'LOADING: HASH_FUNCTION.MOD (FNV-32a)',s:'OK',d:130},
+    {t:'LOADING: CHAINING_ENGINE.MOD',s:'OK',d:130},
+    {t:'LOADING: LINEAR_PROBE.MOD (open addressing)',s:'OK',d:140},
+    {t:'LOADING: GOMAP_SIM.MOD (tophash + B-buckets)',s:'OK',d:150},
+    {t:'LOADING: REHASH_ENGINE.MOD (x2 capacity)',s:'OK',d:130},
+    {t:'MOUNTING CANVAS RENDERER...',s:'DONE',d:150},
+    {t:'ALL MODULES LOADED. STARTING...',s:'',d:250},
+  ];
+  let li=0;
+  function al(){
+    if(li>=lines.length){setTimeout(sa,300);return;}
+    const bl=lines[li];
+    const div=document.createElement('div');div.className='bl';
+    div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;
+    term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));
+    fill.style.width=Math.round((li/lines.length)*100)+'%';
+    li++;setTimeout(al,bl.d);
+  }al();
+}
+function sa(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  selectMode('chaining');
+  setTimeout(()=>loadDemo(),400);
+}
+boot();
+</script>
+</body>
+</html>

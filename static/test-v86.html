@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head><title>v86 test — saved state</title></head>
+<body>
+<h2>v86 — Restore from saved state</h2>
+<button id="save-btn" disabled>Save State</button>
+<div id="screen_container" style="border: 1px solid #ccc;">
+    <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
+    <canvas style="display: none"></canvas>
+</div>
+<pre id="log" style="max-height:200px;overflow:auto;font-size:12px;"></pre>
+<script src="/v86/libv86.js"></script>
+<script>
+var log = document.getElementById('log');
+function L(msg) { log.textContent += msg + '\n'; console.log(msg); }
+
+if (typeof V86 !== 'undefined') {
+    L('Creating emulator...');
+    var emulator = new V86({
+        wasm_path: '/v86/v86.wasm',
+        memory_size: 512 * 1024 * 1024,
+        vga_memory_size: 8 * 1024 * 1024,
+        screen_container: document.getElementById('screen_container'),
+        bios: { url: '/v86/seabios.bin' },
+        vga_bios: { url: '/v86/vgabios.bin' },
+        hda: { url: '/xp.img', async: true, size: 2147483648 },
+        autostart: false,
+        cpuid_level: 2,
+        acpi: false,
+    });
+
+    L('Fetching saved state...');
+    fetch('/xp-state.bin')
+        .then(function(r) {
+            L('State response: ' + r.status + ' (' + (r.headers.get('content-length')/1024/1024).toFixed(1) + ' MB)');
+            return r.arrayBuffer();
+        })
+        .then(function(state) {
+            L('Restoring state (' + (state.byteLength/1024/1024).toFixed(1) + ' MB)...');
+            emulator.restore_state(state);
+            emulator.run();
+            L('State restored! XP should be visible.');
+        })
+        .catch(function(e) {
+            L('ERROR: ' + e.message);
+        });
+
+    document.getElementById('save-btn').onclick = function() {
+        emulator.save_state(function(err, state) {
+            if (err) { L('Save error: ' + err); return; }
+            var blob = new Blob([state]);
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'xp-state.bin';
+            a.click();
+            L('State saved!');
+        });
+    };
+    document.getElementById('save-btn').disabled = false;
+
+    setInterval(function() {
+        var c = document.querySelector('#screen_container canvas');
+        L('canvas: ' + (c ? c.style.display : 'N/A') + ' | running: ' + emulator.is_running());
+    }, 3000);
+}
+</script>
+</body>
+</html>

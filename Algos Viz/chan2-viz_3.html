@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHAN2.VIZ v2.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.52) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1) contrast(1.03);}95%{filter:brightness(.82);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .3s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -4px 0 0 rgba(255,30,30,.35),inset 4px 0 0 rgba(30,80,255,.35);}100%{opacity:0;}}
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:88px;color:var(--amber);text-shadow:0 0 44px var(--amber),0 0 88px rgba(255,178,41,.22);letter-spacing:10px;margin-bottom:4px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:680px;max-width:92vw;font-size:13px;line-height:2.1;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:680px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.25);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.1);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.send{color:var(--blue);border-color:var(--blue);background:rgba(96,165,250,.08);}
+.pbadge.recv{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+.pbadge.block{color:var(--orange);border-color:var(--orange);background:rgba(249,115,22,.09);}
+.pbadge.unblock{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.07);}
+.pbadge.close{color:var(--purple);border-color:var(--purple);background:rgba(168,85,247,.08);}
+.pbadge.select{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.07);}
+.pbadge.panic{color:var(--red);border-color:var(--red);background:rgba(244,63,94,.12);}
+.pbadge.cancel{color:var(--red);border-color:var(--red);background:rgba(244,63,94,.08);}
+.pbadge.pipeline{color:var(--amber);border-color:var(--amber);}
+.pbadge.done{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+.pbadge.warn{color:var(--red);border-color:var(--red);}
+.pbadge.nil{color:var(--purple);border-color:var(--purple);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:14px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:var(--red);border-color:var(--red);}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:370px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:'VT323',monospace;font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:230px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.1);border-left:2px solid var(--amber);}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}.op{color:#56b6c2;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.8;color:rgba(255,178,41,.48);}
+.info-block strong{color:rgba(255,178,41,.8);}
+.tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 6px;font-size:8.5px;margin:1px 2px;}
+.warn-tag{display:inline-block;background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.3);padding:1px 6px;font-size:8.5px;margin:1px 2px;color:#f43f5e;}
+.ok-tag{display:inline-block;background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.3);padding:1px 6px;font-size:8.5px;margin:1px 2px;color:#4ade80;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+
+#subheader{display:flex;align-items:center;padding:2px 14px;border-bottom:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.38);flex-shrink:0;height:28px;}
+#subtabs{display:flex;gap:3px;overflow-x:auto;}
+#subtabs::-webkit-scrollbar{display:none;}
+.ctab{font-size:9.5px;padding:3px 13px;border:1px solid rgba(255,178,41,.25);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:2.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.ctab:hover,.ctab.active{border-color:var(--amber);background:rgba(255,178,41,.12);color:var(--amber);box-shadow:0 0 8px rgba(255,178,41,.12);}
+.stab{font-size:8.5px;padding:2px 9px;border:1px solid rgba(255,178,41,.18);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.stab:hover,.stab.active{border-color:var(--amber);background:rgba(255,178,41,.1);color:var(--amber);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">CHAN2.VIZ</div>
+  <div id="boot-tagline">GO CHANNELS — COMPLETE REFERENCE v2.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X GOROUTINE SYSTEMS INC. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">CHAN2.VIZ</div>
+    <div id="cattabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="subheader"><div id="subtabs"></div></div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a scenario (keys 1–8).</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">GOROUTINES</span><span class="sv" id="st-g">0</span></div>
+        <div class="si"><span class="sl">BLOCKED</span><span class="sv" id="st-b" style="color:var(--orange)">0</span></div>
+        <div class="si"><span class="sl">SENT</span><span class="sv" id="st-s" style="color:var(--blue)">0</span></div>
+        <div class="si"><span class="sl">RECV</span><span class="sv" id="st-r" style="color:var(--green)">0</span></div>
+        <div class="si"><span class="sl">CHAN</span><span class="sv" id="st-c" style="font-size:11px">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="4" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">←→</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1-5</span> Category</span><span class="kbh"><span class="kbk">Q-T</span> Sub-tab</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ KEY RULES</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ GOTCHAS + INTERVIEW</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ══════════════════════════════════
+   NOISE + CRT GLITCH
+══════════════════════════════════ */
+(()=>{
+  const c=document.getElementById('noise'),x=c.getContext('2d');
+  const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();
+  window.addEventListener('resize',r);
+  const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();
+})();
+function sGlitch(){
+  setTimeout(()=>{
+    document.getElementById('crt-wrap').style.filter='brightness(.2)';
+    setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},18+Math.random()*16);
+  },3800+Math.random()*6200);
+}sGlitch();
+
+/* ══════════════════════════════════
+   AUDIO ENGINE
+   send:520Hz push  recv:720Hz pop
+   block:160Hz buzz  unblock:460Hz rise
+   close:300Hz snap  panic:90Hz warble
+   cancel:580->160Hz sweep  select:500Hz click
+══════════════════════════════════ */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){
+  if(muted||!AC)return;
+  try{
+    const g=AC.createGain(),ws=AC.createWaveShaper();
+    const cv=new Float32Array(256);
+    for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+12)/(Math.PI+12*Math.abs(x));}
+    ws.curve=cv;ws.connect(AC.destination);g.connect(ws);
+    const o=AC.createOscillator();o.connect(g);
+    if(type==='send'){
+      o.frequency.setValueAtTime(520,AC.currentTime);
+      o.frequency.exponentialRampToValueAtTime(480,AC.currentTime+.08);
+      o.type='sawtooth';g.gain.setValueAtTime(.12,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.09);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.12);
+    }else if(type==='recv'){
+      o.frequency.setValueAtTime(680,AC.currentTime);
+      o.frequency.exponentialRampToValueAtTime(760,AC.currentTime+.06);
+      o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.07);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.1);
+    }else if(type==='block'){
+      o.frequency.setValueAtTime(160,AC.currentTime);
+      o.type='sawtooth';g.gain.setValueAtTime(.08,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.2);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.22);
+    }else if(type==='unblock'){
+      o.frequency.setValueAtTime(360,AC.currentTime);
+      o.frequency.exponentialRampToValueAtTime(560,AC.currentTime+.13);
+      o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.14);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.16);
+    }else if(type==='close'){
+      o.frequency.setValueAtTime(300,AC.currentTime);
+      o.frequency.exponentialRampToValueAtTime(180,AC.currentTime+.08);
+      o.type='sawtooth';g.gain.setValueAtTime(.09,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.09);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.11);
+    }else if(type==='panic'){
+      o.frequency.setValueAtTime(220,AC.currentTime);
+      o.frequency.exponentialRampToValueAtTime(60,AC.currentTime+.4);
+      o.type='sawtooth';g.gain.setValueAtTime(.15,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.42);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.45);
+    }else if(type==='cancel'){
+      o.frequency.setValueAtTime(580,AC.currentTime);
+      o.frequency.exponentialRampToValueAtTime(160,AC.currentTime+.28);
+      o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.3);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.32);
+    }else if(type==='select'){
+      o.frequency.setValueAtTime(500,AC.currentTime);
+      o.type='sawtooth';g.gain.setValueAtTime(.08,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.05);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.07);
+    }else if(type==='done'){
+      o.frequency.setValueAtTime(560,AC.currentTime);
+      o.frequency.exponentialRampToValueAtTime(620,AC.currentTime+.09);
+      o.type='sawtooth';g.gain.setValueAtTime(.09,AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.1);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.12);
+    }else{
+      o.frequency.setValueAtTime(380,AC.currentTime);o.type='sawtooth';
+      g.gain.setValueAtTime(.07,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.04);
+      o.start(AC.currentTime);o.stop(AC.currentTime+.06);
+    }
+  }catch(e){}
+}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ══════════════════════════════════
+   SYNTAX HIGHLIGHT
+══════════════════════════════════ */
+function hlGo(l){
+  let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/(\/\/.*)/g,'<span class="cm">$1</span>');
+  s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+  s=s.replace(/\b(func|go|var|type|struct|return|if|else|for|range|select|case|default|make|close|len|cap|chan|nil|int|string|bool|defer|context|sync|time)\b/g,'<span class="kw">$1</span>');
+  s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+  s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');
+  s=s.replace(/(:=|==|!=|&lt;=|&gt;=|\+=|-=|&lt;-)/g,'<span class="op">$1</span>');
+  return s;
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc">${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ══════════════════════════════════
+   SCENARIOS METADATA
+══════════════════════════════════ */
+const SC={
+  unbuf:{label:'UNBUFFERED',
+    code:[
+      'ch := make(chan int)        // cap=0: sync rendezvous',
+      '',
+      'go func() {                 // goroutine G1 (sender)',
+      '    fmt.Println("sending")',
+      '    ch <- 42                // BLOCKS until receiver ready',
+      '    fmt.Println("sent!")    // resumes after handshake',
+      '}()',
+      '',
+      'fmt.Println("receiving")',
+      'v := <-ch                   // BLOCKS until sender ready',
+      'fmt.Println("got:", v)      // v == 42',
+      '',
+      '// Rule: sender and receiver must meet simultaneously',
+      '// Like a phone call: both must be on the line',
+    ],
+    cx:`<strong>cap=0:</strong> no buffer — every send blocks until a receiver is ready<br><strong>Synchronous rendezvous:</strong> sender + receiver meet at the channel<br><strong>Neither side can proceed alone</strong> — mutual synchronization<br><strong>Guarantee:</strong> when send returns, receiver has already received the value`,
+    how:`An unbuffered channel is a pure synchronization point. When G1 executes <code>ch &lt;- 42</code>, it parks and waits. When G2 executes <code>v := &lt;-ch</code>, the runtime connects them, copies the value, and both goroutines unblock simultaneously.<br><br>This is why it's called a <em>rendezvous</em> — neither party can leave until both have met. The value is never stored in the channel itself.`,
+    facts:`<span class="warn-tag">DEADLOCK</span> <code>ch &lt;- x</code> in main goroutine, no concurrent receiver → deadlock<br><span class="tag">Happens-before</span> send completes before receive returns — strong ordering guarantee<br><span class="tag">Zero copy</span> runtime copies value directly between goroutine stacks<br><span class="ok-tag">IDIOM</span> use unbuffered to signal readiness: <code>ready := make(chan struct{})</code><br><span class="warn-tag">TRAP</span> using same goroutine as both sender and receiver — instant deadlock`,
+  },
+  buffered:{label:'BUFFERED',
+    code:[
+      'ch := make(chan int, 3)     // cap=3: async up to 3 items',
+      '',
+      'ch <- 1                     // immediate: slot available',
+      'ch <- 2                     // immediate: slot available',
+      'ch <- 3                     // immediate: last slot fills',
+      '// ch <- 4                  // BLOCKS: cap full, no space!',
+      '',
+      'fmt.Println(len(ch), cap(ch)) // 3, 3',
+      '',
+      'v1 := <-ch                  // drains FIFO: gets 1',
+      'v2 := <-ch                  // gets 2',
+      'v3 := <-ch                  // gets 3',
+      '',
+      '// len(ch) == 0: empty, cap(ch) == 3: always same',
+      '// <-ch now would BLOCK: empty channel',
+    ],
+    cx:`<strong>cap=N:</strong> up to N sends without blocking<br><strong>FIFO queue:</strong> values drain in send order<br><strong>Send blocks</strong> when <code>len == cap</code> (full)<br><strong>Receive blocks</strong> when <code>len == 0</code> (empty)<br><code>len(ch)</code> = items currently buffered`,
+    how:`A buffered channel is a FIFO queue with bounded capacity. The sender does not need a concurrent receiver — it puts the value in the buffer and immediately continues, as long as there is space.<br><br>The buffer is a circular ring buffer internally. When capacity is exhausted, the sender parks (like unbuffered). When empty, the receiver parks.<br><br>Think of it as a supermarket conveyor belt: items can queue up to N before the cashier (receiver) is needed.`,
+    facts:`<span class="tag">len(ch)</span> current items buffered — safe to read but don't rely on it for logic<br><span class="tag">cap(ch)</span> always fixed at creation, never changes<br><span class="warn-tag">TRAP</span> <code>ch := make(chan int, 1)</code> is NOT a mutex — multiple senders race on the last slot<br><span class="ok-tag">PATTERN</span> cap=1 + drain = lightweight semaphore<br><span class="warn-tag">TRAP</span> large buffer hides backpressure — prefer small buffers + monitoring<br><span class="tag">Goroutine leak</span> sender stuck on full channel forever if no reader`,
+  },
+  close_range:{label:'CLOSE+RANGE',
+    code:[
+      'ch := make(chan int, 3)',
+      'ch <- 10',
+      'ch <- 20',
+      'ch <- 30',
+      'close(ch)                   // signal: no more values coming',
+      '',
+      'for v := range ch {         // drains until closed AND empty',
+      '    fmt.Println(v)          // prints 10, 20, 30',
+      '}                           // exits when ch is closed+empty',
+      '',
+      '// explicit receive with ok-idiom:',
+      'v, ok := <-ch               // ok==false: closed and empty',
+      '// v==0 (zero value), ok==false',
+      '',
+      '// DANGER: close before drain',
+      '// v := <-closedCh          // returns zero value immediately',
+      '// PANIC: close(closedCh)   // panic: close of closed channel',
+      '// PANIC: send on closed    // panic: send on closed channel',
+    ],
+    cx:`<strong>close(ch):</strong> signals no more values — can still drain buffered<br><strong>range ch:</strong> receives until closed+empty — cleanest drain idiom<br><strong>v, ok := &lt;-ch:</strong> ok==false means closed and empty<br><strong>After close:</strong> receives return zero values immediately<br><strong>Rule:</strong> only the SENDER should close (never the receiver)`,
+    how:`Closing a channel is a broadcast signal: all receivers (current and future) will see the channel as closed. It does NOT flush or cancel in-flight values — buffered values still drain normally.<br><br><code>range ch</code> is syntactic sugar for the ok-loop:<br><code>for { v, ok := &lt;-ch; if !ok { break } }</code><br><br>The close mechanism is crucial for pipeline coordination: a stage closes its output channel when it's done, and downstream stages see the close and exit cleanly.`,
+    facts:`<span class="warn-tag">PANIC</span> closing an already-closed channel → runtime panic<br><span class="warn-tag">PANIC</span> sending to a closed channel → runtime panic<br><span class="tag">only sender closes</span> convention — receiver never closes<br><span class="ok-tag">IDIOM</span> done := make(chan struct{}); close(done) — broadcast to many receivers<br><span class="warn-tag">TRAP</span> <code>&lt;-closedEmptyCh</code> returns immediately with zero value — can cause busy loops<br><span class="tag">nil channel</span> never closes — <code>&lt;-nilCh</code> blocks forever (useful in select!)`,
+  },
+  select_stmt:{label:'SELECT',
+    code:[
+      'ch1 := make(chan string, 1)',
+      'ch2 := make(chan string, 1)',
+      '',
+      'ch1 <- "hello"              // ch1 ready',
+      '',
+      'select {                    // pick first ready case',
+      'case msg := <-ch1:',
+      '    fmt.Println("ch1:", msg) // fires: ch1 was ready',
+      'case msg := <-ch2:',
+      '    fmt.Println("ch2:", msg)',
+      'default:                    // fires if NO case is ready',
+      '    fmt.Println("no msg ready")',
+      '}',
+      '',
+      '// If multiple cases ready: RANDOM selection (fair)',
+      '// select {} — blocks forever (intentional pattern)',
+      '// Timeout pattern:',
+      'select {',
+      'case v := <-ch:',
+      '    process(v)',
+      'case <-time.After(1 * time.Second):',
+      '    fmt.Println("timed out")',
+      '}',
+    ],
+    cx:`<strong>select:</strong> waits on multiple channel ops simultaneously<br><strong>First ready</strong> case executes — if none: block until one is ready<br><strong>Multiple ready:</strong> Go runtime picks uniformly at random<br><strong>default:</strong> runs immediately if no case is ready (non-blocking)<br><strong>nil channel</strong> in select: that case is never selected`,
+    how:`<code>select</code> is Go's multiplexer for channel operations. It evaluates all case expressions (channel ops) simultaneously. If exactly one is ready, it fires. If multiple are ready, the runtime uses a pseudo-random selection to avoid starvation.<br><br>The <code>default</code> branch makes select non-blocking — a common pattern for polling. Without default, select blocks until any channel is ready.<br><br>Key use: combine a work channel with <code>ctx.Done()</code> to make cancellable workers.`,
+    facts:`<span class="tag">Random fairness</span> when multiple cases ready — prevents starvation, not deterministic<br><span class="warn-tag">TRAP</span> <code>select</code> without <code>default</code> on empty channels = deadlock<br><span class="ok-tag">IDIOM</span> <code>select { case &lt;-done: return; case v := &lt;-ch: process(v) }</code><br><span class="ok-tag">IDIOM</span> nil channel disables a case: set to nil to ignore that arm<br><span class="tag">time.After</span> creates a goroutine — use time.NewTimer + Reset for production<br><span class="warn-tag">LEAK</span> time.After inside loop leaks timers — allocates new one each iteration`,
+  },
+  deadlock:{label:'DEADLOCK',
+    code:[
+      '// === TYPE 1: Send with no receiver ===',
+      'ch := make(chan int)',
+      'ch <- 42                    // BLOCKS: main goroutine',
+      '// runtime: all goroutines asleep - deadlock!',
+      '',
+      '// === TYPE 2: Circular wait ===',
+      'ch1 := make(chan int)',
+      'ch2 := make(chan int)',
+      '',
+      'go func() {',
+      '    ch1 <- 1                // blocks: no receiver on ch1',
+      '    <-ch2                   // never reached',
+      '}()',
+      'go func() {',
+      '    ch2 <- 2                // blocks: no receiver on ch2',
+      '    <-ch1                   // never reached',
+      '}()',
+      '// both goroutines stuck → deadlock',
+      '',
+      '// === TYPE 3: Missing close ===',
+      'ch := make(chan int)',
+      'go func() {',
+      '    for i := 0; i < 3; i++ { ch <- i }',
+      '    // forgot close(ch) !',
+      '}()',
+      'for v := range ch { ... }   // DEADLOCK: range never exits',
+    ],
+    cx:`<strong>Deadlock:</strong> all goroutines are asleep — no progress possible<br><strong>Go runtime detects</strong> total deadlock and panics<br><strong>Partial deadlock:</strong> some goroutines stuck forever — NOT detected!<br><strong>Goroutine leak:</strong> partial deadlock — memory leak + CPU waste`,
+    how:`Go's runtime detects <em>total</em> deadlocks: when every goroutine is blocked on a channel op or mutex. It panics with <code>fatal error: all goroutines are asleep - deadlock!</code><br><br>Partial deadlocks (goroutine leaks) are NOT detected. A goroutine stuck on <code>ch &lt;- x</code> forever simply wastes memory and stack space — it will never be GC'd.<br><br>Common causes: unbuffered send without receiver, range without close, circular channel dependency.`,
+    facts:`<span class="warn-tag">PANIC</span> "fatal error: all goroutines are asleep - deadlock!" — total deadlock<br><span class="warn-tag">LEAK</span> partial deadlock: goroutine stuck on send/recv — GC can't collect it<br><span class="tag">context.Context</span> is the standard solution for leak prevention<br><span class="ok-tag">TOOL</span> go vet, goleak (Uber) detect goroutine leaks in tests<br><span class="warn-tag">INTERVIEW</span> "what happens if you send to nil channel?" → blocks forever<br><span class="tag">Circular deps</span> both goroutines need the other to receive first → no resolution`,
+  },
+  context:{label:'CONTEXT',
+    code:[
+      'ctx, cancel := context.WithTimeout(',
+      '    context.Background(), 2*time.Second)',
+      'defer cancel()              // always call cancel!',
+      '',
+      'work := make(chan int, 10)',
+      'go func() {                 // producer',
+      '    for i := 0; ; i++ {',
+      '        work <- i',
+      '    }',
+      '}()',
+      '',
+      'go func() {                 // worker (cancellable)',
+      '    for {',
+      '        select {',
+      '        case <-ctx.Done():  // ctx timeout/cancel fires',
+      '            fmt.Println("stopping:", ctx.Err())',
+      '            return          // clean exit',
+      '        case v := <-work:  // normal work',
+      '            process(v)',
+      '        }',
+      '    }',
+      '}()',
+      '',
+      '// ctx.Err() returns: context.DeadlineExceeded or',
+      '// context.Canceled (if cancel() was called)',
+    ],
+    cx:`<strong>ctx.Done():</strong> a channel that closes when ctx is cancelled/expired<br><strong>WithTimeout:</strong> auto-cancels after duration<br><strong>WithCancel:</strong> manual cancel via cancel() function<br><strong>defer cancel():</strong> always defer — prevents goroutine leak<br><strong>ctx.Err():</strong> Canceled or DeadlineExceeded`,
+    how:`<code>context.Context</code> carries deadlines, cancellation signals, and request-scoped values. The <code>Done()</code> channel is closed (broadcast) when the context is cancelled or times out.<br><br>Workers use <code>select</code> to simultaneously listen to work channels and the context's Done signal. This makes goroutines <em>cancellable</em> — the standard pattern for server request handlers, retries, and long-running tasks.<br><br>Contexts form a tree: cancelling a parent cancels all children.`,
+    facts:`<span class="warn-tag">LEAK</span> forgetting <code>defer cancel()</code> leaks goroutines even if context finishes<br><span class="ok-tag">CONVENTION</span> always pass ctx as first argument: <code>func Do(ctx context.Context, ...)</code><br><span class="tag">WithDeadline</span> absolute time; WithTimeout = relative duration<br><span class="tag">WithValue</span> for request metadata only — not for optional parameters<br><span class="warn-tag">TRAP</span> passing context.Background() everywhere loses cancellation chain<br><span class="ok-tag">INTERVIEW</span> "ctx is a tree: cancel parent → all descendants cancelled"`,
+  },
+  pipeline:{label:'PIPELINE',
+    code:[
+      'func gen(nums ...int) <-chan int {',
+      '    out := make(chan int)',
+      '    go func() {',
+      '        for _, n := range nums { out <- n }',
+      '        close(out)           // signal: no more values',
+      '    }()',
+      '    return out               // return read-only chan',
+      '}',
+      '',
+      'func sq(in <-chan int) <-chan int {',
+      '    out := make(chan int)',
+      '    go func() {',
+      '        for n := range in { out <- n * n }',
+      '        close(out)           // propagate close downstream',
+      '    }()',
+      '    return out',
+      '}',
+      '',
+      'func main() {',
+      '    c := gen(2, 3, 4, 5)',
+      '    sq1 := sq(c)             // stage 2: square',
+      '    for v := range sq1 {     // sink: print results',
+      '        fmt.Println(v)       // 4, 9, 16, 25',
+      '    }',
+      '}',
+    ],
+    cx:`<strong>Stage:</strong> goroutine + input chan + output chan<br><strong>Each stage</strong> reads from upstream, transforms, writes to downstream<br><strong>close propagates:</strong> each stage closes output when input closes<br><strong>Directional channels:</strong> <code>&lt;-chan T</code> read-only, <code>chan&lt;- T</code> write-only<br><strong>Back-pressure:</strong> slow sink slows the whole pipeline naturally`,
+    how:`The pipeline pattern composes goroutines into a data processing chain. Each stage is independent: they can run on different OS threads, process at their own pace, and be tested in isolation.<br><br>The canonical pattern:<br>1. Source produces values and closes output when done<br>2. Each transform stage ranges over input, processes, closes output<br>3. Sink ranges over final stage's output<br><br>Back-pressure is built-in: if the sink is slow, buffered channels absorb spikes; unbuffered channels directly slow the producer.`,
+    facts:`<span class="ok-tag">IDIOM</span> return <code>&lt;-chan T</code> from stage — signals read-only to callers<br><span class="tag">Fan-out</span> same input channel read by multiple stages<br><span class="tag">Fan-in</span> multiple channels merged via select into one<br><span class="warn-tag">TRAP</span> forgetting close(out) → downstream range blocks forever<br><span class="ok-tag">PATTERN</span> errgroup for parallel pipeline stages with error propagation<br><span class="tag">Context</span> always thread ctx through all stages for cancellation`,
+  },
+  fanout:{label:'FAN-OUT/IN',
+    code:[
+      'func worker(id int, jobs <-chan int,',
+      '            results chan<- int) {',
+      '    for j := range jobs {',
+      '        results <- j * j     // process + send result',
+      '    }',
+      '}',
+      '',
+      'func main() {',
+      '    jobs    := make(chan int, 10)',
+      '    results := make(chan int, 10)',
+      '',
+      '    for w := 1; w <= 3; w++ {         // fan-out',
+      '        go worker(w, jobs, results)',
+      '    }',
+      '',
+      '    for j := 1; j <= 6; j++ {         // dispatch jobs',
+      '        jobs <- j',
+      '    }',
+      '    close(jobs)                        // workers will exit',
+      '',
+      '    for r := 1; r <= 6; r++ {         // fan-in: collect',
+      '        fmt.Println(<-results)',
+      '    }',
+      '}',
+      '// results arrive in NON-DETERMINISTIC order!',
+    ],
+    cx:`<strong>Fan-out:</strong> distribute work across N concurrent workers<br><strong>Fan-in:</strong> merge N result channels into one<br><strong>close(jobs):</strong> workers exit their range loop when drained<br><strong>Order not guaranteed:</strong> results arrive as workers complete<br><strong>sync.WaitGroup</strong> or result count for clean shutdown`,
+    how:`Fan-out parallelizes independent work items across multiple goroutines. Each worker reads from the shared jobs channel (Go runtime distributes items fairly) and sends results to a shared results channel.<br><br>The pattern scales naturally: increase N for more parallelism. The channel buffers absorb imbalance between producers and consumers.<br><br>For production: use <code>errgroup</code> or <code>sync.WaitGroup</code> to coordinate shutdown, and always close the jobs channel to signal workers to stop.`,
+    facts:`<span class="warn-tag">TRAP</span> not closing jobs channel → workers leak (range never exits)<br><span class="tag">Worker pool</span> start N workers once, reuse across many job batches<br><span class="ok-tag">PATTERN</span> errgroup.WithContext for fan-out with error propagation<br><span class="tag">Non-deterministic</span> results order — don't assume completion order<br><span class="warn-tag">TRAP</span> results channel too small → workers block → jobs don't drain<br><span class="ok-tag">INTERVIEW</span> "how to merge N channels?" → select loop or reflect.Select for dynamic N`,
+  },
+  semaphore:{label:'SEMAPHORE',
+    code:[
+      '// Buffered channel as counting semaphore',
+      '// Limits max concurrency to N = cap(sem)',
+      'const maxConcurrent = 3',
+      'sem := make(chan struct{}, maxConcurrent)',
+      '',
+      'var wg sync.WaitGroup',
+      'for i := 0; i < 8; i++ {',
+      '    wg.Add(1)',
+      '    go func(id int) {',
+      '        defer wg.Done()',
+      '        sem <- struct{}{}   // ACQUIRE: block if N already running',
+      '        defer func() {',
+      '            <-sem           // RELEASE: free one slot',
+      '        }()',
+      '        doWork(id)          // only 3 goroutines here at once',
+      '    }(i)',
+      '}',
+      'wg.Wait()',
+      '',
+      '// Key: len(sem) == current active workers',
+      '// cap(sem) == max allowed concurrent workers',
+      '// struct{} costs 0 bytes — idiomatic token type',
+    ],
+    cx:`<strong>sem := make(chan struct{}, N):</strong> semaphore with N permits<br><strong>Acquire:</strong> <code>sem &lt;- struct{}{}</code> — blocks when N goroutines active<br><strong>Release:</strong> <code>&lt;-sem</code> — always in defer to prevent leak<br><strong>struct{}:</strong> zero-byte token — no memory wasted<br><strong>len(sem):</strong> current active workers at any moment`,
+    how:`A buffered channel of capacity N acts as a counting semaphore. Sending into it acquires a permit (blocks when full). Receiving releases a permit.<br><br>This limits the number of goroutines that can be in the critical section simultaneously. Excess goroutines queue up waiting for a slot.<br><br>Always use <code>defer &lt;-sem</code> for release — ensures the slot is freed even if the worker panics.`,
+    facts:`<span class="ok-tag">IDIOM</span> <code>sem &lt;- struct{}{}</code> / <code>&lt;-sem</code> — zero allocation acquire/release<br><span class="warn-tag">TRAP</span> forgetting <code>defer &lt;-sem</code> → slot never freed → goroutines starve<br><span class="tag">golang.org/x/sync/semaphore</span> for weighted semaphores (variable cost)<br><span class="ok-tag">PATTERN</span> rate-limit HTTP calls, DB connections, file I/O<br><span class="tag">cap(sem)</span> = max concurrency, set based on resource limits<br><span class="warn-tag">TRAP</span> acquiring sem BEFORE launching goroutine to prevent goroutine explosion`,
+  },
+  donechan:{label:'DONE CHAN',
+    code:[
+      '// done channel: broadcast cancellation to many goroutines',
+      'done := make(chan struct{})  // closed = signal, never sent on',
+      '',
+      'worker := func(id int) {',
+      '    for {',
+      '        select {',
+      '        case <-done:         // zero-cost: reads from closed chan',
+      '            fmt.Printf("w%d: stopping\\n", id)',
+      '            return',
+      '        default:',
+      '            doWork(id)       // normal work tick',
+      '        }',
+      '    }',
+      '}',
+      '',
+      'go worker(1)',
+      'go worker(2)',
+      'go worker(3)',
+      '',
+      'time.Sleep(100 * time.Millisecond)',
+      'close(done)                  // broadcast: ALL workers see this',
+      '',
+      '// close(done) is received by ALL goroutines simultaneously',
+      '// sending a value can only wake ONE goroutine at a time',
+    ],
+    cx:`<strong>close(done):</strong> broadcast signal to ALL waiting goroutines<br><strong>vs send:</strong> <code>done &lt;- x</code> wakes exactly one — not a broadcast<br><strong>&lt;-closedChan:</strong> returns immediately, forever — zero cost<br><strong>chan struct{}:</strong> zero bytes, no values ever sent<br><strong>Never send on done:</strong> it's a signal channel, close only`,
+    how:`The done-channel pattern is the idiomatic way to broadcast a stop signal to multiple goroutines before <code>context.Context</code> existed. Closing the channel causes every pending <code>&lt;-done</code> to unblock immediately.<br><br>Unlike sending (which wakes one receiver), close is a broadcast: all goroutines in <code>select { case &lt;-done: }</code> or blocked on <code>&lt;-done</code> wake up at once.<br><br>Modern code prefers <code>context.WithCancel</code>, which uses the same mechanism internally.`,
+    facts:`<span class="tag">close = broadcast</span> all receivers wake simultaneously — not FIFO<br><span class="warn-tag">TRAP</span> <code>done &lt;- x</code> only wakes ONE goroutine — use close() for broadcast<br><span class="ok-tag">IDIOM</span> <code>select { case &lt;-done: return }</code> in every long-running goroutine<br><span class="tag">context.Context</span> wraps this pattern — prefer it for new code<br><span class="warn-tag">PANIC</span> close(done) twice → panic: close of closed channel<br><span class="ok-tag">PATTERN</span> sync.Once { close(done) } for safe multi-caller shutdown`,
+  },
+  nilchan:{label:'NIL CHANNEL',
+    code:[
+      '// nil channel: a case in select is NEVER selected',
+      '// Use to dynamically enable/disable select arms',
+      '',
+      'func merge(a, b <-chan int) <-chan int {',
+      '    out := make(chan int)',
+      '    go func() {',
+      '        defer close(out)',
+      '        for a != nil || b != nil {',
+      '            select {',
+      '            case v, ok := <-a:',
+      '                if !ok { a = nil; continue } // disable arm!',
+      '                out <- v',
+      '            case v, ok := <-b:',
+      '                if !ok { b = nil; continue } // disable arm!',
+      '                out <- v',
+      '            }',
+      '        }',
+      '    }()',
+      '    return out',
+      '}',
+      '',
+      '// nil channel rules:',
+      '// send:    ch <- x  →  blocks forever',
+      '// receive: <-ch     →  blocks forever',
+      '// close:   close(ch)→  PANIC',
+      '// in select: case <-nilCh  →  never fires',
+    ],
+    cx:`<strong>nil channel blocks forever</strong> on send and receive<br><strong>In select:</strong> nil channel case is permanently disabled — skipped<br><strong>Idiom:</strong> set channel to nil when closed to disable its select arm<br><strong>Never close(nil):</strong> panic<br><strong>typeof nil chan:</strong> zero value of any chan type`,
+    how:`A nil channel is a powerful tool for managing <code>select</code> statements dynamically. Because a nil channel blocks forever, a <code>case &lt;-nilCh</code> in a select is effectively removed from consideration.<br><br>The classic use: merge two channels, and when one closes (returns ok=false), set it to nil to disable that arm — keeping the select running until both are exhausted.<br><br>This avoids the need for complex state tracking or separate boolean flags.`,
+    facts:`<span class="warn-tag">PANIC</span> <code>close(nil)</code> → runtime panic immediately<br><span class="tag">In select</span> nil channel case is never selected — zero overhead<br><span class="ok-tag">PATTERN</span> set to nil on close to disable select arm: <code>if !ok { ch = nil }</code><br><span class="warn-tag">TRAP</span> <code>&lt;-nil</code> outside select → goroutine blocked forever → leak<br><span class="ok-tag">INTERVIEW</span> "what does nil channel do in select?" → case is ignored<br><span class="tag">Zero value</span> uninitialized chan is nil — always make() before use`,
+  },
+  ticker:{label:'TICKER',
+    code:[
+      '// time.Ticker: periodic events via channel',
+      'ticker := time.NewTicker(500 * time.Millisecond)',
+      'defer ticker.Stop()          // ALWAYS Stop() to avoid leak!',
+      '',
+      'timeout := time.After(3 * time.Second)',
+      '',
+      'for {',
+      '    select {',
+      '    case t := <-ticker.C:    // fires every 500ms',
+      '        fmt.Println("tick at", t)',
+      '    case <-timeout:          // fires once after 3s',
+      '        fmt.Println("done")',
+      '        return',
+      '    }',
+      '}',
+      '',
+      '// time.After vs time.NewTimer:',
+      '// time.After(d)  — convenience, leaks until d elapses',
+      '// time.NewTimer  — stoppable, use in loops',
+      '',
+      '// Rate limiter pattern:',
+      'limiter := time.NewTicker(200 * time.Millisecond)',
+      'for req := range requests {',
+      '    <-limiter.C              // wait for next token',
+      '    go handle(req)',
+      '}',
+    ],
+    cx:`<strong>ticker.C:</strong> channel receiving Time values on each tick<br><strong>ticker.Stop():</strong> stops the ticker — MUST defer to avoid goroutine leak<br><strong>time.After(d):</strong> one-shot, returns &lt;-chan Time, leaks in loops<br><strong>time.NewTimer:</strong> stoppable one-shot timer<br><strong>Rate limiter:</strong> &lt;-ticker.C as a token bucket`,
+    how:`<code>time.NewTicker</code> creates a background goroutine that sends the current time to <code>ticker.C</code> at each interval. The channel is buffered with cap=1 — if the receiver is slow, ticks are dropped (not queued).<br><br>Always call <code>ticker.Stop()</code> — this terminates the background goroutine. Without it, the goroutine leaks for the lifetime of the program.<br><br>For rate limiting, reading from <code>ticker.C</code> before handling a request paces throughput to one request per interval.`,
+    facts:`<span class="warn-tag">LEAK</span> not calling ticker.Stop() → background goroutine leaks forever<br><span class="warn-tag">LEAK</span> time.After inside loop → new timer goroutine each iteration<br><span class="ok-tag">PATTERN</span> <code>time.NewTimer</code> + Reset for reusable timers in loops<br><span class="tag">Cap=1</span> ticker.C is buffered(1) — one missed tick absorbed, rest dropped<br><span class="ok-tag">RATE LIMIT</span> <code>&lt;-limiter.C</code> gates throughput to N ops/second<br><span class="tag">time.After</span> safe for one-shot timeouts in select — use NewTimer in loops`,
+  },
+  nil_disable:{label:'NIL DISABLE',
+    code:[
+      '// Nil-out closed channels to disable select arms',
+      'ch1 := make(chan int, 1)',
+      'ch2 := make(chan int, 1)',
+      'ch1 <- 10; ch2 <- 20',
+      '',
+      'for ch1 != nil || ch2 != nil {',
+      '    select {',
+      '    case v, ok := <-ch1:',
+      '        if !ok { ch1 = nil; continue } // DISABLE arm',
+      '        fmt.Println("ch1:", v)',
+      '    case v, ok := <-ch2:',
+      '        if !ok { ch2 = nil; continue } // DISABLE arm',
+      '        fmt.Println("ch2:", v)',
+      '    }',
+      '}',
+      '// for exits: ch1!=nil||ch2!=nil becomes false',
+      '',
+      '// WITHOUT nil-out (WRONG — busy loop):',
+      '// closed chan fires immediately with zero value',
+      '// ok=false ignored → infinite loop!',
+      '',
+      '// BOTH nil, no for-exit:',
+      '// select{case <-nil: case <-nil:} → BLOCKS FOREVER',
+    ],
+    cx:`<strong>Closed chan in select:</strong> returns (0, false) IMMEDIATELY — forever<br><strong>Fix:</strong> when ok=false, set variable to nil to disable arm<br><strong>nil arm in select:</strong> permanently disabled, never fires<br><strong>for guard:</strong> <code>ch1 != nil || ch2 != nil</code> exits when all done<br><strong>Both nil + no exit:</strong> select blocks forever = goroutine leak`,
+    how:`When a channel closes, <code>v, ok := &lt;-ch</code> returns instantly with ok=false. Without setting to nil, the select arm fires in an infinite busy-loop returning zero values.<br><br>Setting the variable to nil disables that arm permanently — a nil channel blocks forever, so it's never selected. The for-loop condition is the exit guard.<br><br>If you nil both channels but keep the loop, the select has no active arms and blocks forever — the classic "double-nil deadlock".`,
+    facts:`<span class="warn-tag">INFINITE LOOP</span> reading closed chan without nil-out → zero values forever<br><span class="warn-tag">DEADLOCK</span> all-nil select with no exit condition → blocks forever<br><span class="ok-tag">PATTERN</span> <code>if !ok { ch = nil; continue }</code> — canonical idiom<br><span class="tag">for guard</span> <code>ch1 != nil || ch2 != nil</code> = exit when all channels done<br><span class="warn-tag">INTERVIEW</span> "what does select do with all-nil channels?" → blocks forever`,
+  },
+  select_priority:{label:'PRIORITY SELECT',
+    code:[
+      '// Standard select: NO built-in priority (random pick)',
+      '// Biased select: always drain high-priority first',
+      '',
+      'high := make(chan int, 10) // high-priority',
+      'low  := make(chan int, 10) // low-priority',
+      '',
+      'for {',
+      '    // Pass 1: non-blocking drain of HIGH',
+      '    select {',
+      '    case v := <-high:',
+      '        process("HIGH", v)  // handle immediately',
+      '        continue            // re-check high again',
+      '    default:                // high empty: fall through',
+      '    }',
+      '    // Pass 2: block on EITHER (high exhausted)',
+      '    select {',
+      '    case v := <-high:       // picked up new high',
+      '        process("HIGH", v)',
+      '    case v := <-low:        // only when high empty',
+      '        process("LOW", v)',
+      '    }',
+      '}',
+      '// Inner select+default = non-blocking poll',
+      '// continue = loop back to check high again',
+    ],
+    cx:`<strong>Standard select:</strong> uniform random — no priority guarantee<br><strong>Inner select + default:</strong> non-blocking check = poll without blocking<br><strong>continue:</strong> re-enters loop, rechecks high before allowing low<br><strong>Outer select:</strong> only reached when high channel is empty<br><strong>Starvation risk:</strong> low starves if high is always non-empty`,
+    how:`Go's <code>select</code> has no built-in priority — multiple ready cases are chosen uniformly at random. The biased select idiom adds priority via two nested selects.<br><br>Inner select: non-blocking (has default). If high has a message, process it and <code>continue</code> (loop back to check high again). Only when high is empty does the default fire and fall through.<br><br>Outer select: reached only when high is empty. Can now handle either channel.`,
+    facts:`<span class="warn-tag">TRAP</span> standard select with two ready cases — random, not prioritized<br><span class="ok-tag">IDIOM</span> inner select + default + continue = priority drain loop<br><span class="tag">Starvation</span> low channel can starve if high is always busy<br><span class="ok-tag">ALTERNATIVE</span> separate goroutines with different priorities<br><span class="tag">Real use</span> control signals vs data: always drain control first`,
+  },
+  goroutine_leak:{label:'GOROUTINE LEAK',
+    code:[
+      '// LEAK 1: send to channel, caller never reads',
+      'func leaky1() {',
+      '    ch := make(chan int)    // unbuffered!',
+      '    go func() {',
+      '        ch <- compute()    // BLOCKED forever',
+      '    }()                    // caller returns without reading',
+      '}',
+      '',
+      '// LEAK 2: range, producer never closes channel',
+      'func leaky2(ch <-chan int) {',
+      '    go func() {',
+      '        for v := range ch {  // BLOCKED when empty',
+      '            process(v)        // no close() → never exits',
+      '        }',
+      '    }()',
+      '}',
+      '',
+      '// FIX: ctx.Done() escape hatch in every blocking goroutine',
+      'func fixed(ctx context.Context) {',
+      '    ch := make(chan int)',
+      '    go func() {',
+      '        select {',
+      '        case ch <- compute():',
+      '        case <-ctx.Done(): return // escape!',
+      '        }',
+      '    }()',
+      '}',
+    ],
+    cx:`<strong>Goroutine leak:</strong> goroutine permanently blocked, GC cannot collect it<br><strong>Each leaked goroutine:</strong> ~2KB stack minimum + heap allocations<br><strong>Undetected</strong> by runtime — only total deadlock triggers panic<br><strong>Fix:</strong> every blocking goroutine needs a <code>ctx.Done()</code> escape<br><strong>Testing:</strong> <code>goleak.VerifyNone(t)</code> catches leaks in unit tests`,
+    how:`The Go GC cannot collect goroutines — a leaked goroutine lives forever. The most common cause: a goroutine blocks on a channel operation, but the counterpart has already returned or never arrives.<br><br>Leak type 1: goroutine sends to unbuffered channel, caller exits without reading. Goroutine parked permanently.<br><br>Leak type 2: goroutine ranges over channel, producer exits without closing. Goroutine blocks waiting forever.<br><br>Fix: always use select + ctx.Done() as an escape hatch.`,
+    facts:`<span class="warn-tag">LEAK</span> unbuffered send + caller doesn't read → goroutine stuck forever<br><span class="warn-tag">LEAK</span> range ch + no close(ch) → goroutine blocked forever<br><span class="ok-tag">FIX</span> <code>select { case ...: case &lt;-ctx.Done(): return }</code><br><span class="tag">goleak</span> uber-go/goleak: <code>defer goleak.VerifyNone(t)</code><br><span class="tag">runtime.NumGoroutine()</span> monitor in Prometheus for leak detection<br><span class="ok-tag">RULE</span> who launches a goroutine owns its lifetime`,
+  },
+  timeout_pat:{label:'TIMEOUT',
+    code:[
+      '// time.After returns a channel that fires after d',
+      '// Use inside select as a timeout arm',
+      'ch := make(chan int)',
+      'go func() {',
+      '    time.Sleep(2 * time.Second)',
+      '    ch <- 42',
+      '}()',
+      '',
+      'select {',
+      'case v := <-ch:',
+      '    fmt.Println("got:", v)    // happy path',
+      'case <-time.After(1 * time.Second):',
+      '    fmt.Println("timeout!")  // fires first',
+      '}',
+      '',
+      '// Reusable timer (avoids leak in loops):',
+      'timer := time.NewTimer(1 * time.Second)',
+      'defer timer.Stop()',
+      'select {',
+      'case v := <-ch:',
+      '    timer.Stop()',
+      '    fmt.Println("got:", v)',
+      'case <-timer.C:',
+      '    fmt.Println("timeout!")',
+      '}',
+    ],
+    cx:`<strong>time.After(d):</strong> convenience — creates a Timer and returns its channel<br><strong>Leak warning:</strong> time.After in loops creates a new goroutine each iteration<br><strong>time.NewTimer:</strong> stoppable, reuse in loops with Stop()+Reset()<br><strong>timer.Stop():</strong> recycles the timer goroutine — always call on success path<br><strong>select fairness:</strong> if ch and timer fire simultaneously — random pick`,
+    how:`<code>time.After(d)</code> is sugar for <code>time.NewTimer(d).C</code>. It launches a background goroutine that fires the channel after duration d.<br><br>In a one-shot select, this is fine. But in a loop, each iteration leaks a timer goroutine until it fires — they pile up under load.<br><br>Correct loop pattern: create one <code>time.NewTimer</code>, call <code>timer.Stop()</code> when the data case fires, call <code>timer.Reset(d)</code> to rearm for the next iteration.`,
+    facts:`<span class="warn-tag">LEAK</span> time.After inside for-loop → new goroutine per iteration<br><span class="ok-tag">FIX</span> time.NewTimer + Stop() + Reset() for reusable timeout<br><span class="tag">timer.Reset(d)</span> only safe to call after Stop() and draining .C<br><span class="warn-tag">TRAP</span> both cases ready simultaneously → random, not timeout priority<br><span class="ok-tag">PATTERN</span> context.WithTimeout wraps this cleanly for propagation`,
+  },
+  workerpool:{label:'WORKER POOL',
+    code:[
+      '// Fixed worker pool: N workers, M jobs, WaitGroup shutdown',
+      'const N = 3 // worker count',
+      'jobs    := make(chan int, 10)',
+      'results := make(chan int, 10)',
+      '',
+      'var wg sync.WaitGroup',
+      'for w := 0; w < N; w++ {',
+      '    wg.Add(1)',
+      '    go func() {',
+      '        defer wg.Done()',
+      '        for job := range jobs {   // blocks until job arrives',
+      '            results <- job * job  // or close(jobs)',
+      '        }',
+      '    }()',
+      '}',
+      '',
+      '// Dispatcher',
+      'for i := 1; i <= 9; i++ { jobs <- i }',
+      'close(jobs)   // signals workers to exit range loop',
+      '',
+      '// Collector (in separate goroutine)',
+      'go func() { wg.Wait(); close(results) }()',
+      'for r := range results { fmt.Println(r) }',
+    ],
+    cx:`<strong>Fixed N workers:</strong> start once, process M jobs, reuse — no goroutine per job<br><strong>close(jobs):</strong> terminates all workers' range loops (broadcast via close)<br><strong>wg.Wait():</strong> blocks until all workers drain; then close(results)<br><strong>Backpressure:</strong> buffered jobs channel absorbs burst, blocks dispatcher when full<br><strong>vs fan-out:</strong> worker pool reuses goroutines; fan-out spawns new ones per batch`,
+    how:`Worker pool pattern: create N long-lived goroutines, all reading from a shared <code>jobs</code> channel. The dispatcher sends work items and closes the channel when done — this broadcasts shutdown to all workers via range-exit.<br><br>A WaitGroup tracks liveness. When all workers exit, a separate goroutine calls <code>close(results)</code>, allowing the collector's range to exit cleanly.<br><br>Critical: buffer sizes matter. Jobs buffer = burst absorption capacity. Results buffer = prevents blocking workers while collector is busy.`,
+    facts:`<span class="ok-tag">PATTERN</span> reuse N goroutines across M jobs — O(N) not O(M) goroutines<br><span class="warn-tag">TRAP</span> close(jobs) before workers start → they exit immediately (empty range)<br><span class="warn-tag">TRAP</span> results buffer too small → workers block → jobs don't drain<br><span class="ok-tag">SHUTDOWN</span> close(jobs) → workers exit range → wg.Done() → wg.Wait() → close(results)<br><span class="tag">errgroup</span> for error propagation in worker pools (golang.org/x/sync)`,
+  },
+  sendclosed:{label:'SEND ON CLOSED',
+    code:[
+      '// PANIC: send on closed channel',
+      'ch := make(chan int, 1)',
+      'close(ch)',
+      'ch <- 1  // panic: send on closed channel',
+      '',
+      '// PANIC: close already closed',
+      'close(ch) // panic: close of closed channel',
+      '',
+      '// SAFE: read from closed (returns zero, false)',
+      'v, ok := <-ch  // ok=false, v=0 — never panics',
+      '',
+      '// IDIOM 1: sync.Once for safe single close',
+      'var once sync.Once',
+      'safeClose := func() { once.Do(func(){ close(ch) }) }',
+      '',
+      '// IDIOM 2: dedicated closer goroutine',
+      '// Only ONE goroutine ever calls close(ch)',
+      '',
+      '// IDIOM 3: recover (last resort)',
+      'func safeSend(ch chan int, v int) (panicked bool) {',
+      '    defer func() {',
+      '        if recover() != nil { panicked = true }',
+      '    }()',
+      '    ch <- v',
+      '    return false',
+      '}',
+    ],
+    cx:`<strong>Send on closed:</strong> always panics — no recovery at call site<br><strong>Close on closed:</strong> always panics<br><strong>Read from closed:</strong> returns (zero, false) — safe, never panics<br><strong>sync.Once:</strong> idiomatic safe close — guaranteed exactly-once<br><strong>Design rule:</strong> only the producer (sender) should close the channel`,
+    how:`Sending to a closed channel panics unconditionally. The runtime cannot stop this at the sender's side — the channel is already gone.<br><br>The fundamental rule: the party that sends should own closing. When multiple senders exist, use a sync.Once or a dedicated "closer" goroutine that owns the channel's lifetime.<br><br>recover() is a last resort for library boundaries. It works but hides bugs — prefer architectural fixes.`,
+    facts:`<span class="warn-tag">PANIC</span> <code>ch &lt;- v</code> where ch is closed → unrecoverable at call site<br><span class="warn-tag">PANIC</span> <code>close(ch)</code> twice → panic: close of closed channel<br><span class="ok-tag">SAFE</span> <code>v, ok := &lt;-closedCh</code> → ok=false, zero value, no panic<br><span class="ok-tag">IDIOM</span> <code>sync.Once</code> for safe close with multiple potential closers<br><span class="tag">Rule</span> sender owns close — receiver never closes<br><span class="warn-tag">INTERVIEW</span> "who closes the channel?" — always the sender/producer`,
+  },
+  errgroup_pat:{label:'ERRGROUP',
+    code:[
+      'import "golang.org/x/sync/errgroup"',
+      '',
+      '// errgroup: fan-out with error propagation + cancel',
+      'g, ctx := errgroup.WithContext(context.Background())',
+      '',
+      'urls := []string{"url1", "url2", "url3"}',
+      'results := make([]Result, len(urls))',
+      '',
+      'for i, url := range urls {',
+      '    i, url := i, url  // capture loop vars!',
+      '    g.Go(func() error {',
+      '        select {',
+      '        case <-ctx.Done():',
+      '            return ctx.Err()  // cancelled by other error',
+      '        default:',
+      '        }',
+      '        r, err := fetch(url)',
+      '        if err != nil { return err } // cancels siblings!',
+      '        results[i] = r',
+      '        return nil',
+      '    })',
+      '}',
+      '',
+      'if err := g.Wait(); err != nil {',
+      '    log.Fatal(err)  // first non-nil error',
+      '}',
+    ],
+    cx:`<strong>g.Go(fn):</strong> launches goroutine, tracks it in the group<br><strong>g.Wait():</strong> blocks until all goroutines return; returns first non-nil error<br><strong>errgroup.WithContext:</strong> ctx cancels when any goroutine returns an error<br><strong>Auto-cancel:</strong> first error cancels ctx — sibling goroutines should check ctx.Done()<br><strong>capture loop vars:</strong> <code>i, url := i, url</code> before closure — classic Go trap`,
+    how:`<code>errgroup</code> is the idiomatic way to fan-out concurrent work where errors matter. It combines a WaitGroup with error collection and context cancellation.<br><br>When any goroutine returns an error, the group's context is cancelled. Sibling goroutines can detect this via <code>ctx.Done()</code> and exit early — preventing wasted work.<br><br><code>g.Wait()</code> returns the first non-nil error. All goroutines must still complete (or check ctx) — errgroup doesn't forcefully kill them.`,
+    facts:`<span class="ok-tag">PATTERN</span> errgroup = WaitGroup + first error + context cancel<br><span class="warn-tag">TRAP</span> forgetting <code>i, url := i, url</code> → all closures share same variable<br><span class="tag">ctx cancel</span> fired on first error → siblings should poll ctx.Done()<br><span class="ok-tag">LIMIT</span> errgroup.SetLimit(N) caps concurrent goroutines (semaphore built-in)<br><span class="warn-tag">TRAP</span> g.Wait() returns FIRST error only — others are discarded<br><span class="ok-tag">ALT</span> errgroup + multierr (go.uber.org/multierr) to collect ALL errors`,
+  },
+};
+
+/* ══════════════════════════════════
+   BUILD STEPS
+══════════════════════════════════ */
+function buildSteps(key){
+  const S=[];
+  const snap=(phase,desc,cl,st)=>S.push({phase,desc,cl,...st});
+
+  /* ─── UNBUFFERED ─── */
+  if(key==='unbuf'){
+    snap('init','ch := make(chan int). Unbuffered (cap=0). G1 and G2 goroutines start.',
+      0,{g1:'idle',g2:'idle',chActive:false,inFlight:null,annotation:null,gg:2,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('send','G1 executes ch <- 42. No receiver yet — G1 BLOCKS and parks.',
+      4,{g1:'blocked',g2:'idle',chActive:false,inFlight:null,annotation:'G1 parked: waiting for receiver',gg:2,blocked:1,sent:0,recv:0,chanState:'open'});
+    snap('recv','G2 executes v := <-ch. Receiver arrives! Runtime connects G1 and G2.',
+      9,{g1:'blocked',g2:'receiving',chActive:true,inFlight:{val:42,progress:0.4},annotation:'HANDSHAKE: copying value directly',gg:2,blocked:1,sent:0,recv:0,chanState:'open'});
+    snap('unblock','Handshake complete. G1 unblocks (send returns). G2 has v=42. Both continue.',
+      10,{g1:'running',g2:'running',chActive:false,inFlight:null,annotation:'Both unblocked simultaneously',gg:2,blocked:0,sent:1,recv:1,chanState:'open'});
+    snap('done','G1 prints "sent!" and exits. G2 prints "got: 42". Rendezvous complete.',
+      5,{g1:'done',g2:'done',chActive:false,inFlight:null,annotation:'v == 42  ✓',gg:0,blocked:0,sent:1,recv:1,chanState:'open'});
+  }
+
+  /* ─── BUFFERED ─── */
+  else if(key==='buffered'){
+    snap('init','ch := make(chan int, 3). cap=3. Three empty buffer slots.',
+      0,{g1:'idle',slots:[null,null,null],cap:3,inFlight:null,annotation:null,gg:1,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('send','ch <- 1. len=0 < cap=3: immediate, no block. Value 1 queued in slot 0.',
+      2,{g1:'running',slots:[1,null,null],cap:3,inFlight:{val:1,toSlot:0},annotation:'No block: slot available',gg:1,blocked:0,sent:1,recv:0,chanState:'open'});
+    snap('send','ch <- 2. len=1 < cap=3: immediate. Value 2 queued in slot 1.',
+      3,{g1:'running',slots:[1,2,null],cap:3,inFlight:{val:2,toSlot:1},annotation:'No block: slot available',gg:1,blocked:0,sent:2,recv:0,chanState:'open'});
+    snap('send','ch <- 3. len=2 < cap=3: last slot fills. Channel now full.',
+      4,{g1:'running',slots:[1,2,3],cap:3,inFlight:{val:3,toSlot:2},annotation:'Channel FULL: len==cap==3',gg:1,blocked:0,sent:3,recv:0,chanState:'open'});
+    snap('block','ch <- 4 attempted. len==cap==3: channel full. G1 BLOCKS.',
+      5,{g1:'blocked',slots:[1,2,3],cap:3,inFlight:null,annotation:'BLOCKED: no space in buffer',gg:1,blocked:1,sent:3,recv:0,chanState:'open'});
+    snap('recv','v1 := <-ch. Receive 1 (FIFO). Slot drains. G1 unblocks — can now send 4.',
+      9,{g1:'unblocking',slots:[4,2,3],cap:3,inFlight:{val:1,fromSlot:0,toRecv:true},annotation:'G1 unblocked: space freed',gg:1,blocked:0,sent:4,recv:1,chanState:'open'});
+    snap('recv','v2 := <-ch. Receive 2. v3 := <-ch. Receive 4 (was queued after unblock). Buffer empty.',
+      11,{g1:'done',slots:[null,null,null],cap:3,inFlight:null,annotation:'len(ch)==0: all drained',gg:0,blocked:0,sent:4,recv:4,chanState:'open'});
+  }
+
+  /* ─── CLOSE+RANGE ─── */
+  else if(key==='close_range'){
+    snap('init','ch := make(chan int, 3). Buffered cap=3. Will fill, close, then drain.',
+      0,{slots:[null,null,null],cap:3,chClosed:false,rangeIdx:-1,ok:true,annotation:null,gg:1,sent:0,recv:0,chanState:'open'});
+    snap('send','ch <- 10, 20, 30. Three values buffered. Channel full.',
+      3,{slots:[10,20,30],cap:3,chClosed:false,rangeIdx:-1,ok:true,annotation:'All 3 slots filled',gg:1,sent:3,recv:0,chanState:'open'});
+    snap('close','close(ch). Signal: no more values will be sent. Buffered values still present!',
+      4,{slots:[10,20,30],cap:3,chClosed:true,rangeIdx:-1,ok:true,annotation:'close() broadcasts to all receivers',gg:1,sent:3,recv:0,chanState:'closed'});
+    snap('recv','range ch: receive 10. Range sees ok=true (still has buffered values).',
+      7,{slots:[null,20,30],cap:3,chClosed:true,rangeIdx:0,ok:true,annotation:'range drains buffered values',gg:1,sent:3,recv:1,chanState:'closed'});
+    snap('recv','range ch: receive 20. One slot left.',
+      7,{slots:[null,null,30],cap:3,chClosed:true,rangeIdx:1,ok:true,annotation:'v = 20',gg:1,sent:3,recv:2,chanState:'closed'});
+    snap('recv','range ch: receive 30. Last buffered value.',
+      7,{slots:[null,null,null],cap:3,chClosed:true,rangeIdx:2,ok:true,annotation:'v = 30',gg:1,sent:3,recv:3,chanState:'closed'});
+    snap('done','Channel closed + empty. range exits loop. No block, no panic.',
+      8,{slots:[null,null,null],cap:3,chClosed:true,rangeIdx:3,ok:true,annotation:'range exits: channel closed & drained',gg:0,sent:3,recv:3,chanState:'closed'});
+    snap('recv','v, ok := <-ch. Closed+empty: returns (0, false). ZERO VALUE + ok==false.',
+      11,{slots:[null,null,null],cap:3,chClosed:true,rangeIdx:-1,ok:false,annotation:'v=0, ok=false: closed and empty',gg:0,sent:3,recv:3,chanState:'closed'});
+  }
+
+  /* ─── SELECT ─── */
+  else if(key==='select_stmt'){
+    snap('init','ch1 and ch2 created. Neither has values yet. Select will use default.',
+      0,{ch1val:null,ch2val:null,ch1ready:false,ch2ready:false,fired:null,g1state:'idle',annotation:null,gg:1,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('select','select{}. Neither ch1 nor ch2 ready. default case fires immediately.',
+      5,{ch1val:null,ch2val:null,ch1ready:false,ch2ready:false,fired:'default',g1state:'running',annotation:'default: no case was ready',gg:1,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('send','ch1 <- "hello". ch1 now has a value ready.',
+      3,{ch1val:'hello',ch2val:null,ch1ready:true,ch2ready:false,fired:null,g1state:'idle',annotation:'ch1 ready: "hello" buffered',gg:1,blocked:0,sent:1,recv:0,chanState:'open'});
+    snap('select','select{}. ch1 ready, ch2 not ready. ch1 case fires. msg="hello".',
+      5,{ch1val:null,ch2val:null,ch1ready:false,ch2ready:false,fired:'ch1',g1state:'running',annotation:'ch1 case: msg = "hello"',gg:1,blocked:0,sent:1,recv:1,chanState:'open'});
+    snap('send','Both ch1 and ch2 get values. Multiple cases ready — Go picks RANDOMLY.',
+      3,{ch1val:'one',ch2val:'two',ch1ready:true,ch2ready:true,fired:null,g1state:'idle',annotation:'Both ready: random selection',gg:1,blocked:0,sent:3,recv:1,chanState:'open'});
+    snap('select','select fires ch2 (random). Could have been ch1. Non-deterministic when both ready.',
+      5,{ch1val:'one',ch2val:null,ch1ready:true,ch2ready:false,fired:'ch2',g1state:'running',annotation:'ch2 selected (random — could be ch1!)',gg:1,blocked:0,sent:3,recv:2,chanState:'open'});
+    snap('done','Timeout pattern: select with time.After(1s). If ch silent for 1s, timeout fires.',
+      20,{ch1val:null,ch2val:null,ch1ready:false,ch2ready:false,fired:'timeout',g1state:'running',annotation:'time.After: cancels wait after 1s',gg:1,blocked:0,sent:3,recv:2,chanState:'open'});
+  }
+
+  /* ─── DEADLOCK ─── */
+  else if(key==='deadlock'){
+    snap('init','Two unbuffered channels ch1, ch2. Two goroutines G1, G2. About to deadlock.',
+      6,{g1state:'idle',g2state:'idle',g1where:null,g2where:null,panicOverlay:false,panicMsg:null,annotation:null,gg:2,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('block','G1 executes ch1 <- 1. No receiver on ch1. G1 BLOCKS.',
+      10,{g1state:'blocked',g2state:'idle',g1where:'ch1<-1',g2where:null,panicOverlay:false,panicMsg:null,annotation:'G1 waiting: needs receiver on ch1',gg:2,blocked:1,sent:0,recv:0,chanState:'open'});
+    snap('block','G2 executes ch2 <- 2. No receiver on ch2. G2 BLOCKS.',
+      14,{g1state:'blocked',g2state:'blocked',g1where:'ch1<-1',g2where:'ch2<-2',panicOverlay:false,panicMsg:null,annotation:'G2 waiting: needs receiver on ch2',gg:2,blocked:2,sent:0,recv:0,chanState:'open'});
+    snap('panic','G1 needs receiver. G2 needs receiver. Neither can receive first. CIRCULAR WAIT.',
+      17,{g1state:'blocked',g2state:'blocked',g1where:'ch1<-1',g2where:'ch2<-2',panicOverlay:false,panicMsg:'G1 stuck → G2 stuck → G1 stuck...∞',annotation:'Circular dependency: no resolution',gg:2,blocked:2,sent:0,recv:0,chanState:'deadlock'});
+    snap('panic','fatal error: all goroutines are asleep - deadlock! Runtime detects and panics.',
+      17,{g1state:'panic',g2state:'panic',g1where:'ch1<-1',g2where:'ch2<-2',panicOverlay:true,panicMsg:'fatal error: all goroutines are asleep - deadlock!',annotation:null,gg:2,blocked:2,sent:0,recv:0,chanState:'PANIC'});
+  }
+
+  /* ─── CONTEXT ─── */
+  else if(key==='context'){
+    snap('init','context.WithTimeout(Background(), 2s). ctx created, timer starts. Worker starts.',
+      0,{ctxPct:0,cancelled:false,workerState:'idle',selectedCase:null,workDone:0,annotation:'ctx timeout: 2 seconds',gg:2,blocked:0,sent:0,recv:0,chanState:'active'});
+    snap('send','Producer sends work items. Worker running: select fires "case v := <-work".',
+      16,{ctxPct:20,cancelled:false,workerState:'working',selectedCase:'work',workDone:1,annotation:'work case: processing item 0',gg:2,blocked:0,sent:1,recv:1,chanState:'active'});
+    snap('send','More work processed. ctx timer at ~60%. Worker happy, receiving work.',
+      16,{ctxPct:60,cancelled:false,workerState:'working',selectedCase:'work',workDone:3,annotation:'processing item 2... ctx still active',gg:2,blocked:0,sent:3,recv:3,chanState:'active'});
+    snap('cancel','ctx TIMEOUT fires (2s elapsed). ctx.Done() channel CLOSES — broadcast to all.',
+      14,{ctxPct:100,cancelled:true,workerState:'selecting',selectedCase:null,workDone:3,annotation:'ctx.Done() closed: cancellation broadcast',gg:2,blocked:0,sent:3,recv:3,chanState:'cancelled'});
+    snap('cancel','Worker select: case <-ctx.Done() fires. Worker receives from closed channel (instant).',
+      14,{ctxPct:100,cancelled:true,workerState:'cancelled',selectedCase:'done',workDone:3,annotation:'ctx.Done() case fires: clean shutdown',gg:2,blocked:0,sent:3,recv:3,chanState:'cancelled'});
+    snap('done','Worker prints ctx.Err() = "context deadline exceeded" and returns. No leak.',
+      15,{ctxPct:100,cancelled:true,workerState:'done',selectedCase:null,workDone:3,annotation:'ctx.Err() = context.DeadlineExceeded',gg:0,blocked:0,sent:3,recv:3,chanState:'done'});
+  }
+
+  /* ─── PIPELINE ─── */
+  else if(key==='pipeline'){
+    snap('init','gen() and sq() started. Each runs in its own goroutine. Two channels created.',
+      18,{genState:'running',sqState:'running',genSlots:[],sqSlots:[],printed:[],currentIn:null,currentOut:null,annotation:'Pipeline: gen → [genCh] → sq → [sqCh] → sink',gg:3,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('send','gen sends 2 to genCh. sq receives 2, computes 4, sends to sqCh.',
+      3,{genState:'running',sqState:'running',genSlots:[],sqSlots:[4],printed:[],currentIn:2,currentOut:4,annotation:'2 → sq → 4',gg:3,blocked:0,sent:1,recv:0,chanState:'open'});
+    snap('pipeline','sink receives 4 from sqCh. Prints 4. gen sends 3, sq computes 9.',
+      21,{genState:'running',sqState:'running',genSlots:[],sqSlots:[9],printed:[4],currentIn:3,currentOut:9,annotation:'3 → sq → 9  |  sink prints: 4',gg:3,blocked:0,sent:2,recv:1,chanState:'open'});
+    snap('pipeline','sink prints 9. gen sends 4, sq computes 16.',
+      21,{genState:'running',sqState:'running',genSlots:[],sqSlots:[16],printed:[4,9],currentIn:4,currentOut:16,annotation:'4 → sq → 16  |  sink prints: 4, 9',gg:3,blocked:0,sent:3,recv:2,chanState:'open'});
+    snap('pipeline','sink prints 16. gen sends 5, sq computes 25.',
+      21,{genState:'running',sqState:'running',genSlots:[],sqSlots:[25],printed:[4,9,16],currentIn:5,currentOut:25,annotation:'5 → sq → 25  |  sink prints: ..., 16',gg:3,blocked:0,sent:4,recv:3,chanState:'open'});
+    snap('close','gen exhausted. close(genCh). sq receives close, exits range, closes sqCh.',
+      4,{genState:'done',sqState:'done',genSlots:[],sqSlots:[],printed:[4,9,16,25],currentIn:null,currentOut:null,annotation:'close propagates: genCh → sqCh → sink exits',gg:1,blocked:0,sent:4,recv:4,chanState:'closed'});
+    snap('done','sink range exits (sqCh closed). All goroutines done. Output: 4 9 16 25.',
+      21,{genState:'done',sqState:'done',genSlots:[],sqSlots:[],printed:[4,9,16,25],currentIn:null,currentOut:null,annotation:'Pipeline complete: 2→4, 3→9, 4→16, 5→25',gg:0,blocked:0,sent:4,recv:4,chanState:'done'});
+  }
+
+  /* ─── FAN-OUT ─── */
+  else if(key==='fanout'){
+    snap('init','3 workers started, all ranging over jobs channel. 6 jobs queued.',
+      11,{workers:['idle','idle','idle'],jobs:[1,2,3,4,5,6],results:[],annotation:'3 workers ready, 6 jobs queued',gg:4,blocked:0,sent:6,recv:0,chanState:'open'});
+    snap('send','Workers pull jobs concurrently. W1→job1, W2→job2, W3→job3 (roughly).',
+      2,{workers:['working:1','working:2','working:3'],jobs:[4,5,6],results:[],annotation:'Fan-out: jobs distributed to 3 workers',gg:4,blocked:0,sent:6,recv:3,chanState:'open'});
+    snap('recv','W1 completes 1→1, sends result. W2 completes 2→4. W3 completes 3→9.',
+      3,{workers:['working:4','working:5','working:6'],jobs:[],results:[1,4,9],annotation:'Results arrive in non-deterministic order!',gg:4,blocked:0,sent:6,recv:6,chanState:'open'});
+    snap('recv','All jobs done. Results: 1,4,9,25,16,36 (order varies). close(jobs).',
+      18,{workers:['done','done','done'],jobs:[],results:[1,4,9,25,16,36],annotation:'Results order non-deterministic: depends on scheduling',gg:1,blocked:0,sent:6,recv:6,chanState:'closed'});
+    snap('done','All workers exited (range over closed jobs). Sink collected all 6 results.',
+      20,{workers:['exited','exited','exited'],jobs:[],results:[1,4,9,16,25,36],annotation:'Fan-in complete: all results collected',gg:0,blocked:0,sent:6,recv:6,chanState:'done'});
+  }
+
+
+  /* ─── SEMAPHORE ─── */
+  else if(key==='semaphore'){
+    snap('init','sem := make(chan struct{}, 3). Cap=3. 8 goroutines want to run. Only 3 at once.',
+      3,{slots:[null,null,null],cap:3,workers:[{id:0,state:'queued'},{id:1,state:'queued'},{id:2,state:'queued'},{id:3,state:'queued'},{id:4,state:'queued'},{id:5,state:'queued'},{id:6,state:'queued'},{id:7,state:'queued'}],activeCount:0,annotation:'8 goroutines, max 3 concurrent',gg:8,blocked:5,sent:0,recv:0,chanState:'empty'});
+    snap('send','G0, G1, G2 acquire (sem <- struct{}{}). Slots fill. 3 workers active.',
+      10,{slots:[{},{},'occupied'],cap:3,workers:[{id:0,state:'running'},{id:1,state:'running'},{id:2,state:'running'},{id:3,state:'queued'},{id:4,state:'queued'},{id:5,state:'queued'},{id:6,state:'queued'},{id:7,state:'queued'}],activeCount:3,annotation:'sem full (len=3): G3-G7 block on acquire',gg:8,blocked:5,sent:3,recv:0,chanState:'full'});
+    snap('block','G3-G7 attempt sem <- struct{}{}. Channel full (len==cap==3). ALL block.',
+      10,{slots:[{},{},{}],cap:3,workers:[{id:0,state:'running'},{id:1,state:'running'},{id:2,state:'running'},{id:3,state:'blocked'},{id:4,state:'blocked'},{id:5,state:'blocked'},{id:6,state:'blocked'},{id:7,state:'blocked'}],activeCount:3,annotation:'5 goroutines waiting to acquire',gg:8,blocked:5,sent:3,recv:0,chanState:'full'});
+    snap('recv','G0 finishes: defer <-sem fires. Slot freed. G3 immediately acquires and runs.',
+      12,{slots:[{},{},'freeing'],cap:3,workers:[{id:0,state:'done'},{id:1,state:'running'},{id:2,state:'running'},{id:3,state:'running'},{id:4,state:'blocked'},{id:5,state:'blocked'},{id:6,state:'blocked'},{id:7,state:'blocked'}],activeCount:3,annotation:'<-sem releases: G3 unblocks',gg:7,blocked:4,sent:4,recv:1,chanState:'full'});
+    snap('recv','G1 and G2 finish. G4, G5 acquire. Still 3 active max. Others waiting.',
+      12,{slots:[{},{},'freeing'],cap:3,workers:[{id:0,state:'done'},{id:1,state:'done'},{id:2,state:'done'},{id:3,state:'running'},{id:4,state:'running'},{id:5,state:'running'},{id:6,state:'blocked'},{id:7,state:'blocked'}],activeCount:3,annotation:'max concurrency = 3 maintained throughout',gg:5,blocked:2,sent:6,recv:3,chanState:'full'});
+    snap('done','All 8 goroutines complete. Semaphore enforced max=3 throughout. wg.Wait() returns.',
+      17,{slots:[null,null,null],cap:3,workers:[{id:0,state:'done'},{id:1,state:'done'},{id:2,state:'done'},{id:3,state:'done'},{id:4,state:'done'},{id:5,state:'done'},{id:6,state:'done'},{id:7,state:'done'}],activeCount:0,annotation:'All done: semaphore pattern complete',gg:0,blocked:0,sent:8,recv:8,chanState:'empty'});
+  }
+
+  /* ─── DONE CHAN ─── */
+  else if(key==='donechan'){
+    snap('init','done := make(chan struct{}). 3 workers launched. done is open — workers running.',
+      1,{workers:['running','running','running'],doneClosed:false,selectedCase:null,annotation:'All workers: select default → doWork()',gg:3,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('send','Workers in select loop: default fires each tick. All 3 processing normally.',
+      7,{workers:['running','running','running'],doneClosed:false,selectedCase:'default',annotation:'default: no signal yet → keep working',gg:3,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('close','close(done) called. Channel closed — BROADCAST to all goroutines simultaneously.',
+      19,{workers:['running','running','running'],doneClosed:true,selectedCase:null,annotation:'close(done): all <-done unblock at once',gg:3,blocked:0,sent:0,recv:0,chanState:'closed'});
+    snap('cancel','All 3 workers: case <-done fires simultaneously. Each prints "stopping".',
+      7,{workers:['cancelled','cancelled','cancelled'],doneClosed:true,selectedCase:'done',annotation:'Broadcast: all 3 workers wake at once',gg:3,blocked:0,sent:0,recv:3,chanState:'closed'});
+    snap('done','All workers return. No goroutine leaks. Broadcast pattern complete.',
+      7,{workers:['done','done','done'],doneClosed:true,selectedCase:null,annotation:'3 goroutines → 0. Clean shutdown.',gg:0,blocked:0,sent:0,recv:3,chanState:'done'});
+  }
+
+  /* ─── NIL CHAN ─── */
+  else if(key==='nilchan'){
+    snap('init','merge(a, b): two input channels. Both active. Select listens to both.',
+      0,{aVal:[1,3,5],bVal:[2,4],aState:'open',bState:'open',aActive:true,bActive:true,out:[],selected:null,annotation:'Both channels active: select sees both arms',gg:1,blocked:0,sent:0,recv:0,chanState:'both active'});
+    snap('recv','a has value 1. case <-a fires. out <- 1. a still open.',
+      10,{aVal:[3,5],bVal:[2,4],aState:'open',bState:'open',aActive:true,bActive:true,out:[1],selected:'a',annotation:'case <-a: v=1, ok=true',gg:1,blocked:0,sent:1,recv:1,chanState:'both active'});
+    snap('recv','b has value 2. case <-b fires. out <- 2.',
+      13,{aVal:[3,5],bVal:[4],aState:'open',bState:'open',aActive:true,bActive:true,out:[1,2],selected:'b',annotation:'case <-b: v=2, ok=true',gg:1,blocked:0,sent:2,recv:2,chanState:'both active'});
+    snap('close','a sends 3, 5 then closes. case <-a returns ok=false. Set a = nil!',
+      11,{aVal:[],bVal:[4],aState:'closed',bState:'open',aActive:false,bActive:true,out:[1,2,3,5],selected:'a-closed',annotation:'a closed: ok=false → a = nil (disables arm)',gg:1,blocked:0,sent:4,recv:4,chanState:'a=nil'});
+    snap('nil','a is nil now. select only sees case <-b. nil arm is completely ignored.',
+      9,{aVal:[],bVal:[4],aState:'nil',bState:'open',aActive:false,bActive:true,out:[1,2,3,5],selected:null,annotation:'nil channel: case <-a never fires in select',gg:1,blocked:0,sent:4,recv:4,chanState:'a=nil'});
+    snap('recv','b drains: value 4. case <-b fires. out <- 4.',
+      13,{aVal:[],bVal:[],aState:'nil',bState:'open',aActive:false,bActive:true,out:[1,2,3,5,4],selected:'b',annotation:'case <-b: v=4, ok=true',gg:1,blocked:0,sent:5,recv:5,chanState:'a=nil'});
+    snap('close','b closes. ok=false → b = nil. Now both nil: for loop exits.',
+      14,{aVal:[],bVal:[],aState:'nil',bState:'nil',aActive:false,bActive:false,out:[1,2,3,5,4],selected:'b-closed',annotation:'b=nil too: a!=nil||b!=nil is false → exit',gg:1,blocked:0,sent:5,recv:5,chanState:'both nil'});
+    snap('done','close(out). Merge complete. Output: [1,2,3,5,4]. Order from both channels merged.',
+      5,{aVal:[],bVal:[],aState:'nil',bState:'nil',aActive:false,bActive:false,out:[1,2,3,5,4],selected:null,annotation:'merge done: nil-channel disable pattern works',gg:0,blocked:0,sent:5,recv:5,chanState:'done'});
+  }
+
+  /* ─── TICKER ─── */
+  else if(key==='ticker'){
+    snap('init','ticker := time.NewTicker(500ms). timeout := time.After(3s). Select loop starts.',
+      1,{tickCount:0,elapsed:0,maxElapsed:3000,timedOut:false,mode:'ticker',rateTokens:3,rateQueue:3,annotation:'ticker fires every 500ms, timeout at 3s',gg:1,blocked:0,sent:0,recv:0,chanState:'running'});
+    snap('recv','500ms elapsed. ticker.C fires. Tick #1 received. "tick at 0.5s".',
+      7,{tickCount:1,elapsed:500,maxElapsed:3000,timedOut:false,mode:'ticker',rateTokens:3,rateQueue:3,annotation:'tick #1: case <-ticker.C fires',gg:1,blocked:0,sent:1,recv:1,chanState:'running'});
+    snap('recv','1000ms. Tick #2. ticker.C fires again.',
+      7,{tickCount:2,elapsed:1000,maxElapsed:3000,timedOut:false,mode:'ticker',rateTokens:3,rateQueue:3,annotation:'tick #2: 1.0s elapsed',gg:1,blocked:0,sent:2,recv:2,chanState:'running'});
+    snap('recv','2000ms. Ticks #3, #4 delivered. Still under 3s timeout.',
+      7,{tickCount:4,elapsed:2000,maxElapsed:3000,timedOut:false,mode:'ticker',rateTokens:3,rateQueue:3,annotation:'tick #4: 2.0s elapsed — timeout not yet',gg:1,blocked:0,sent:4,recv:4,chanState:'running'});
+    snap('cancel','3000ms. time.After fires! case <-timeout selected. Loop exits. ticker.Stop() called.',
+      12,{tickCount:4,elapsed:3000,maxElapsed:3000,timedOut:true,mode:'ticker',rateTokens:3,rateQueue:3,annotation:'timeout fires: defer ticker.Stop() — no goroutine leak',gg:1,blocked:0,sent:5,recv:5,chanState:'stopped'});
+    snap('pipeline','Rate limiter: limiter := NewTicker(200ms). 5 requests queued. Pacing starts.',
+      20,{tickCount:0,elapsed:0,maxElapsed:1000,timedOut:false,mode:'ratelimit',rateTokens:0,rateQueue:5,annotation:'rate limit: 1 request per 200ms = 5 req/s',gg:2,blocked:1,sent:0,recv:0,chanState:'rate-limit'});
+    snap('recv','200ms. <-limiter.C: token. Request 1 dispatched.',
+      22,{tickCount:1,elapsed:200,maxElapsed:1000,timedOut:false,mode:'ratelimit',rateTokens:1,rateQueue:4,annotation:'token received: req #1 released',gg:2,blocked:1,sent:1,recv:1,chanState:'rate-limit'});
+    snap('done','5 requests dispatched over 1s at 5/s rate. Limiter enforces pace.',
+      22,{tickCount:5,elapsed:1000,maxElapsed:1000,timedOut:false,mode:'ratelimit',rateTokens:5,rateQueue:0,annotation:'all 5 requests dispatched: 1 per 200ms',gg:0,blocked:0,sent:5,recv:5,chanState:'done'});
+  }
+
+
+  /* ─── NIL_DISABLE ─── */
+  else if(key==='nil_disable'){
+    snap('init','ch1 and ch2 buffered(1), both loaded. select sees 2 active arms.',
+      0,{ch1State:'active',ch2State:'active',ch1Vals:[10],ch2Vals:[20],received:[],selectedArm:null,blocked:false,annotation:'Both arms active: select picks randomly',gg:1,blocked:0,sent:2,recv:0,chanState:'both active'});
+    snap('recv','select fires ch1 arm: v=10, ok=true. Value consumed.',
+      9,{ch1State:'active',ch2State:'active',ch1Vals:[],ch2Vals:[20],received:['ch1:10'],selectedArm:'ch1',blocked:false,annotation:'ch1 arm fires: v=10, ok=true → print',gg:1,blocked:0,sent:2,recv:1,chanState:'both active'});
+    snap('recv','select fires ch2 arm: v=20, ok=true.',
+      12,{ch1State:'active',ch2State:'active',ch1Vals:[],ch2Vals:[],received:['ch1:10','ch2:20'],selectedArm:'ch2',blocked:false,annotation:'ch2 arm fires: v=20, ok=true → print',gg:1,blocked:0,sent:2,recv:2,chanState:'both active'});
+    snap('close','ch1 closed. select fires ch1: ok=false. Code sets ch1 = nil → arm disabled!',
+      8,{ch1State:'nil',ch2State:'active',ch1Vals:[],ch2Vals:[],received:['ch1:10','ch2:20'],selectedArm:'ch1-closed',blocked:false,annotation:'ok=false → ch1 = nil: arm disabled permanently',gg:1,blocked:0,sent:2,recv:2,chanState:'ch1=nil'});
+    snap('nil','ch1 is nil. Its select arm is greyed — never fires. Only ch2 arm remains.',
+      7,{ch1State:'nil',ch2State:'active',ch1Vals:[],ch2Vals:[30],received:['ch1:10','ch2:20'],selectedArm:null,blocked:false,annotation:'nil arm: permanently disabled in select',gg:1,blocked:0,sent:3,recv:2,chanState:'ch1=nil'});
+    snap('recv','New value 30 on ch2. Only ch2 arm fires. ch1 arm completely ignored.',
+      12,{ch1State:'nil',ch2State:'active',ch1Vals:[],ch2Vals:[],received:['ch1:10','ch2:20','ch2:30'],selectedArm:'ch2',blocked:false,annotation:'ch1=nil: ch2 arm works normally',gg:1,blocked:0,sent:3,recv:3,chanState:'ch1=nil'});
+    snap('close','ch2 also closed. ok=false → ch2 = nil. BOTH channels now nil!',
+      13,{ch1State:'nil',ch2State:'nil',ch1Vals:[],ch2Vals:[],received:['ch1:10','ch2:20','ch2:30'],selectedArm:'ch2-closed',blocked:false,annotation:'ch2=nil: both arms disabled — select is empty',gg:1,blocked:0,sent:3,recv:3,chanState:'both nil'});
+    snap('panic','select{case <-nil: case <-nil:} — no active arms. Goroutine BLOCKS FOREVER.',
+      6,{ch1State:'nil',ch2State:'nil',ch1Vals:[],ch2Vals:[],received:['ch1:10','ch2:20','ch2:30'],selectedArm:null,blocked:true,annotation:'DEADLOCK: both nil → goroutine parked forever → leak',gg:1,blocked:1,sent:3,recv:3,chanState:'BLOCKED'});
+    snap('done','CORRECT: for-loop exit condition saves us. ch1!=nil||ch2!=nil becomes false → exits.',
+      5,{ch1State:'nil',ch2State:'nil',ch1Vals:[],ch2Vals:[],received:['ch1:10','ch2:20','ch2:30'],selectedArm:null,blocked:false,annotation:'for ch1!=nil||ch2!=nil: exits cleanly. No deadlock.',gg:0,blocked:0,sent:3,recv:3,chanState:'done'});
+  }
+
+  /* ─── SELECT_PRIORITY ─── */
+  else if(key==='select_priority'){
+    snap('init','high(3 items) and low(2 items). Standard select = RANDOM. Biased select = HIGH first.',
+      3,{highQ:[1,2,3],lowQ:[10,20],innerFired:false,outerFired:false,processed:[],phase:'idle',annotation:'Standard select: random — biased select: drain HIGH first',gg:1,blocked:0,sent:5,recv:0,chanState:'both ready'});
+    snap('send','Pass 1: inner select (non-blocking). high not empty → fires: HIGH 1. continue.',
+      9,{highQ:[2,3],lowQ:[10,20],innerFired:true,outerFired:false,processed:['HIGH:1'],phase:'check_high',annotation:'inner select fires: case <-high → process, continue',gg:1,blocked:0,sent:5,recv:1,chanState:'draining HIGH'});
+    snap('send','Loop back. inner select: high has 2 → fires again. LOW not touched yet.',
+      9,{highQ:[3],lowQ:[10,20],innerFired:true,outerFired:false,processed:['HIGH:1','HIGH:2'],phase:'check_high',annotation:'continue: re-check high before low',gg:1,blocked:0,sent:5,recv:2,chanState:'draining HIGH'});
+    snap('send','Loop back. high has 3 → inner fires: HIGH 3.',
+      9,{highQ:[],lowQ:[10,20],innerFired:true,outerFired:false,processed:['HIGH:1','HIGH:2','HIGH:3'],phase:'check_high',annotation:'all 3 HIGH items before any LOW',gg:1,blocked:0,sent:5,recv:3,chanState:'HIGH empty'});
+    snap('select','high now EMPTY. inner select: default fires → fall through to outer select.',
+      11,{highQ:[],lowQ:[10,20],innerFired:false,outerFired:false,processed:['HIGH:1','HIGH:2','HIGH:3'],phase:'default_fired',annotation:'inner default: high empty → fall to outer select',gg:1,blocked:0,sent:5,recv:3,chanState:'HIGH empty'});
+    snap('recv','Outer select: low has 10 → case <-low fires: LOW 10.',
+      16,{highQ:[],lowQ:[20],innerFired:false,outerFired:true,processed:['HIGH:1','HIGH:2','HIGH:3','LOW:10'],phase:'outer_low',annotation:'outer select: only low ready now',gg:1,blocked:0,sent:5,recv:4,chanState:'processing LOW'});
+    snap('done','LOW 20 processed. All HIGH before any LOW. Priority enforced via biased select.',
+      16,{highQ:[],lowQ:[],innerFired:false,outerFired:true,processed:['HIGH:1','HIGH:2','HIGH:3','LOW:10','LOW:20'],phase:'done',annotation:'HIGH always before LOW: biased select works ✓',gg:0,blocked:0,sent:5,recv:5,chanState:'done'});
+  }
+
+  /* ─── GOROUTINE_LEAK ─── */
+  else if(key==='goroutine_leak'){
+    snap('init','Two common leak patterns. G0=main, G1/G2 are goroutines about to leak.',
+      0,{mode:'type1',leaks:[],memKB:8,goroutines:[{id:0,label:'main',state:'running',blockedOn:null}],annotation:'Leak type 1: goroutine sends, caller never reads',gg:1,blocked:0,sent:0,recv:0,chanState:'setup'});
+    snap('block','leaky1(): goroutine sends to unbuffered ch. Caller returns. G1 BLOCKED forever.',
+      5,{mode:'type1',leaks:[{id:1}],memKB:18,goroutines:[{id:0,label:'main',state:'done',blockedOn:null},{id:1,label:'G1',state:'blocked',blockedOn:'ch<-compute()'}],annotation:'main() returns without reading → G1 parked: LEAKED',gg:1,blocked:1,sent:0,recv:0,chanState:'leak x1'});
+    snap('warn','leaky2(): goroutine ranges over ch. Producer exits without close(ch). G2 BLOCKED.',
+      11,{mode:'type2',leaks:[{id:1},{id:2}],memKB:32,goroutines:[{id:0,label:'main',state:'done',blockedOn:null},{id:1,label:'G1',state:'blocked',blockedOn:'ch<-compute()'},{id:2,label:'G2',state:'blocked',blockedOn:'range ch (no close)'}],annotation:'G2 ranging — producer exits, never close(ch) → LEAK',gg:2,blocked:2,sent:0,recv:0,chanState:'leak x2'});
+    snap('block','Both goroutines leaked. Memory accumulates. GC cannot collect them.',
+      13,{mode:'type2',leaks:[{id:1},{id:2}],memKB:46,goroutines:[{id:0,label:'main',state:'done',blockedOn:null},{id:1,label:'G1',state:'blocked',blockedOn:'send'},{id:2,label:'G2',state:'blocked',blockedOn:'range'}],annotation:'~2KB per goroutine × N leaks = memory leak',gg:2,blocked:2,sent:0,recv:0,chanState:'growing'});
+    snap('done','FIX: select + ctx.Done(). G1 exits cleanly on cancel. Zero leaks.',
+      18,{mode:'fixed',leaks:[],memKB:10,goroutines:[{id:0,label:'main',state:'running',blockedOn:null},{id:1,label:'G1',state:'running',blockedOn:null}],annotation:'ctx.Done() escape: goroutine exits → no leak',gg:1,blocked:0,sent:0,recv:0,chanState:'fixed'});
+  }
+
+
+  /* ─── TIMEOUT ─── */
+  else if(key==='timeout_pat'){
+    snap('init','ch := make(chan int). Worker goroutine sleeps 2s then sends 42. Timeout = 1s.',
+      1,{elapsed:0,timeoutAt:1000,sendAt:2000,timerFired:false,chFired:false,gotValue:null,annotation:'Race: ch fires at 2s, timeout at 1s — who wins?',gg:2,blocked:0,sent:0,recv:0,chanState:'waiting'});
+    snap('send','500ms elapsed. Neither case ready. Select blocks.',
+      8,{elapsed:500,timeoutAt:1000,sendAt:2000,timerFired:false,chFired:false,gotValue:null,annotation:'Both cases blocked: select waits',gg:2,blocked:1,sent:0,recv:0,chanState:'blocking'});
+    snap('cancel','1000ms: time.After fires! case <-time.After(1s) selected. "timeout!" printed.',
+      11,{elapsed:1000,timeoutAt:1000,sendAt:2000,timerFired:true,chFired:false,gotValue:null,annotation:'timeout case selected: ch fires 1s later but nobody reads',gg:1,blocked:0,sent:0,recv:1,chanState:'timeout'});
+    snap('warn','Worker goroutine still blocked on ch <- 42. No reader. GOROUTINE LEAKED!',
+      4,{elapsed:1100,timeoutAt:1000,sendAt:2000,timerFired:true,chFired:false,gotValue:null,annotation:'LEAK: timeout returned but goroutine still blocked on ch<-42',gg:1,blocked:1,sent:0,recv:1,chanState:'leaked'});
+    snap('done','FIX: buffered channel ch=make(chan int,1). Worker sends without blocking → no leak.',
+      3,{elapsed:2000,timeoutAt:1000,sendAt:2000,timerFired:true,chFired:true,gotValue:42,annotation:'buffered ch: worker sends+exits even if no reader',gg:0,blocked:0,sent:1,recv:1,chanState:'fixed'});
+  }
+
+  /* ─── WORKERPOOL ─── */
+  else if(key==='workerpool'){
+    snap('init','N=3 workers start. jobs=buffered(10), results=buffered(10). All workers idle (range jobs).',
+      6,{workers:['idle','idle','idle'],jobQ:[1,2,3,4,5,6,7,8,9],resultQ:[],jobsClosed:false,wgCount:3,annotation:'3 workers waiting: for job := range jobs { }',gg:3,blocked:3,sent:0,recv:0,chanState:'waiting'});
+    snap('recv','Dispatcher sends jobs 1–3. Workers W0,W1,W2 each pick one job. All active.',
+      17,{workers:['working:1','working:2','working:3'],jobQ:[4,5,6,7,8,9],resultQ:[],jobsClosed:false,wgCount:3,annotation:'3 jobs dispatched: each worker got one',gg:3,blocked:0,sent:3,recv:3,chanState:'processing'});
+    snap('send','W0 done: results<-1. W1: results<-4. W2: results<-9. New jobs: 4,5,6 assigned.',
+      11,{workers:['working:4','working:5','working:6'],jobQ:[7,8,9],resultQ:[1,4,9],jobsClosed:false,wgCount:3,annotation:'results accumulate: [1, 4, 9]',gg:3,blocked:0,sent:6,recv:6,chanState:'processing'});
+    snap('close','All 9 jobs sent. close(jobs). Workers finish current job then exit range loop.',
+      18,{workers:['working:7','working:8','working:9'],jobQ:[],resultQ:[1,4,9,16,25,36],jobsClosed:true,wgCount:3,annotation:'close(jobs): workers exit when current job finishes',gg:3,blocked:0,sent:9,recv:9,chanState:'draining'});
+    snap('done','Workers exit: wg.Done() x3. wg.Wait() returns. close(results). Collector exits range.',
+      21,{workers:['done','done','done'],jobQ:[],resultQ:[1,4,9,16,25,36,49,64,81],jobsClosed:true,wgCount:0,annotation:'wg.Wait() → close(results) → collector range exits',gg:0,blocked:0,sent:9,recv:9,chanState:'done'});
+  }
+
+  /* ─── SEND ON CLOSED ─── */
+  else if(key==='sendclosed'){
+    snap('init','ch := make(chan int, 1). Open channel. Normal operations work.',
+      1,{chState:'open',lastOp:null,panicMsg:null,safeRead:null,onceUsed:false,annotation:'ch open: send and read work normally',gg:1,blocked:0,sent:0,recv:0,chanState:'open'});
+    snap('close','close(ch) called. Channel is now closed.',
+      2,{chState:'closed',lastOp:'close',panicMsg:null,safeRead:null,onceUsed:false,annotation:'close(ch): ch is now closed',gg:1,blocked:0,sent:0,recv:0,chanState:'closed'});
+    snap('panic','ch <- 1 on closed channel. PANIC: send on closed channel.',
+      3,{chState:'closed',lastOp:'send',panicMsg:'panic: send on closed channel',safeRead:null,onceUsed:false,annotation:'runtime panics: no recovery at call site',gg:1,blocked:0,sent:0,recv:0,chanState:'PANIC'});
+    snap('recv','v, ok := <-ch on CLOSED channel. Returns (0, false). SAFE — no panic.',
+      8,{chState:'closed',lastOp:'recv',panicMsg:null,safeRead:{v:0,ok:false},onceUsed:false,annotation:'read from closed: ok=false, zero value — always safe',gg:1,blocked:0,sent:0,recv:1,chanState:'closed'});
+    snap('panic','close(ch) again. PANIC: close of closed channel.',
+      6,{chState:'closed',lastOp:'close2',panicMsg:'panic: close of closed channel',safeRead:null,onceUsed:false,annotation:'double-close panics unconditionally',gg:1,blocked:0,sent:0,recv:1,chanState:'PANIC'});
+    snap('done','FIX: sync.Once{}.Do(func(){ close(ch) }). Only first call closes. Rest are no-ops.',
+      12,{chState:'closed_once',lastOp:'once',panicMsg:null,safeRead:null,onceUsed:true,annotation:'sync.Once: guaranteed single close — idiomatic fix',gg:1,blocked:0,sent:0,recv:1,chanState:'safe'});
+  }
+
+  /* ─── ERRGROUP ─── */
+  else if(key==='errgroup_pat'){
+    snap('init','g, ctx := errgroup.WithContext(bg). 3 goroutines launched via g.Go(). All running.',
+      3,{workers:[{id:0,state:'running',url:'url1',err:null},{id:1,state:'running',url:'url2',err:null},{id:2,state:'running',url:'url3',err:null}],ctxCancelled:false,waitDone:false,finalErr:null,annotation:'3 goroutines: all fetching concurrently',gg:3,blocked:0,sent:0,recv:0,chanState:'running'});
+    snap('done','G0 finishes: fetch(url1) ok. results[0]=R1. Returns nil.',
+      20,{workers:[{id:0,state:'done',url:'url1',err:null},{id:1,state:'running',url:'url2',err:null},{id:2,state:'running',url:'url3',err:null}],ctxCancelled:false,waitDone:false,finalErr:null,annotation:'G0 done (nil error): still waiting for G1, G2',gg:2,blocked:0,sent:0,recv:0,chanState:'partial'});
+    snap('panic','G1 fails: fetch(url2) → error. Goroutine returns err. errgroup cancels ctx!',
+      18,{workers:[{id:0,state:'done',url:'url1',err:null},{id:1,state:'error',url:'url2',err:'dial tcp: connection refused'},{id:2,state:'running',url:'url3',err:null}],ctxCancelled:true,waitDone:false,finalErr:null,annotation:'G1 error → ctx cancelled → G2 should check ctx.Done()',gg:2,blocked:0,sent:0,recv:0,chanState:'error+cancel'});
+    snap('cancel','G2 checks ctx.Done() in select. ctx is cancelled → returns ctx.Err(). Exits early.',
+      13,{workers:[{id:0,state:'done',url:'url1',err:null},{id:1,state:'error',url:'url2',err:'dial tcp: connection refused'},{id:2,state:'cancelled',url:'url3',err:'context canceled'}],ctxCancelled:true,waitDone:false,finalErr:null,annotation:'G2 early exit via ctx.Done() — saved wasted work',gg:1,blocked:0,sent:0,recv:0,chanState:'cancelling'});
+    snap('done','g.Wait() returns. First non-nil error: "dial tcp: connection refused".',
+      28,{workers:[{id:0,state:'done',url:'url1',err:null},{id:1,state:'error',url:'url2',err:'dial tcp: connection refused'},{id:2,state:'cancelled',url:'url3',err:'context canceled'}],ctxCancelled:true,waitDone:true,finalErr:'dial tcp: connection refused',annotation:'g.Wait() = first error only. Others discarded.',gg:0,blocked:0,sent:0,recv:0,chanState:'done'});
+  }
+
+  return S;
+}
+
+/* ══════════════════════════════════
+   CANVAS SETUP + COLOR CONSTANTS
+══════════════════════════════════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){
+  const w=document.getElementById('viz-wrap');
+  CW=canvas.width=w.clientWidth;
+  CH=canvas.height=w.clientHeight;
+  if(ST.steps.length)renderFrame(ST.steps[ST.idx]);
+}
+
+const C={
+  AMBER:'#ffb229',DIM:'rgba(255,178,41,.3)',DIMMORE:'rgba(255,178,41,.12)',
+  GREEN:'#4ade80',RED:'#f43f5e',BLUE:'#60a5fa',ORANGE:'#f97316',
+  PURPLE:'#a855f7',CYAN:'#22d3ee',BG:'#04050a',
+  GBORDER:{idle:'rgba(255,178,41,.35)',running:'#4ade80',blocked:'#f97316',
+           sending:'#60a5fa',receiving:'#4ade80',done:'rgba(255,178,41,.18)',
+           cancelled:'#f43f5e',panic:'#f43f5e',working:'#22d3ee',unblocking:'#4ade80',exited:'rgba(255,178,41,.15)'},
+  GFILL:{idle:'rgba(255,178,41,.04)',running:'rgba(74,222,128,.08)',blocked:'rgba(249,115,22,.1)',
+         sending:'rgba(96,165,250,.09)',receiving:'rgba(74,222,128,.09)',done:'rgba(0,0,0,.0)',
+         cancelled:'rgba(244,63,94,.1)',panic:'rgba(244,63,94,.2)',working:'rgba(34,211,238,.08)',unblocking:'rgba(74,222,128,.1)',exited:'rgba(0,0,0,.0)'},
+};
+
+/* ── draw goroutine circle ── */
+function goro(x,y,r,label,state,sublabel){
+  const s=state||'idle';
+  const bc=C.GBORDER[s]||C.AMBER;
+  const fc=C.GFILL[s]||'rgba(255,178,41,.04)';
+  ctx.save();
+  if(s==='running'||s==='working'||s==='unblocking')ctx.shadowColor=bc,ctx.shadowBlur=14;
+  ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle=fc;ctx.fill();
+  ctx.strokeStyle=bc;ctx.lineWidth=s==='blocked'?1.5:1.5;
+  if(s==='blocked'||s==='panic')ctx.setLineDash([4,3]);
+  ctx.stroke();ctx.setLineDash([]);
+  ctx.font=`${Math.round(r*.65)}px 'VT323'`;ctx.fillStyle=bc;
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label||'G',x,y+1);
+  if(sublabel){
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.4)';
+    ctx.shadowBlur=0;ctx.textBaseline='top';ctx.fillText(sublabel.slice(0,9),x,y+r+4);
+  }
+  ctx.restore();
+}
+
+/* ── draw channel box ── */
+function chan_box(x,y,w,h,label,cap,slots,closed,glowing){
+  const col=closed?C.PURPLE:glowing?C.CYAN:C.AMBER;
+  ctx.save();
+  if(glowing)ctx.shadowColor=C.CYAN,ctx.shadowBlur=18;
+  ctx.strokeStyle=closed?'rgba(168,85,247,.7)':glowing?'rgba(34,211,238,.7)':'rgba(255,178,41,.45)';
+  ctx.lineWidth=1.5;
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(x,y,w,h);
+  ctx.strokeRect(x,y,w,h);
+  // label above
+  ctx.font=`13px 'VT323'`;ctx.fillStyle=col;
+  ctx.textAlign='center';ctx.textBaseline='bottom';ctx.shadowBlur=0;
+  ctx.fillText((closed?'[CLOSED] ':'')+label,x+w/2,y-4);
+  // slots
+  if(cap>0){
+    const sw=Math.max(18,Math.floor((w-12)/cap));
+    for(let i=0;i<cap;i++){
+      const sx=x+6+i*(sw+2);
+      const val=slots&&slots[i]!=null?slots[i]:null;
+      ctx.fillStyle=val!=null?'rgba(74,222,128,.18)':'rgba(255,178,41,.04)';
+      ctx.fillRect(sx,y+5,sw,h-10);
+      ctx.strokeStyle=val!=null?'rgba(74,222,128,.45)':'rgba(255,178,41,.13)';
+      ctx.lineWidth=1;ctx.strokeRect(sx,y+5,sw,h-10);
+      if(val!=null){
+        ctx.font=`13px 'VT323'`;ctx.fillStyle=C.GREEN;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(String(val).slice(0,4),sx+sw/2,y+h/2);
+      }
+    }
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.28)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    const filled=(slots||[]).filter(v=>v!=null).length;
+    ctx.fillText(`len=${filled} cap=${cap}`,x+w/2,y+h+3);
+  }else{
+    // unbuffered: pipe symbol
+    ctx.font=`16px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.22)';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⇌',x+w/2,y+h/2);
+    ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.28)';
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('cap=0',x+w/2,y+h+3);
+  }
+  if(closed){
+    ctx.font=`14px 'VT323'`;ctx.fillStyle='rgba(168,85,247,.8)';
+    ctx.textAlign='right';ctx.textBaseline='top';ctx.fillText('✕',x+w-3,y+2);
+  }
+  ctx.restore();
+}
+
+/* ── draw arrow ── */
+function arrow(x1,y1,x2,y2,col,label,dashed){
+  ctx.save();
+  ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.fillStyle=col;
+  ctx.shadowColor=col;ctx.shadowBlur=6;
+  if(dashed)ctx.setLineDash([5,4]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-9*Math.cos(ang-.42),y2-9*Math.sin(ang-.42));
+  ctx.lineTo(x2-9*Math.cos(ang+.42),y2-9*Math.sin(ang+.42));
+  ctx.closePath();ctx.fill();
+  if(label){
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    ctx.shadowBlur=0;ctx.font=`11px 'VT323'`;
+    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(label,mx,my-3);
+  }
+  ctx.restore();
+}
+
+/* ── particle / data-in-flight ── */
+function particle(x,y,val,col){
+  ctx.save();
+  ctx.shadowColor=col;ctx.shadowBlur=12;
+  ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);
+  ctx.fillStyle=col+'25';ctx.fill();
+  ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.font=`11px 'VT323'`;ctx.fillStyle=col;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(String(val).slice(0,3),x,y+1);
+  ctx.restore();
+}
+
+/* ── annotation label ── */
+function annot(text,col,y_offset){
+  if(!text)return;
+  ctx.save();
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=col||'rgba(255,178,41,.5)';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(text,CW/2,y_offset||CH-28);
+  ctx.restore();
+}
+
+/* ── scene title ── */
+function sceneTitle(t){
+  ctx.save();
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.28)';
+  ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(t,14,6);
+  ctx.restore();
+}
+
+/* ══════════════════════════════════
+   RENDER FUNCTIONS (per scenario)
+══════════════════════════════════ */
+
+function renderUnbuf(s){
+  sceneTitle('UNBUFFERED CHANNEL — SYNCHRONOUS RENDEZVOUS');
+  const cy=CH/2-20;
+  const g1x=CW*.18,g2x=CW*.82,chx=CW/2-40,chw=80,chh=44;
+  const chy=cy-chh/2;
+  // channels
+  chan_box(chx,chy,chw,chh,'chan int',0,null,false,s.chActive);
+  // goroutines — no sublabel to avoid overlap with role labels drawn separately below
+  goro(g1x,cy,28,'G1',s.g1);
+  goro(g2x,cy,28,'G2',s.g2);
+  // role (line 1, cy+34) + state (line 2, cy+47) — 13px gap keeps them clear
+  const g1st=s.g1==='blocked'?'BLOCKED':s.g1==='done'?'DONE':s.g1==='running'?'RESUMED':'IDLE';
+  const g2st=s.g2==='receiving'?'RECVING':s.g2==='blocked'?'BLOCKED':s.g2==='done'?'DONE':s.g2==='running'?'RESUMED':'IDLE';
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.45)';
+  ctx.fillText('SENDER',g1x,cy+34);
+  ctx.fillText('RECEIVER',g2x,cy+34);
+  ctx.font=`8px 'Share Tech Mono'`;
+  ctx.fillStyle=s.g1==='blocked'?'rgba(249,115,22,.8)':s.g1==='running'?'rgba(74,222,128,.7)':'rgba(255,178,41,.3)';
+  ctx.fillText(g1st,g1x,cy+47);
+  ctx.fillStyle=s.g2==='blocked'?'rgba(249,115,22,.8)':(s.g2==='running'||s.g2==='receiving')?'rgba(74,222,128,.7)':'rgba(255,178,41,.3)';
+  ctx.fillText(g2st,g2x,cy+47);
+  ctx.restore();
+  // arrows
+  if(s.g1==='blocked'||s.g1==='sending'){
+    arrow(g1x+28,cy,chx,chy+chh/2,C.BLUE,'ch<-42',true);
+  }
+  if(s.chActive||s.g2==='receiving'||s.g2==='running'){
+    arrow(chx+chw,chy+chh/2,g2x-28,cy,C.GREEN,'v:=<-ch');
+  }
+  if(s.inFlight){
+    const px=g1x+28+(chx-g1x-28)*s.inFlight.progress;
+    const py=cy;
+    particle(px,py,s.inFlight.val,C.BLUE);
+  }
+  // chain link if blocked
+  if(s.g1==='blocked'){
+    ctx.save();ctx.strokeStyle='rgba(249,115,22,.5)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
+    ctx.beginPath();ctx.arc(g1x,cy,32,-.4,.4);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+  }
+  annot(s.annotation,'rgba(255,178,41,.55)',CH-36);
+}
+
+function renderBuffered(s){
+  sceneTitle('BUFFERED CHANNEL — ASYNC QUEUE (FIFO)');
+  const cy=CH/2;
+  const g1x=CW*.15,chx=CW*.38,chw=Math.min(260,CW*.36),chh=52,chy=cy-chh/2;
+  const recvX=CW*.88;
+  chan_box(chx,chy,chw,chh,'chan int',s.cap,s.slots,false,false);
+  // no sublabel in goro — role + state drawn as separate lines below
+  goro(g1x,cy,26,'G1',s.g1);
+  goro(recvX,cy,26,'G2','idle');
+  const g1bst=s.g1==='blocked'?'BLOCKED':s.g1==='unblocking'?'UNBLK':s.g1==='running'?'SENDS':'IDLE';
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.45)';
+  ctx.fillText('SENDER',g1x,cy+32);
+  ctx.fillText('RECEIVER',recvX,cy+32);
+  ctx.font=`8px 'Share Tech Mono'`;
+  ctx.fillStyle=s.g1==='blocked'?'rgba(249,115,22,.8)':s.g1==='unblocking'?'rgba(74,222,128,.7)':s.g1==='running'?'rgba(96,165,250,.7)':'rgba(255,178,41,.3)';
+  ctx.fillText(g1bst,g1x,cy+45);
+  ctx.fillStyle='rgba(255,178,41,.3)';
+  ctx.fillText('WAITING',recvX,cy+45);
+  ctx.restore();
+  if(s.g1!=='idle'&&s.g1!=='done'){
+    arrow(g1x+26,cy,chx,cy,s.g1==='blocked'?C.ORANGE:C.BLUE,'send',s.g1==='blocked');
+  }
+  if(s.inFlight&&s.inFlight.toRecv){
+    arrow(chx+chw,cy,recvX-26,cy,C.GREEN,'recv');
+    particle(chx+chw+30,cy,s.inFlight.val,C.GREEN);
+  }
+  if(s.g1==='blocked'){
+    ctx.save();ctx.strokeStyle='rgba(249,115,22,.5)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
+    ctx.beginPath();ctx.arc(g1x,cy,30,-.5,.5);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+  }
+  annot(s.annotation,'rgba(255,178,41,.55)',CH-36);
+}
+
+function renderCloseRange(s){
+  sceneTitle('CLOSE + RANGE — DRAIN PATTERN');
+  const cy=CH/2-10;
+  const chx=CW/2-130,chw=260,chh=52,chy=cy-chh/2;
+  chan_box(chx,chy,chw,chh,'chan int',s.cap,s.slots,s.chClosed,false);
+  // range goroutine
+  const gy=cy+100;
+  goro(CW/2,gy,26,'G','running','RANGE');
+  if(!s.chClosed){
+    arrow(CW*.1,cy,chx,cy,C.BLUE,'send ×3');
+    goro(CW*.1,cy,24,'P','running','PRODUCER');
+  }
+  if(s.rangeIdx>=0&&s.rangeIdx<3){
+    arrow(chx+chw/2,chy+chh,CW/2,gy-26,C.GREEN,`v=${s.slots?'':''}`);
+  }
+  if(s.rangeIdx>=3){
+    ctx.save();ctx.font=`13px 'VT323'`;ctx.fillStyle='rgba(74,222,128,.7)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('range EXITED (closed+empty)',CW/2,gy+34);ctx.restore();
+  }
+  if(!s.ok){
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(168,85,247,.8)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('v=0  ok=false  (zero value, closed)',CW/2,gy+34);ctx.restore();
+  }
+  annot(s.annotation,'rgba(255,178,41,.55)',CH-36);
+}
+
+function renderSelect(s){
+  sceneTitle('SELECT — CHANNEL MULTIPLEXER');
+  const selX=CW/2,selY=CH/2;
+  const r=26;
+  // select box
+  ctx.save();
+  ctx.strokeStyle=s.fired?C.CYAN:'rgba(255,178,41,.4)';
+  ctx.lineWidth=1.5;
+  if(s.fired)ctx.shadowColor=C.CYAN,ctx.shadowBlur=18;
+  ctx.fillStyle='rgba(0,0,0,.4)';
+  const bw=130,bh=60;
+  ctx.fillRect(selX-bw/2,selY-bh/2,bw,bh);ctx.strokeRect(selX-bw/2,selY-bh/2,bw,bh);
+  ctx.font=`22px 'VT323'`;ctx.fillStyle=s.fired?C.CYAN:C.AMBER;
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('select { }',selX,selY);ctx.restore();
+  // ch1 top-left
+  const ch1x=CW*.15,ch1y=selY-70;
+  chan_box(ch1x-30,ch1y-18,80,36,'ch1',1,s.ch1val?[s.ch1val]:s.ch1ready?[s.ch1val]:[null],false,s.fired==='ch1');
+  // ch2 bottom-left
+  const ch2x=CW*.15,ch2y=selY+70;
+  chan_box(ch2x-30,ch2y-18,80,36,'ch2',1,s.ch2val?[s.ch2val]:s.ch2ready?[s.ch2val]:[null],false,s.fired==='ch2');
+  // arrows to select
+  const col1=s.fired==='ch1'?C.GREEN:s.ch1ready?C.BLUE:'rgba(255,178,41,.2)';
+  const col2=s.fired==='ch2'?C.GREEN:s.ch2ready?C.BLUE:'rgba(255,178,41,.2)';
+  arrow(ch1x+50,ch1y,selX-bw/2,selY-12,col1,s.ch1ready?'ready':'—');
+  arrow(ch2x+50,ch2y,selX-bw/2,selY+12,col2,s.ch2ready?'ready':'—');
+  // default arm
+  const defY=selY;
+  ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=s.fired==='default'?C.ORANGE:'rgba(255,178,41,.22)';
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  ctx.fillText('default',selX-bw/2-8,defY);ctx.restore();
+  // fired result
+  if(s.fired){
+    const fcol=s.fired==='default'?C.ORANGE:s.fired==='timeout'?C.RED:C.GREEN;
+    const fl=s.fired==='timeout'?'TIMEOUT':s.fired==='default'?'DEFAULT':s.fired.toUpperCase()+' FIRED';
+    ctx.save();ctx.font=`18px 'VT323'`;ctx.fillStyle=fcol;ctx.shadowColor=fcol;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(fl,selX,selY+bh/2+10);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-36);
+}
+
+function renderDeadlock(s){
+  sceneTitle('DEADLOCK — CIRCULAR CHANNEL DEPENDENCY');
+  const cy=CH/2;
+  const g1x=CW*.2,g2x=CW*.8;
+  const ch1x=CW*.38,ch2x=CW*.52;
+  const chw=90,chh=42,chy=cy-chh/2;
+  chan_box(ch1x,chy,chw,chh,'ch1',0,null,false,false);
+  chan_box(ch2x,chy,chw,chh,'ch2',0,null,false,false);
+  goro(g1x,cy,30,'G1',s.g1state,s.g1state==='blocked'?'BLOCKED':s.g1state==='panic'?'PANIC':'IDLE');
+  goro(g2x,cy,30,'G2',s.g2state,s.g2state==='blocked'?'BLOCKED':s.g2state==='panic'?'PANIC':'IDLE');
+  // G1 tries to send on ch1
+  if(s.g1where){
+    arrow(g1x+30,cy-8,ch1x,chy+chh/2,C.ORANGE,s.g1where,true);
+  }
+  // G2 tries to send on ch2
+  if(s.g2where){
+    arrow(g2x-30,cy+8,ch2x+chw,chy+chh/2,C.ORANGE,s.g2where,true);
+  }
+  // panic overlay
+  if(s.panicOverlay){
+    ctx.save();
+    ctx.fillStyle='rgba(244,63,94,.08)';ctx.fillRect(0,0,CW,CH);
+    ctx.font=`28px 'VT323'`;ctx.fillStyle='#f43f5e';ctx.shadowColor='#f43f5e';ctx.shadowBlur=22;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('fatal error: all goroutines are asleep',CW/2,CH/2-18);
+    ctx.fillText('deadlock!',CW/2,CH/2+18);
+    ctx.restore();
+  }else if(s.panicMsg){
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(244,63,94,.7)';
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(s.panicMsg,CW/2,cy+70);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-36);
+}
+
+function renderContext(s){
+  sceneTitle('CONTEXT — CANCELLATION + TIMEOUT');
+  const cy=CH*.35;
+  // timer bar
+  const bx=CW*.1,bw=CW*.8,by=cy,bh=18;
+  ctx.save();
+  ctx.strokeStyle='rgba(255,178,41,.25)';ctx.fillStyle='rgba(0,0,0,.3)';
+  ctx.fillRect(bx,by,bw,bh);ctx.strokeRect(bx,by,bw,bh);
+  const fillCol=s.cancelled?C.RED:s.ctxPct>80?C.ORANGE:C.CYAN;
+  ctx.fillStyle=fillCol+'40';ctx.fillRect(bx,by,bw*(s.ctxPct/100),bh);
+  if(s.cancelled)ctx.shadowColor=C.RED,ctx.shadowBlur=10;
+  ctx.strokeStyle=fillCol;ctx.strokeRect(bx,by,bw*(s.ctxPct/100),bh);
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=fillCol;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(s.cancelled?'CANCELLED (ctx.Done() closed)':'ctx timer: '+s.ctxPct+'%',bx+bw/2,by+bh/2);
+  ctx.restore();
+  // worker
+  const wy=cy+90;
+  const wstate=s.workerState;
+  goro(CW/2,wy,28,'W',wstate==='done'?'done':wstate==='cancelled'?'cancelled':wstate==='working'?'working':'idle',
+       wstate==='cancelled'?'DONE':wstate==='working'?'WORK':'SELECT');
+  // select box
+  const sx=CW/2-90,sw=180,sh=56,sely=wy+50;
+  ctx.save();
+  const selActive=s.selectedCase!=null;
+  ctx.strokeStyle=selActive?C.CYAN:'rgba(255,178,41,.25)';
+  if(selActive)ctx.shadowColor=C.CYAN,ctx.shadowBlur=10;
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(sx,sely,sw,sh);ctx.strokeRect(sx,sely,sw,sh);
+  ctx.font=`11px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.6)';ctx.textAlign='left';ctx.textBaseline='top';
+  const dc=s.selectedCase==='done'?C.RED:C.PURPLE;
+  const wc=s.selectedCase==='work'?C.GREEN:C.BLUE;
+  ctx.fillStyle=dc;ctx.fillText('case <-ctx.Done():',sx+8,sely+8);
+  ctx.fillStyle=wc;ctx.fillText('case v := <-work:',sx+8,sely+30);
+  ctx.restore();
+  if(s.selectedCase){
+    const arrowY=s.selectedCase==='done'?sely+16:sely+38;
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;
+    ctx.fillStyle=s.selectedCase==='done'?C.RED:C.GREEN;
+    ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText('← FIRED',sx+sw+36,arrowY);ctx.restore();
+  }
+  if(s.workerState==='cancelled'||s.workerState==='done'){
+    ctx.save();ctx.font=`12px 'Share Tech Mono'`;ctx.fillStyle='rgba(244,63,94,.7)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('ctx.Err() = context.DeadlineExceeded',CW/2,sely+sh+12);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderPipeline(s){
+  sceneTitle('PIPELINE — GENERATOR → SQUARE → SINK');
+  const cy=CH/2-10;
+  const genX=CW*.1,sq1X=CW*.38,sq2X=CW*.62,sinkX=CW*.9;
+  const chw=90,chh=40,chy=cy-chh/2;
+  // stages
+  goro(genX,cy,24,'gen',s.genState,s.genState==='done'?'DONE':'SENDS');
+  chan_box(sq1X-chw/2,chy,chw,chh,'genCh',2,s.genSlots,s.genState==='done',false);
+  goro((sq1X+sq2X)/2,cy,24,'sq',s.sqState,s.sqState==='done'?'DONE':'n*n');
+  chan_box(sq2X+10,chy,chw,chh,'sqCh',2,s.sqSlots,s.sqState==='done',false);
+  goro(sinkX,cy,24,'out','running','PRINT');
+  // arrows
+  arrow(genX+24,cy,sq1X-chw/2,cy,s.genState==='done'?C.DIM:C.BLUE);
+  arrow(sq1X+chw/2,cy,(sq1X+sq2X)/2-24,cy,C.ORANGE);
+  arrow((sq1X+sq2X)/2+24,cy,sq2X+10,cy,C.ORANGE);
+  arrow(sq2X+10+chw,cy,sinkX-24,cy,s.sqState==='done'?C.DIM:C.GREEN);
+  // current in/out
+  if(s.currentIn!=null){
+    particle(sq1X-chw/2-18,cy,s.currentIn,C.BLUE);
+  }
+  if(s.currentOut!=null){
+    particle(sq2X+10+chw+18,cy,s.currentOut,C.GREEN);
+  }
+  // printed results
+  if(s.printed&&s.printed.length){
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(74,222,128,.7)';
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('printed: ['+s.printed.join(', ')+']',genX,cy+55);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderFanout(s){
+  sceneTitle('FAN-OUT + FAN-IN — PARALLEL WORKERS');
+  const cy=CH/2;
+  const dispX=CW*.12;
+  const chJobsX=CW*.25,chJobsW=90,chJobsH=40,chJobsY=cy-chJobsH/2;
+  const w1y=cy-90,w2y=cy,w3y=cy+90;
+  const resChX=CW*.72,resChW=90,resChH=40,resChY=cy-resChH/2;
+  const sinkX=CW*.9;
+  // jobs channel
+  const jobSlots=s.jobs?s.jobs.slice(0,3).concat([null,null,null]).slice(0,3):[];
+  chan_box(chJobsX,chJobsY,chJobsW,chJobsH,'jobs',3,jobSlots,s.jobs&&s.jobs.length===0,false);
+  // results channel
+  const resSlots=s.results?s.results.slice(-3):[];
+  while(resSlots.length<3)resSlots.unshift(null);
+  chan_box(resChX,resChY,resChW,resChH,'results',3,resSlots,false,false);
+  // dispatcher
+  goro(dispX,cy,22,'D','running','PUSH');
+  arrow(dispX+22,cy,chJobsX,cy,C.BLUE);
+  // sink
+  goro(sinkX,cy,22,'S','running','RECV');
+  arrow(resChX+resChW,cy,sinkX-22,cy,C.GREEN);
+  // workers
+  const wstates=s.workers||['idle','idle','idle'];
+  const wys=[w1y,w2y,w3y];
+  const wcols=[C.CYAN,C.ORANGE,C.PURPLE];
+  wys.forEach((wy,i)=>{
+    const wst=wstates[i]||'idle';
+    const label=wst.startsWith('working:')?'W'+(i+1):wst==='done'?'W'+(i+1):wst==='exited'?'W'+(i+1):'W'+(i+1);
+    const st=wst.startsWith('working')?'working':wst==='done'||wst==='exited'?'done':'idle';
+    goro(CW*.5,wy,22,label,st,wst.startsWith('working')?'job:'+wst.split(':')[1]:wst.toUpperCase());
+    // from jobs
+    arrow(chJobsX+chJobsW,cy,CW*.5-22,wy,wcols[i]+'88');
+    // to results
+    arrow(CW*.5+22,wy,resChX,cy,wcols[i]+'88');
+    if(wst.startsWith('working')){
+      const job=wst.split(':')[1];
+      particle(CW*.5,wy,job,wcols[i]);
+    }
+  });
+  if(s.results&&s.results.length){
+    ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(74,222,128,.65)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('results: ['+s.results.join(', ')+']  (order non-deterministic)',CW/2,cy+110);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+
+function renderSemaphore(s){
+  sceneTitle('BUFFERED CHANNEL AS COUNTING SEMAPHORE (max=3)');
+  const sem_x=CW/2-100,sem_w=200,sem_h=44,sem_y=CH*.2;
+  chan_box(sem_x,sem_y,sem_w,sem_h,'sem chan struct{}',s.cap,
+    s.slots&&s.slots.map?s.slots.map(v=>v?'●':null):[null,null,null],false,false);
+  // capacity annotation
+  ctx.save();ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(34,211,238,.6)';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('cap=3  |  acquire: sem<-struct{}{}  |  release: <-sem',CW/2,sem_y+sem_h+18);ctx.restore();
+  // workers in two rows
+  const ws=s.workers||[];
+  const cols=[C.CYAN,C.GREEN,C.ORANGE,C.PURPLE,C.BLUE,'#e879f9',C.RED,'#fbbf24'];
+  const row0y=CH*.52,row1y=CH*.78;
+  const positions=[
+    [CW*.12,row0y],[CW*.26,row0y],[CW*.40,row0y],[CW*.54,row0y],
+    [CW*.12,row1y],[CW*.26,row1y],[CW*.40,row1y],[CW*.54,row1y],
+  ];
+  ws.forEach((w,i)=>{
+    if(i>=8)return;
+    const [wx,wy]=positions[i];
+    const st=w.state;
+    const gst=st==='running'?'running':st==='blocked'?'blocked':st==='done'?'done':'idle';
+    goro(wx,wy,20,'G'+w.id,gst);
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.font=`8px 'Share Tech Mono'`;
+    const sc=st==='running'?'rgba(74,222,128,.7)':st==='blocked'?'rgba(249,115,22,.7)':st==='done'?'rgba(255,178,41,.25)':'rgba(255,178,41,.4)';
+    ctx.fillStyle=sc;ctx.fillText(st.toUpperCase(),wx,wy+24);ctx.restore();
+    // arrow from running workers to sem
+    if(st==='running'){
+      arrow(wx,wy-20,CW/2,sem_y+sem_h,cols[i]+'66','',true);
+    }
+  });
+  // active count
+  const ac=s.activeCount||0;
+  ctx.save();ctx.font=`32px 'VT323'`;ctx.fillStyle=ac>=3?C.ORANGE:C.GREEN;ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=10;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('ACTIVE: '+ac+' / 3',CW*.78,CH*.5);ctx.restore();
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderDoneChan(s){
+  sceneTitle('DONE CHANNEL — CLOSE() AS BROADCAST SIGNAL');
+  const doneX=CW/2-50,doneW=100,doneH=38,doneY=CH*.15;
+  const closedCol=s.doneClosed?C.PURPLE:C.AMBER;
+  ctx.save();
+  ctx.strokeStyle=s.doneClosed?'rgba(168,85,247,.8)':'rgba(255,178,41,.4)';
+  if(s.doneClosed)ctx.shadowColor=C.PURPLE,ctx.shadowBlur=18;
+  ctx.lineWidth=1.5;ctx.fillStyle='rgba(0,0,0,.4)';
+  ctx.fillRect(doneX,doneY,doneW,doneH);ctx.strokeRect(doneX,doneY,doneW,doneH);
+  ctx.font=`14px 'VT323'`;ctx.fillStyle=closedCol;ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText(s.doneClosed?'[CLOSED]':'chan struct{}',CW/2,doneY-4);
+  ctx.font=`22px 'VT323'`;ctx.fillStyle=closedCol;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(s.doneClosed?'✕ CLOSED':'OPEN',CW/2,doneY+doneH/2);ctx.restore();
+  if(s.doneClosed){
+    ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(168,85,247,.6)';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('BROADCAST: all goroutines unblock simultaneously',CW/2,doneY+doneH+8);ctx.restore();
+  }
+  // 3 workers
+  const wpos=[[CW*.2,CH*.55],[CW*.5,CH*.55],[CW*.8,CH*.55]];
+  const ws=s.workers||['idle','idle','idle'];
+  ws.forEach((ws2,i)=>{
+    const [wx,wy]=wpos[i];
+    const gst=ws2==='running'?'running':ws2==='cancelled'?'cancelled':ws2==='done'?'done':'idle';
+    goro(wx,wy,26,'W'+(i+1),gst);
+    const stlabel=ws2==='running'?'WORKING':ws2==='cancelled'?'STOPPING':ws2==='done'?'DONE':'IDLE';
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.font=`8px 'Share Tech Mono'`;
+    ctx.fillStyle=ws2==='running'?'rgba(74,222,128,.6)':ws2==='cancelled'?'rgba(244,63,94,.7)':ws2==='done'?'rgba(255,178,41,.25)':'rgba(255,178,41,.35)';
+    ctx.fillText(stlabel,wx,wy+30);ctx.restore();
+    // dashed lines to done channel
+    const lineCol=ws2==='cancelled'?C.RED:ws2==='done'?'rgba(74,222,128,.4)':'rgba(255,178,41,.2)';
+    arrow(wx,wy-26,CW/2,doneY+doneH,lineCol,'',true);
+    // select box inside each worker
+    const sbx=wx-38,sby=wy+44,sbw=76,sbh=36;
+    ctx.save();
+    ctx.strokeStyle=(s.selectedCase&&ws2==='running')?C.CYAN:'rgba(255,178,41,.15)';
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(sbx,sby,sbw,sbh);ctx.strokeRect(sbx,sby,sbw,sbh);
+    ctx.font=`8px 'IBM Plex Mono'`;
+    ctx.fillStyle=ws2==='cancelled'?C.RED:'rgba(168,85,247,.6)';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('<-done',sbx+4,sby+4);
+    ctx.fillStyle=ws2==='running'?C.GREEN:'rgba(74,222,128,.3)';
+    ctx.fillText('default',sbx+4,sby+20);ctx.restore();
+  });
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderNilChan(s){
+  sceneTitle('NIL CHANNEL — DISABLING SELECT ARMS DYNAMICALLY');
+  const outX=CW*.7,outY=CH*.25,outW=110,outH=40;
+  chan_box(outX,outY,outW,outH,'out',3,
+    (s.out||[]).slice(-3).concat([null,null,null]).slice(0,3),false,false);
+  // channel A
+  const aOpen=s.aState!=='nil';
+  const aClosed=s.aState==='closed';
+  const aNil=s.aState==='nil';
+  const ax=CW*.08,ay=CH*.25,aw=120,ah=40;
+  ctx.save();
+  ctx.strokeStyle=aNil?'rgba(168,85,247,.35)':aOpen&&!aClosed?C.BLUE:'rgba(168,85,247,.6)';
+  ctx.lineWidth=1.5;ctx.fillStyle='rgba(0,0,0,.35)';
+  if(aNil)ctx.setLineDash([4,4]);
+  ctx.fillRect(ax,ay,aw,ah);ctx.strokeRect(ax,ay,aw,ah);ctx.setLineDash([]);
+  ctx.font=`12px 'VT323'`;ctx.fillStyle=aNil?'rgba(168,85,247,.5)':C.BLUE;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(aNil?'nil (a=nil)':(aClosed?'[CLOSED] a':'chan a'),ax+aw/2,ay+ah/2);
+  // values in a
+  const avals=s.aVal||[];
+  if(avals.length&&!aNil){
+    avals.slice(0,3).forEach((v,i)=>{
+      ctx.fillStyle='rgba(96,165,250,.7)';ctx.font=`10px 'VT323'`;
+      ctx.textAlign='center';ctx.fillText(v,ax+18+i*22,ay+ah/2+14);
+    });
+  }
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=aNil?'rgba(168,85,247,.5)':'rgba(96,165,250,.6)';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(aNil?'arm DISABLED':'a: ['+avals.join(',')+']',ax+aw/2,ay+ah+4);ctx.restore();
+  // channel B
+  const bOpen=s.bState!=='nil';
+  const bClosed=s.bState==='closed';
+  const bNil=s.bState==='nil';
+  const bx=CW*.08,by=CH*.52,bw=120,bh=40;
+  ctx.save();
+  ctx.strokeStyle=bNil?'rgba(168,85,247,.35)':bOpen&&!bClosed?C.ORANGE:'rgba(168,85,247,.6)';
+  ctx.lineWidth=1.5;ctx.fillStyle='rgba(0,0,0,.35)';
+  if(bNil)ctx.setLineDash([4,4]);
+  ctx.fillRect(bx,by,bw,bh);ctx.strokeRect(bx,by,bw,bh);ctx.setLineDash([]);
+  ctx.font=`12px 'VT323'`;ctx.fillStyle=bNil?'rgba(168,85,247,.5)':C.ORANGE;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(bNil?'nil (b=nil)':(bClosed?'[CLOSED] b':'chan b'),bx+bw/2,by+bh/2);
+  const bvals=s.bVal||[];
+  if(bvals.length&&!bNil){
+    bvals.slice(0,3).forEach((v,i)=>{
+      ctx.fillStyle='rgba(249,115,22,.7)';ctx.font=`10px 'VT323'`;
+      ctx.textAlign='center';ctx.fillText(v,bx+18+i*22,by+bh/2+14);
+    });
+  }
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=bNil?'rgba(168,85,247,.5)':'rgba(249,115,22,.6)';
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(bNil?'arm DISABLED':'b: ['+bvals.join(',')+']',bx+bw/2,by+bh+4);ctx.restore();
+  // select box in middle
+  const selX=CW*.37,selY=CH*.32,selW=160,selH=72;
+  ctx.save();
+  ctx.strokeStyle=s.selected?C.CYAN:'rgba(255,178,41,.35)';
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.fillRect(selX,selY,selW,selH);ctx.strokeRect(selX,selY,selW,selH);
+  ctx.font=`9px 'IBM Plex Mono'`;
+  // arm A
+  const aFired=s.selected==='a';
+  const aDead=aNil;
+  ctx.fillStyle=aDead?'rgba(168,85,247,.4)':aFired?C.BLUE:'rgba(96,165,250,.5)';
+  ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(aDead?'// <-a  (nil — never)':'case v,ok := <-a:',selX+6,selY+8);
+  // arm B
+  const bFired=s.selected==='b';
+  const bDead=bNil;
+  ctx.fillStyle=bDead?'rgba(168,85,247,.4)':bFired?C.ORANGE:'rgba(249,115,22,.5)';
+  ctx.fillText(bDead?'// <-b  (nil — never)':'case v,ok := <-b:',selX+6,selY+30);
+  // label
+  ctx.font=`20px 'VT323'`;ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillStyle='rgba(255,178,41,.4)';
+  ctx.fillText('select { }',selX+selW/2,selY+selH-4);ctx.restore();
+  // arrows from channels to select
+  if(!aNil){
+    arrow(ax+aw,ay+ah/2,selX,selY+18,s.selected==='a'?C.BLUE:'rgba(96,165,250,.3)','',s.selected!=='a');
+  }
+  if(!bNil){
+    arrow(bx+bw,by+bh/2,selX,selY+44,s.selected==='b'?C.ORANGE:'rgba(249,115,22,.3)','',s.selected!=='b');
+  }
+  // arrow to out
+  if(s.selected==='a'||s.selected==='b'){
+    arrow(selX+selW,selY+selH/2,outX,outY+outH/2,s.selected==='a'?C.BLUE:C.ORANGE,'out<-v');
+  }
+  // output list
+  if(s.out&&s.out.length){
+    ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(74,222,128,.6)';
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('merged: ['+s.out.join(', ')+']',ax,CH*.78);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderTicker(s){
+  sceneTitle('TIME.TICKER + RATE LIMITER PATTERN');
+  if(s.mode==='ticker'||!s.mode){
+    // timeline bar
+    const bx=CW*.06,by=CH*.18,bw=CW*.88,bh=20;
+    ctx.save();
+    ctx.strokeStyle='rgba(255,178,41,.25)';ctx.fillStyle='rgba(0,0,0,.3)';
+    ctx.fillRect(bx,by,bw,bh);ctx.strokeRect(bx,by,bw,bh);
+    const elPct=Math.min(s.elapsed/s.maxElapsed,1);
+    const elCol=s.timedOut?C.RED:elPct>.8?C.ORANGE:C.CYAN;
+    ctx.fillStyle=elCol+'40';ctx.fillRect(bx,by,bw*elPct,bh);
+    ctx.strokeStyle=elCol;ctx.strokeRect(bx,by,bw*elPct,bh);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=elCol;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText((s.elapsed/1000).toFixed(1)+'s / '+s.maxElapsed/1000+'s',bx+bw/2,by+bh/2);ctx.restore();
+    // tick marks every 500ms
+    const tickCount=Math.floor(s.maxElapsed/500);
+    for(let t=1;t<=tickCount;t++){
+      const tx=bx+bw*(t*500/s.maxElapsed);
+      const fired=s.elapsed>=t*500;
+      ctx.save();
+      ctx.strokeStyle=fired?C.CYAN:'rgba(34,211,238,.2)';
+      ctx.lineWidth=fired?2:1;ctx.shadowColor=fired?C.CYAN:'transparent';ctx.shadowBlur=fired?6:0;
+      ctx.beginPath();ctx.moveTo(tx,by+bh);ctx.lineTo(tx,by+bh+20);ctx.stroke();
+      ctx.font=`9px 'VT323'`;ctx.fillStyle=fired?C.CYAN:'rgba(34,211,238,.3)';
+      ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText((t*0.5)+'s',tx,by+bh+22);ctx.restore();
+    }
+    // timeout marker
+    const tox=bx+bw;
+    ctx.save();ctx.strokeStyle=s.timedOut?C.RED:'rgba(244,63,94,.4)';ctx.lineWidth=2;
+    ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(tox,by-8);ctx.lineTo(tox,by+bh+34);ctx.stroke();ctx.setLineDash([]);
+    ctx.font=`9px 'VT323'`;ctx.fillStyle=s.timedOut?C.RED:'rgba(244,63,94,.4)';
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('TIMEOUT',tox,by+bh+36);ctx.restore();
+    // tick results
+    const ty=CH*.55;
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.5)';
+    ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('ticker.C ticks received:',CW*.06,ty);
+    for(let i=0;i<s.tickCount;i++){
+      const tx2=CW*.06+i*70;
+      ctx.fillStyle=C.CYAN;ctx.shadowColor=C.CYAN;ctx.shadowBlur=8;
+      ctx.font=`13px 'VT323'`;ctx.fillText('TICK #'+(i+1),tx2,ty+20);
+    }
+    ctx.restore();
+    // ticker.Stop info
+    if(s.timedOut){
+      ctx.save();ctx.font=`14px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=10;
+      ctx.textAlign='center';ctx.textBaseline='top';
+      ctx.fillText('time.After fired → return → defer ticker.Stop()',CW/2,CH*.75);ctx.restore();
+    }
+  }else{
+    // rate limiter mode
+    const bx2=CW*.06,by2=CH*.18,bw2=CW*.88,bh2=20;
+    ctx.save();
+    ctx.strokeStyle='rgba(255,178,41,.25)';ctx.fillStyle='rgba(0,0,0,.3)';
+    ctx.fillRect(bx2,by2,bw2,bh2);ctx.strokeRect(bx2,by2,bw2,bh2);
+    const ep=Math.min(s.elapsed/s.maxElapsed,1);
+    ctx.fillStyle='rgba(249,115,22,.3)';ctx.fillRect(bx2,by2,bw2*ep,bh2);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=C.ORANGE;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('rate limiter: 1 req per 200ms  ('+s.rateTokens+' dispatched / 5 total)',bx2+bw2/2,by2+bh2/2);ctx.restore();
+    // requests queue
+    const qy=CH*.42;
+    ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.45)';
+    ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('requests queue:',CW*.06,qy);ctx.restore();
+    for(let i=0;i<5;i++){
+      const qx=CW*.06+i*68;
+      const dispatched=i<s.rateTokens;
+      ctx.save();
+      ctx.strokeStyle=dispatched?C.GREEN:'rgba(255,178,41,.3)';
+      ctx.fillStyle=dispatched?'rgba(74,222,128,.1)':'rgba(255,178,41,.04)';
+      ctx.shadowColor=dispatched?C.GREEN:'transparent';ctx.shadowBlur=dispatched?6:0;
+      ctx.fillRect(qx,qy+20,56,36);ctx.strokeRect(qx,qy+20,56,36);
+      ctx.font=`12px 'VT323'`;ctx.fillStyle=dispatched?C.GREEN:C.AMBER;
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('req #'+(i+1),qx+28,qy+38);
+      ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle=dispatched?'rgba(74,222,128,.6)':'rgba(255,178,41,.3)';
+      ctx.textBaseline='top';ctx.fillText(dispatched?'SENT':'WAITING',qx+28,qy+58);ctx.restore();
+    }
+    // limiter token indicator
+    const ly=CH*.72;
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(249,115,22,.5)';
+    ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('<-limiter.C tokens received: '+s.rateTokens,CW*.06,ly);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+
+function renderNilDisable(s){
+  sceneTitle('NIL DISABLE — SETTING CHANNELS TO NIL IN SELECT');
+  const ch1x=CW*.06,ch1y=CH*.22,ch1w=130,ch1h=42;
+  const ch2x=CW*.06,ch2y=CH*.52,ch2w=130,ch2h=42;
+  const selX=CW*.38,selY=CH*.28,selW=170,selH=90;
+  const outX=CW*.72,outY=CH*.28,outW=140,outH=42;
+
+  function chanBox(x,y,w,h,label,isNil,vals,fired){
+    ctx.save();
+    const col=isNil?'rgba(168,85,247,.4)':fired?C.CYAN:C.AMBER;
+    ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.fillStyle='rgba(0,0,0,.38)';
+    if(isNil)ctx.setLineDash([5,4]);
+    if(fired&&!isNil)ctx.shadowColor=C.CYAN,ctx.shadowBlur=14;
+    ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.setLineDash([]);
+    ctx.font=`13px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+    const content=isNil?label+' = nil':(vals&&vals.length?label+' ['+vals.join(',')+']':label+' (empty)');
+    ctx.fillText(content,x+w/2,y+h/2);
+    ctx.font=`8px 'Share Tech Mono'`;ctx.textBaseline='top';
+    ctx.fillStyle=isNil?'rgba(168,85,247,.6)':fired?'rgba(34,211,238,.7)':'rgba(255,178,41,.4)';
+    ctx.fillText(isNil?'ARM DISABLED':fired?'FIRED':'active',x+w/2,y+h+3);
+    ctx.restore();
+  }
+
+  chanBox(ch1x,ch1y,ch1w,ch1h,'ch1',s.ch1State==='nil',s.ch1Vals,s.selectedArm==='ch1');
+  chanBox(ch2x,ch2y,ch2w,ch2h,'ch2',s.ch2State==='nil',s.ch2Vals,s.selectedArm==='ch2');
+
+  // select box
+  const ch1nil=s.ch1State==='nil', ch2nil=s.ch2State==='nil';
+  ctx.save();
+  if(s.blocked){ctx.shadowColor=C.RED;ctx.shadowBlur=22;}
+  else if(s.selectedArm)ctx.shadowColor=C.CYAN,ctx.shadowBlur=10;
+  ctx.strokeStyle=s.blocked?C.RED:s.selectedArm?C.CYAN:'rgba(255,178,41,.4)';
+  ctx.fillStyle='rgba(0,0,0,.45)';ctx.lineWidth=1.5;
+  ctx.fillRect(selX,selY,selW,selH);ctx.strokeRect(selX,selY,selW,selH);
+  ctx.font=`9px 'IBM Plex Mono'`;ctx.textAlign='left';ctx.textBaseline='top';
+  // arm 1
+  const a1c=ch1nil?'rgba(168,85,247,.4)':(s.selectedArm==='ch1'?C.BLUE:'rgba(96,165,250,.55)');
+  ctx.fillStyle=a1c;
+  ctx.fillText(ch1nil?'// case <-ch1  [nil — never fires]':'case v, ok := <-ch1:',selX+7,selY+9);
+  if(!ch1nil){ctx.fillStyle='rgba(255,178,41,.3)';ctx.fillText('    if !ok { ch1=nil; continue }',selX+7,selY+22);}
+  // arm 2
+  const a2c=ch2nil?'rgba(168,85,247,.4)':(s.selectedArm==='ch2'?C.ORANGE:'rgba(249,115,22,.55)');
+  ctx.fillStyle=a2c;
+  ctx.fillText(ch2nil?'// case <-ch2  [nil — never fires]':'case v, ok := <-ch2:',selX+7,selY+46);
+  if(!ch2nil){ctx.fillStyle='rgba(255,178,41,.3)';ctx.fillText('    if !ok { ch2=nil; continue }',selX+7,selY+59);}
+  // label
+  ctx.font=`16px 'VT323'`;ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillStyle=s.blocked?C.RED:'rgba(255,178,41,.35)';
+  ctx.fillText(s.blocked?'BLOCKED FOREVER':'select { }',selX+selW/2,selY+selH-2);ctx.restore();
+
+  // arrows channels→select
+  if(!ch1nil) arrow(ch1x+ch1w,ch1y+ch1h/2,selX,selY+18,s.selectedArm==='ch1'?C.BLUE:'rgba(96,165,250,.25)','',s.selectedArm!=='ch1');
+  if(!ch2nil) arrow(ch2x+ch2w,ch2y+ch2h/2,selX,selY+62,s.selectedArm==='ch2'?C.ORANGE:'rgba(249,115,22,.25)','',s.selectedArm!=='ch2');
+
+  // received output
+  ctx.save();
+  ctx.strokeStyle='rgba(74,222,128,.35)';ctx.fillStyle='rgba(0,0,0,.3)';ctx.lineWidth=1;
+  ctx.fillRect(outX,outY,outW,outH);ctx.strokeRect(outX,outY,outW,outH);
+  ctx.font=`12px 'VT323'`;ctx.fillStyle='rgba(74,222,128,.5)';ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('received',outX+outW/2,outY-3);
+  const rcv=s.received||[];
+  rcv.slice(-3).forEach((v,i)=>{
+    ctx.font=`12px 'VT323'`;ctx.fillStyle=v.startsWith('ch1')?C.BLUE:C.ORANGE;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(v,outX+outW/2,outY+4+i*13);
+  });ctx.restore();
+
+  // blocked overlay
+  if(s.blocked){
+    ctx.save();ctx.fillStyle='rgba(244,63,94,.07)';ctx.fillRect(0,0,CW,CH);
+    ctx.font=`20px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=16;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('select { case <-nil: case <-nil: }  →  blocks forever',CW/2,CH*.82);
+    ctx.fillText('goroutine leaked',CW/2,CH*.88);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderSelectPriority(s){
+  sceneTitle('BIASED SELECT — PRIORITY CHANNEL (INNER+OUTER SELECT)');
+  const highX=CW*.05,highY=CH*.18,highW=Math.min(200,CW*.28),highH=44;
+  const lowX=CW*.05,lowY=CH*.56,lowW=Math.min(200,CW*.28),lowH=44;
+
+  // high channel
+  const hq=s.highQ||[];
+  const hSlots=hq.slice(0,4).concat([null,null,null,null]).slice(0,4);
+  const hGlow=s.innerFired;
+  ctx.save();if(hGlow){ctx.shadowColor=C.RED;ctx.shadowBlur=14;}ctx.restore();
+  chan_box(highX,highY,highW,highH,'HIGH-PRI chan',4,hSlots,false,hGlow);
+  ctx.save();ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(244,63,94,.55)';
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('HIGH PRIORITY',highX+highW/2,highY+highH+4);ctx.restore();
+
+  // low channel
+  const lq=s.lowQ||[];
+  const lSlots=lq.slice(0,4).concat([null,null,null,null]).slice(0,4);
+  const lGlow=s.outerFired;
+  chan_box(lowX,lowY,lowW,lowH,'LOW-PRI chan',4,lSlots,false,lGlow);
+  ctx.save();ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(96,165,250,.55)';
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('LOW PRIORITY',lowX+lowW/2,lowY+lowH+4);ctx.restore();
+
+  // inner select box
+  const isx=CW*.42,isy=CH*.12,isw=190,ish=72;
+  ctx.save();
+  const iActive=s.innerFired||s.phase==='default_fired';
+  ctx.strokeStyle=s.innerFired?C.RED:s.phase==='default_fired'?C.ORANGE:'rgba(255,178,41,.3)';
+  if(iActive){ctx.shadowColor=s.innerFired?C.RED:C.ORANGE;ctx.shadowBlur=10;}
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.lineWidth=1.5;
+  ctx.fillRect(isx,isy,isw,ish);ctx.strokeRect(isx,isy,isw,ish);
+  ctx.font=`8.5px 'IBM Plex Mono'`;ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillStyle=s.innerFired?C.RED:'rgba(244,63,94,.5)';
+  ctx.fillText('case v := <-high:',isx+7,isy+6);
+  ctx.fillStyle='rgba(74,222,128,.5)';ctx.fillText('    process("HIGH",v)',isx+7,isy+19);
+  ctx.fillStyle='rgba(74,222,128,.5)';ctx.fillText('    continue',isx+7,isy+32);
+  ctx.fillStyle=s.phase==='default_fired'?C.ORANGE:'rgba(249,115,22,.4)';
+  ctx.fillText('default: // high empty → fall',isx+7,isy+48);
+  ctx.font=`12px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.35)';
+  ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('INNER SELECT (non-blocking)',isx+isw/2,isy-4);ctx.restore();
+
+  // outer select box
+  const osx=CW*.42,osy=CH*.5,osw=190,osh=64;
+  ctx.save();
+  const oActive=s.outerFired;
+  ctx.strokeStyle=oActive?C.GREEN:'rgba(255,178,41,.3)';
+  if(oActive){ctx.shadowColor=C.GREEN;ctx.shadowBlur=10;}
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.lineWidth=1.5;
+  ctx.fillRect(osx,osy,osw,osh);ctx.strokeRect(osx,osy,osw,osh);
+  ctx.font=`8.5px 'IBM Plex Mono'`;ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillStyle='rgba(244,63,94,.45)';ctx.fillText('case v := <-high:',osx+7,osy+8);
+  ctx.fillStyle=oActive?C.GREEN:'rgba(74,222,128,.4)';ctx.fillText('case v := <-low:',osx+7,osy+30);
+  ctx.font=`12px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.35)';
+  ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('OUTER SELECT (blocking)',osx+osw/2,osy-4);ctx.restore();
+
+  // arrows
+  arrow(highX+highW,highY+highH/2,isx,isy+16,s.innerFired?C.RED:'rgba(244,63,94,.25)','',!s.innerFired);
+  arrow(lowX+lowW,lowY+lowH/2,osx,osy+36,oActive?C.GREEN:'rgba(74,222,128,.2)','',!oActive);
+
+  // processed list
+  const proc=s.processed||[];
+  if(proc.length){
+    const px=CW*.73,py=CH*.16;
+    ctx.save();
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.35)';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('PROCESSED (in order):',px,py-14);
+    proc.forEach((v,i)=>{
+      const isH=v.startsWith('HIGH');
+      ctx.fillStyle=isH?C.RED:C.BLUE;
+      ctx.font=`11px 'VT323'`;ctx.fillText(v,px,py+i*14);
+    });ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderGoroLeak(s){
+  sceneTitle('GOROUTINE LEAK — BLOCKED CHANNEL OPERATIONS');
+  const gors=s.goroutines||[];
+  const positions=[[CW*.18,CH*.38],[CW*.5,CH*.38],[CW*.82,CH*.38]];
+  gors.forEach((g,i)=>{
+    if(i>=3)return;
+    const [gx,gy]=positions[i];
+    const leaked=g.state==='blocked';
+    goro(gx,gy,28,g.label||'G',leaked?'blocked':g.state==='running'?'running':'done');
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='top';
+    if(leaked){
+      ctx.font=`16px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=10;
+      ctx.fillText('LEAKED',gx,gy+32);
+      if(g.blockedOn){
+        ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(244,63,94,.6)';ctx.shadowBlur=0;
+        ctx.fillText(g.blockedOn,gx,gy+48);
+      }
+      // dashed warning ring
+      ctx.strokeStyle='rgba(244,63,94,.35)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.arc(gx,gy,38,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    } else {
+      ctx.font=`8px 'Share Tech Mono'`;
+      ctx.fillStyle=g.state==='running'?'rgba(74,222,128,.6)':'rgba(255,178,41,.25)';
+      ctx.fillText(g.state.toUpperCase(),gx,gy+32);
+    }
+    ctx.restore();
+  });
+
+  // leak count badge
+  const lc=s.leaks?s.leaks.length:0;
+  if(lc>0){
+    ctx.save();ctx.font=`32px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=16;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('LEAKED GOROUTINES: '+lc,CW/2,CH*.1);ctx.restore();
+  }
+
+  // memory bar
+  const bx=CW*.06,by=CH*.72,bw=CW*.58,bh=18;
+  const mp=Math.min((s.memKB||8)/80,1);
+  const mc=mp>.6?C.RED:mp>.3?C.ORANGE:C.GREEN;
+  ctx.save();ctx.fillStyle='rgba(0,0,0,.3)';ctx.strokeStyle='rgba(255,178,41,.2)';
+  ctx.fillRect(bx,by,bw,bh);ctx.strokeRect(bx,by,bw,bh);
+  ctx.fillStyle=mc+'35';ctx.fillRect(bx,by,bw*mp,bh);
+  ctx.strokeStyle=mc;ctx.shadowColor=mc;ctx.shadowBlur=mp>.5?8:0;ctx.strokeRect(bx,by,bw*mp,bh);
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=mc;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('goroutine stack memory: ~'+(s.memKB||8)+'KB',bx+bw/2,by+bh/2);ctx.restore();
+
+  // mode label
+  const modeLabels={type1:'LEAK TYPE 1: send to channel, caller abandons',type2:'LEAK TYPE 2: range with no close()',fixed:'FIXED: ctx.Done() escape hatch'};
+  const modeCols={type1:C.ORANGE,type2:C.RED,fixed:C.GREEN};
+  ctx.save();ctx.font=`14px 'VT323'`;
+  ctx.fillStyle=modeCols[s.mode]||C.AMBER;ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=6;
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(modeLabels[s.mode]||'',CW/2,CH*.83);ctx.restore();
+
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+
+function renderTimeout(s){
+  sceneTitle('TIME.AFTER TIMEOUT — SELECT RACE: DATA vs TIMER');
+  const cx=CW/2, baseY=CH*.18;
+  // timeline
+  const bx=CW*.08,by=baseY,bw=CW*.84,bh=20;
+  const ep=Math.min(s.elapsed/2000,1);
+  ctx.save();ctx.fillStyle='rgba(0,0,0,.3)';ctx.strokeStyle='rgba(255,178,41,.2)';
+  ctx.fillRect(bx,by,bw,bh);ctx.strokeRect(bx,by,bw,bh);
+  const barCol=s.timerFired?C.RED:s.chFired?C.GREEN:C.CYAN;
+  ctx.fillStyle=barCol+'30';ctx.fillRect(bx,by,bw*ep,bh);
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=barCol;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(s.elapsed+'ms elapsed',bx+bw/2,by+bh/2);ctx.restore();
+
+  // timeout marker at 1s
+  const tx1=bx+bw*(1000/2000);
+  ctx.save();ctx.strokeStyle=s.timerFired?C.RED:'rgba(244,63,94,.5)';ctx.lineWidth=s.timerFired?2:1;
+  if(s.timerFired){ctx.shadowColor=C.RED;ctx.shadowBlur=10;}
+  ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(tx1,by-8);ctx.lineTo(tx1,by+bh+32);ctx.stroke();ctx.setLineDash([]);
+  ctx.font=`11px 'VT323'`;ctx.fillStyle=s.timerFired?C.RED:'rgba(244,63,94,.5)';
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('TIMEOUT\n1s',tx1,by+bh+4);ctx.restore();
+
+  // send marker at 2s
+  const tx2=bx+bw;
+  ctx.save();ctx.strokeStyle=s.chFired?C.GREEN:'rgba(74,222,128,.4)';ctx.lineWidth=1;
+  ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(tx2,by-8);ctx.lineTo(tx2,by+bh+32);ctx.stroke();ctx.setLineDash([]);
+  ctx.font=`11px 'VT323'`;ctx.fillStyle=s.chFired?C.GREEN:'rgba(74,222,128,.4)';
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('ch<-42\n2s',tx2,by+bh+4);ctx.restore();
+
+  // goroutines
+  const gy=CH*.52;
+  goro(CW*.25,gy,26,'MAIN',s.timerFired?'done':s.elapsed>0?'blocked':'idle');
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='top';ctx.font=`8px 'Share Tech Mono'`;
+  ctx.fillStyle='rgba(255,178,41,.45)';ctx.fillText('select { }',CW*.25,gy+30);ctx.restore();
+
+  const wstate=s.chFired?'done':(s.elapsed>0?'blocked':'idle');
+  const leaked=s.timerFired&&!s.chFired&&s.elapsed>1000;
+  goro(CW*.68,gy,26,'WORK',leaked?'blocked':wstate);
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='top';ctx.font=`8px 'Share Tech Mono'`;
+  ctx.fillStyle=leaked?'rgba(244,63,94,.6)':'rgba(255,178,41,.45)';
+  ctx.fillText(leaked?'LEAKED\nblocked on ch<-42':'ch <- 42\n(after 2s)',CW*.68,gy+30);ctx.restore();
+
+  // result
+  if(s.timerFired){
+    ctx.save();ctx.font=`18px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('"timeout!"',CW*.25,gy+56);ctx.restore();
+  }
+  if(s.chFired&&s.gotValue!==null){
+    ctx.save();ctx.font=`18px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.shadowColor=C.GREEN;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('"got: '+s.gotValue+'"',CW*.25,gy+56);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderWorkerPool(s){
+  sceneTitle('WORKER POOL — N FIXED GOROUTINES, M JOBS, WAITGROUP SHUTDOWN');
+  const wpos=[[CW*.14,CH*.42],[CW*.5,CH*.42],[CW*.86,CH*.42]];
+  const ws=s.workers||['idle','idle','idle'];
+  ws.forEach((w,i)=>{
+    if(i>=3)return;
+    const [gx,gy]=wpos[i];
+    const busy=w.startsWith('working');
+    const gst=w==='idle'?'idle':w==='done'?'done':busy?'working':'idle';
+    goro(gx,gy,28,'W'+i,gst);
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='top';ctx.font=`8px 'Share Tech Mono'`;
+    const sc=w==='done'?'rgba(255,178,41,.25)':busy?'rgba(34,211,238,.65)':'rgba(255,178,41,.4)';
+    ctx.fillStyle=sc;
+    const lbl=w==='done'?'DONE':busy?'job: '+w.split(':')[1]:'range jobs{}';
+    ctx.fillText(lbl,gx,gy+32);ctx.restore();
+  });
+
+  // jobs channel
+  const jx=CW*.06,jy=CH*.16,jw=CW*.88,jh=36;
+  const jq=s.jobQ||[];
+  ctx.save();
+  ctx.strokeStyle=s.jobsClosed?'rgba(168,85,247,.5)':'rgba(96,165,250,.5)';
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.lineWidth=1.5;
+  ctx.fillRect(jx,jy,jw,jh);ctx.strokeRect(jx,jy,jw,jh);
+  ctx.font=`9px 'VT323'`;ctx.fillStyle=s.jobsClosed?'rgba(168,85,247,.6)':'rgba(96,165,250,.7)';
+  ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(s.jobsClosed?'[CLOSED]  ':' jobs:  ',jx+6,jy+jh/2);
+  jq.slice(0,12).forEach((v,i)=>{
+    ctx.fillStyle='rgba(96,165,250,.7)';ctx.font=`12px 'VT323'`;
+    ctx.fillText(v,jx+70+i*22,jy+jh/2);
+  });ctx.restore();
+
+  // results channel
+  const rx=CW*.06,ry=CH*.68,rw=CW*.88,rh=32;
+  const rq=s.resultQ||[];
+  ctx.save();
+  ctx.strokeStyle='rgba(74,222,128,.4)';ctx.fillStyle='rgba(0,0,0,.3)';ctx.lineWidth=1;
+  ctx.fillRect(rx,ry,rw,rh);ctx.strokeRect(rx,ry,rw,rh);
+  ctx.font=`9px 'VT323'`;ctx.fillStyle='rgba(74,222,128,.5)';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText(' results:  ',rx+6,ry+rh/2);
+  rq.slice(-16).forEach((v,i)=>{
+    ctx.fillStyle='rgba(74,222,128,.65)';ctx.font=`12px 'VT323'`;
+    ctx.fillText(v,rx+80+i*22,ry+rh/2);
+  });ctx.restore();
+
+  // wg count
+  const wc=s.wgCount||0;
+  ctx.save();ctx.font=`24px 'VT323'`;ctx.fillStyle=wc===0?C.GREEN:C.AMBER;ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=8;
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('WaitGroup: '+wc,CW/2,CH*.84);ctx.restore();
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderSendClosed(s){
+  sceneTitle('SEND ON CLOSED CHANNEL — PANIC + SAFE PATTERNS');
+  const chx=CW/2-70,chy=CH*.2,chw=140,chh=44;
+  const chCol=s.chState==='open'?C.AMBER:s.chState.startsWith('closed')||s.chState==='PANIC'?C.PURPLE:'rgba(74,222,128,.7)';
+  ctx.save();
+  ctx.strokeStyle=chCol;ctx.lineWidth=2;ctx.fillStyle='rgba(0,0,0,.4)';
+  if(s.chState==='PANIC'){ctx.shadowColor=C.RED;ctx.shadowBlur=20;}
+  ctx.fillRect(chx,chy,chw,chh);ctx.strokeRect(chx,chy,chw,chh);
+  ctx.font=`18px 'VT323'`;ctx.fillStyle=chCol;ctx.textAlign='center';ctx.textBaseline='middle';
+  const stLabel={open:'OPEN',closed:'CLOSED',closed_once:'CLOSED (once)',PANIC:'CLOSED'}[s.chState]||s.chState;
+  ctx.fillText(stLabel,chx+chw/2,chy+chh/2);ctx.restore();
+
+  // operation result box
+  const opx=CW*.06,opy=CH*.46,opw=CW*.88,oph=70;
+  const isPanic=!!s.panicMsg;
+  ctx.save();
+  ctx.strokeStyle=isPanic?C.RED:s.safeRead?C.GREEN:s.onceUsed?C.GREEN:'rgba(255,178,41,.2)';
+  if(isPanic){ctx.shadowColor=C.RED;ctx.shadowBlur=18;}
+  ctx.fillStyle='rgba(0,0,0,.4)';ctx.lineWidth=isPanic?2:1;
+  ctx.fillRect(opx,opy,opw,oph);ctx.strokeRect(opx,opy,opw,oph);
+  ctx.restore();
+
+  if(isPanic){
+    ctx.save();ctx.font=`22px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=14;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('PANIC: '+s.panicMsg,CW/2,opy+8);
+    ctx.font=`11px 'Share Tech Mono'`;ctx.shadowBlur=0;ctx.fillStyle='rgba(244,63,94,.6)';
+    ctx.fillText('goroutine panics — runtime terminates unless recovered',CW/2,opy+38);ctx.restore();
+  } else if(s.safeRead){
+    ctx.save();ctx.font=`16px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.shadowColor=C.GREEN;ctx.shadowBlur=8;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('v = '+s.safeRead.v+'  ok = '+s.safeRead.ok+'  → SAFE',CW/2,opy+10);
+    ctx.font=`10px 'Share Tech Mono'`;ctx.shadowBlur=0;ctx.fillStyle='rgba(74,222,128,.6)';
+    ctx.fillText('read from closed channel: always returns (zero, false), never panics',CW/2,opy+38);ctx.restore();
+  } else if(s.onceUsed){
+    ctx.save();ctx.font=`16px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.shadowColor=C.GREEN;ctx.shadowBlur=8;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('sync.Once: first call closes, subsequent calls are no-ops',CW/2,opy+10);
+    ctx.font=`10px 'Share Tech Mono'`;ctx.shadowBlur=0;ctx.fillStyle='rgba(74,222,128,.6)';
+    ctx.fillText('once.Do(func(){ close(ch) })  — safe from N goroutines',CW/2,opy+38);ctx.restore();
+  } else if(s.lastOp==='close'){
+    ctx.save();ctx.font=`14px 'VT323'`;ctx.fillStyle=C.PURPLE;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('close(ch) called. Channel now closed.',CW/2,opy+16);ctx.restore();
+  } else {
+    ctx.save();ctx.font=`13px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.35)';
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('channel open, operations normal',CW/2,opy+22);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderErrgroup(s){
+  sceneTitle('ERRGROUP — FAN-OUT WITH ERROR PROPAGATION + CONTEXT CANCEL');
+  const wpos=[[CW*.18,CH*.42],[CW*.5,CH*.42],[CW*.82,CH*.42]];
+  const ws=s.workers||[];
+  ws.forEach((w,i)=>{
+    if(i>=3)return;
+    const [gx,gy]=wpos[i];
+    const gst=w.state==='running'?'running':w.state==='done'?'done':w.state==='error'?'panic':w.state==='cancelled'?'cancelled':'idle';
+    goro(gx,gy,26,'G'+w.id,gst);
+    ctx.save();ctx.textAlign='center';ctx.textBaseline='top';ctx.font=`8px 'Share Tech Mono'`;
+    const sc={running:'rgba(74,222,128,.6)',done:'rgba(255,178,41,.3)',error:'rgba(244,63,94,.7)',cancelled:'rgba(168,85,247,.6)'}[w.state]||'rgba(255,178,41,.35)';
+    ctx.fillStyle=sc;
+    const lbl={running:'fetching '+w.url,done:'done: '+w.url,error:'ERR: '+w.url,cancelled:'cancelled'}[w.state]||w.state;
+    ctx.fillText(lbl,gx,gy+30);
+    if(w.err){ctx.fillStyle='rgba(244,63,94,.55)';ctx.fillText(w.err.slice(0,18),gx,gy+42);}
+    ctx.restore();
+  });
+
+  // ctx cancel indicator
+  const ccol=s.ctxCancelled?C.RED:'rgba(255,178,41,.3)';
+  ctx.save();ctx.font=`13px 'VT323'`;ctx.fillStyle=ccol;if(s.ctxCancelled){ctx.shadowColor=C.RED;ctx.shadowBlur=8;}
+  ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(s.ctxCancelled?'ctx CANCELLED (first error)':'ctx: active',CW/2,CH*.2);ctx.restore();
+
+  // g.Wait result
+  if(s.waitDone&&s.finalErr){
+    ctx.save();ctx.font=`14px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('g.Wait() = "'+s.finalErr+'"',CW/2,CH*.78);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.shadowBlur=0;ctx.fillStyle='rgba(244,63,94,.55)';
+    ctx.fillText('first non-nil error returned; other errors discarded',CW/2,CH*.84);ctx.restore();
+  }
+  if(s.annotation) annot(s.annotation,'rgba(255,178,41,.55)',CH-28);
+}
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  switch(curScene){
+    case'unbuf':      renderUnbuf(step);break;
+    case'buffered':   renderBuffered(step);break;
+    case'close_range':renderCloseRange(step);break;
+    case'select_stmt':renderSelect(step);break;
+    case'deadlock':   renderDeadlock(step);break;
+    case'context':    renderContext(step);break;
+    case'pipeline':   renderPipeline(step);break;
+    case'fanout':     renderFanout(step);break;
+    case'semaphore':  renderSemaphore(step);break;
+    case'donechan':   renderDoneChan(step);break;
+    case'nilchan':    renderNilChan(step);break;
+    case'ticker':     renderTicker(step);break;
+    case'nil_disable':    renderNilDisable(step);break;
+    case'select_priority':renderSelectPriority(step);break;
+    case'goroutine_leak': renderGoroLeak(step);break;
+    case'timeout_pat':    renderTimeout(step);break;
+    case'workerpool':     renderWorkerPool(step);break;
+    case'sendclosed':     renderSendClosed(step);break;
+    case'errgroup_pat':   renderErrgroup(step);break;
+  }
+}
+
+
+/* ══════════════════════════════════
+   CATEGORY NAV + SUB-TABS
+══════════════════════════════════ */
+const CATS={
+  basics:   {label:'BASICS',   keys:['unbuf','buffered','close_range']},
+  select:   {label:'SELECT',   keys:['select_stmt','nil_disable','select_priority','timeout_pat']},
+  patterns: {label:'PATTERNS', keys:['pipeline','fanout','semaphore','donechan','ticker','workerpool']},
+  context:  {label:'CONTEXT',  keys:['context','errgroup_pat']},
+  gotchas:  {label:'GOTCHAS',  keys:['deadlock','nilchan','goroutine_leak','sendclosed']},
+};
+const CAT_ORDER=['basics','select','patterns','context','gotchas'];
+const SC_NAMES={
+  unbuf:'UNBUFFERED',buffered:'BUFFERED',close_range:'CLOSE+RANGE',
+  select_stmt:'SELECT',nil_disable:'NIL DISABLE',select_priority:'PRIORITY',
+  pipeline:'PIPELINE',fanout:'FAN-OUT/IN',semaphore:'SEMAPHORE',
+  donechan:'DONE CHAN',ticker:'TICKER',
+  context:'CONTEXT',
+  deadlock:'DEADLOCK',nilchan:'NIL MERGE',goroutine_leak:'GOROUTINE LEAK',
+  timeout_pat:'TIMEOUT',workerpool:'WORKER POOL',sendclosed:'SEND CLOSED',errgroup_pat:'ERRGROUP',
+};
+let curCat='basics';
+
+function selectCat(cat){
+  curCat=cat;
+  document.querySelectorAll('.ctab').forEach(el=>el.classList.toggle('active',el.dataset.cat===cat));
+  buildSubTabs(cat);
+  selectScene(CATS[cat].keys[0]);
+  snd('click');
+}
+function buildSubTabs(cat){
+  document.getElementById('subtabs').innerHTML=CATS[cat].keys.map((k,i)=>
+    `<button class="stab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${SC_NAMES[k]||k.toUpperCase()}</button>`
+  ).join('');
+}
+function buildCatTabs(){
+  document.getElementById('cattabs').innerHTML=CAT_ORDER.map((k,i)=>
+    `<button class="ctab${k===curCat?' active':''}" data-cat="${k}" onclick="selectCat('${k}')">${CATS[k].label}</button>`
+  ).join('');
+}
+
+/* ══════════════════════════════════
+   PLAYBACK ENGINE
+══════════════════════════════════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:700};
+let curScene='unbuf';
+
+const PHASE_SND={
+  send:'send',recv:'recv',block:'block',unblock:'unblock',
+  close:'close',select:'select',panic:'panic',cancel:'cancel',
+  pipeline:'send',done:'done',warn:'block',nil:'block',
+};
+
+function applyStep(step){
+  renderFrame(step);
+  const phase=step.phase||'init';
+  const badge=document.getElementById('pbadge');
+  badge.className='pbadge '+phase;badge.textContent=phase.toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('st-g').textContent=step.gg!=null?step.gg:'—';
+  document.getElementById('st-b').textContent=step.blocked!=null?step.blocked:'—';
+  document.getElementById('st-s').textContent=step.sent!=null?step.sent:'—';
+  document.getElementById('st-r').textContent=step.recv!=null?step.recv:'—';
+  document.getElementById('st-c').textContent=step.chanState||'—';
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SC[curScene].code,step.cl>=0?step.cl:-1);
+  const soundKey=PHASE_SND[phase];
+  if(soundKey&&phase!=='init')snd(soundKey);
+  if(phase==='panic'||phase==='block')triggerCA();
+  if(phase==='cancel')triggerCA();
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){
+  if(!ST.steps.length)return;
+  if(ST.idx>=ST.steps.length-1)ST.idx=0;
+  ST.playing=true;
+  document.getElementById('play-btn').textContent='⏸ PAUSE';
+  document.getElementById('play-btn').classList.add('playing');
+  ST.timer=setInterval(()=>{
+    if(ST.idx>=ST.steps.length-1){pause();return;}
+    ST.idx++;applyStep(ST.steps[ST.idx]);
+  },ST.speed);
+}
+function pause(){
+  ST.playing=false;clearInterval(ST.timer);
+  document.getElementById('play-btn').textContent='▶ PLAY';
+  document.getElementById('play-btn').classList.remove('playing');
+}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){
+  const m={1:1800,2:1300,3:900,4:700,5:520,6:360,7:240,8:150,9:90,10:40};
+  ST.speed=m[v]||700;
+  if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+}
+
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.stab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SC[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  if(ST.playing)pause();
+  ST.steps=buildSteps(key);ST.idx=0;
+  if(ST.steps.length){applyStep(ST.steps[0]);setTimeout(()=>play(),450);}
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  switch(e.key){
+    case'ArrowRight':next();break;
+    case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;
+    case'm':case'M':toggleMute();break;
+    case'1':selectCat('basics');break;
+    case'2':selectCat('select');break;
+    case'3':selectCat('patterns');break;
+    case'4':selectCat('context');break;
+    case'5':selectCat('gotchas');break;
+    case'q':case'Q':{const k=CATS[curCat].keys;selectScene(k[0]);break;}
+    case'w':case'W':{const k=CATS[curCat].keys;if(k[1])selectScene(k[1]);break;}
+    case'e':case'E':{const k=CATS[curCat].keys;if(k[2])selectScene(k[2]);break;}
+    case't':case'T':{const k=CATS[curCat].keys;if(k[3])selectScene(k[3]);break;}
+    case'y':case'Y':{const k=CATS[curCat].keys;if(k[4])selectScene(k[4]);break;}
+  }
+});
+
+// buildTabs removed — replaced by buildCatTabs+buildSubTabs
+
+/* ══════════════════════════════════
+   BOOT SEQUENCE
+══════════════════════════════════ */
+function boot(){
+  const term=document.getElementById('boot-terminal');
+  const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'CHAN2.VIZ v2.0 — GO CHANNEL SUBSYSTEM LOADING...',s:'',d:160},
+    {t:'LOADING: UNBUF.MOD (synchronous rendezvous, handshake)',s:'OK',d:100},
+    {t:'LOADING: BUFFERED.MOD (FIFO ring buffer, back-pressure)',s:'OK',d:100},
+    {t:'LOADING: CLOSE.MOD (close semantics, range drain)',s:'OK',d:100},
+    {t:'LOADING: SELECT.MOD (multiplex, random fairness)',s:'OK',d:100},
+    {t:'LOADING: DEADLOCK.MOD (circular wait, runtime panic)',s:'OK',d:100},
+    {t:'LOADING: CONTEXT.MOD (cancellation, timeout, Done())',s:'OK',d:100},
+    {t:'LOADING: PIPELINE.MOD (stage composition, close propagation)',s:'OK',d:100},
+    {t:'LOADING: FANOUT.MOD (worker pool, fan-in merge)',s:'OK',d:100},
+    {t:'LOADING: AUDIO.MOD (send:520Hz recv:720Hz block:160Hz)',s:'OK',d:100},
+    {t:'ALL SYSTEMS NOMINAL. CHANNEL RUNTIME ONLINE.',s:'',d:200},
+  ];
+  let li=0;
+  function al(){
+    if(li>=lines.length){setTimeout(sa,300);return;}
+    const bl=lines[li];
+    const div=document.createElement('div');
+    div.className='bl';
+    div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;
+    term.appendChild(div);
+    requestAnimationFrame(()=>div.classList.add('show'));
+    fill.style.width=Math.round((li/lines.length)*100)+'%';
+    li++;setTimeout(al,bl.d);
+  }
+  al();
+}
+function sa(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildCatTabs();
+  buildSubTabs(curCat);
+  const sc=SC['unbuf'];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  setTimeout(()=>selectScene('unbuf'),350);
+}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAFKA.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.52) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1) contrast(1.03);}95%{filter:brightness(.82);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .3s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -4px 0 0 rgba(255,30,30,.35),inset 4px 0 0 rgba(30,80,255,.35);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:88px;color:var(--amber);text-shadow:0 0 44px var(--amber),0 0 88px rgba(255,178,41,.22);letter-spacing:10px;margin-bottom:4px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:700px;max-width:92vw;font-size:13px;line-height:2.1;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:700px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.25);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.1);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:5px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.12);background:rgba(0,0,0,.35);min-height:36px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.produce{color:var(--blue);border-color:var(--blue);background:rgba(96,165,250,.08);}
+.pbadge.consume{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+.pbadge.commit{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.07);}
+.pbadge.rebalance{color:var(--orange);border-color:var(--orange);background:rgba(249,115,22,.09);}
+.pbadge.replicate{color:var(--purple);border-color:var(--purple);background:rgba(168,85,247,.08);}
+.pbadge.elect{color:var(--amber);border-color:var(--amber);}
+.pbadge.crash{color:var(--red);border-color:var(--red);background:rgba(244,63,94,.12);}
+.pbadge.txn{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.07);}
+.pbadge.warn{color:var(--orange);border-color:var(--orange);}
+.pbadge.done{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+#step-txt{font-size:11px;color:rgba(255,178,41,.78);flex:1;line-height:1.45;}
+#stats{display:flex;gap:14px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:var(--red);border-color:var(--red);}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:420px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.22);border-left:1px solid rgba(255,178,41,.15);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.14);}
+.phdr{font-family:'VT323',monospace;font-size:15px;letter-spacing:4px;color:var(--amber);padding:6px 12px 6px 14px;background:rgba(0,0,0,.42);border-bottom:1px solid rgba(255,178,41,.18);border-left:3px solid rgba(255,178,41,.55);}
+#code-scroll{overflow-y:auto;max-height:230px;padding:4px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.7;padding:1px 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.1);border-left:2px solid var(--amber);}
+.ln{color:rgba(255,178,41,.28);width:22px;text-align:right;margin-right:9px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#6a7f8f;font-style:italic;}.op{color:#56b6c2;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:10px 14px;font-size:11.5px;line-height:1.85;color:rgba(255,178,41,.72);}
+.info-block strong{color:#ffcc55;}
+.tag{display:inline-block;background:rgba(255,178,41,.09);border:1px solid rgba(255,178,41,.28);padding:2px 7px;font-size:10px;margin:2px 2px;}
+.warn-tag{display:inline-block;background:rgba(244,63,94,.09);border:1px solid rgba(244,63,94,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#f43f5e;}
+.ok-tag{display:inline-block;background:rgba(74,222,128,.09);border:1px solid rgba(74,222,128,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#4ade80;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+
+<div id="boot">
+  <div id="boot-logo">KAFKA.VIZ</div>
+  <div id="boot-tagline">APACHE KAFKA INTERNALS — PARTITIONS REPLICATION CONSUMERS EXACTLY-ONCE</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X DISTRIBUTED SYSTEMS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">KAFKA.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a scenario.</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">MESSAGES</span><span class="sv" id="st-m">—</span></div>
+        <div class="si"><span class="sl">LAG</span><span class="sv" id="st-l" style="color:var(--orange)">—</span></div>
+        <div class="si"><span class="sl">OFFSET</span><span class="sv" id="st-o" style="color:var(--blue)">—</span></div>
+        <div class="si"><span class="sl">PARTITIONS</span><span class="sv" id="st-p">—</span></div>
+        <div class="si"><span class="sl">ISR</span><span class="sv" id="st-i" style="color:var(--green)">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="4" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">←→</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–6</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ KEY RULES</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ GOTCHAS + INTERVIEW</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ── NOISE ── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');
+function r(){c.width=innerWidth;c.height=innerHeight;}r();window.addEventListener('resize',r);
+function d(){const id=x.createImageData(c.width,c.height),da=id.data;
+for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}
+x.putImageData(id,0,0);requestAnimationFrame(d);}d();})();
+function sGlitch(){setTimeout(()=>{const el=document.getElementById('crt-wrap');el.style.filter='brightness(.2)';setTimeout(()=>{el.style.filter='';sGlitch();},18+Math.random()*16);},3800+Math.random()*6200);}sGlitch();
+
+/* ── AUDIO ── */
+let AC=null,muted=false;
+function snd(type){if(muted||!AC)return;try{const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);const f={produce:440,consume:520,commit:580,rebalance:280,crash:160,elect:600,replicate:380,txn:500,warn:220,done:540,init:340};o.frequency.setValueAtTime(f[type]||380,AC.currentTime);o.type=type==='crash'||type==='warn'?'sawtooth':'triangle';g.gain.setValueAtTime(.08,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.14);o.start(AC.currentTime);o.stop(AC.currentTime+.17);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('commit');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ── HIGHLIGHT ── */
+function hlGo(l){
+  const e=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ci=e.indexOf('//');const code=ci>=0?e.slice(0,ci):e;const cmt=ci>=0?e.slice(ci):'';
+  function hl(s){
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/\b(func|go|var|type|struct|return|if|else|for|range|defer|true|false|nil|int|int32|int64|string|bool|error|any)\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&lt;-)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return hl(code)+(cmt?'<span class="cm">'+cmt+'</span>':'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span>${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ═══════════════════════════════════════════
+   SCENARIO METADATA
+═══════════════════════════════════════════ */
+const SC={
+
+partitions:{label:'PARTITIONS',
+code:[
+  '// IBM/sarama producer with explicit partitioning',
+  'config := sarama.NewConfig()',
+  'config.Producer.RequiredAcks = sarama.WaitForAll',
+  'config.Producer.Partitioner = sarama.NewHashPartitioner',
+  '',
+  'producer, _ := sarama.NewSyncProducer(brokers, config)',
+  '',
+  '// Key-based routing: murmur2(key) % numPartitions',
+  'msg := &sarama.ProducerMessage{',
+  '    Topic: "orders",',
+  '    Key:   sarama.StringEncoder("user-1"),',
+  '    Value: sarama.StringEncoder("order-A"),',
+  '}',
+  'partition, offset, _ := producer.SendMessage(msg)',
+  '',
+  '// nil key = round-robin (no ordering guarantee)',
+  'msg2 := &sarama.ProducerMessage{Topic: "orders", Value: ...}',
+],
+cx:`<strong>Partition:</strong> ordered, immutable append-only log. Each partition is independent.<br><strong>murmur2(key) % N:</strong> same key always routes to same partition — per-key ordering.<br><strong>nil key:</strong> round-robin across partitions — throughput over ordering.<br><strong>Offset:</strong> monotonically increasing integer per partition. Immutable after write.<br><strong>Max throughput:</strong> limited by single partition. Scale by adding partitions.`,
+how:`A Kafka topic is split into N partitions. Each partition is an independent ordered log stored on one broker (the leader). Producers route messages by key: murmur2(key) % numPartitions gives the destination partition.<br><br>The same key always lands on the same partition. This guarantees ordering for all events sharing a key — critical for per-user event streams. Changing partition count breaks this — keys reroute.<br><br>Round-robin (nil key) maximizes throughput and load distribution but loses ordering guarantees. Choose partitioning strategy at topic design time.`,
+facts:`<span class="warn-tag">TRAP</span> adding partitions changes murmur2(key)%N routing — existing keys reroute<br><span class="ok-tag">RULE</span> set partition count high at creation — cannot reduce partitions<br><span class="tag">Ordering</span> per-partition ordering only — no total ordering across partitions<br><span class="ok-tag">PATTERN</span> key=userID → all events for a user go to same partition<br><span class="warn-tag">TRAP</span> hot partition: one key with extreme volume overwhelms single partition<br><span class="tag">Interview</span> "how does Kafka guarantee ordering?" → per-partition, per-key`,
+},
+
+consumer_group:{label:'CONSUMER GROUP',
+code:[
+  '// Consumer group: automatic partition assignment',
+  'config := sarama.NewConfig()',
+  'config.Consumer.Group.Rebalance.Strategy =',
+  '    sarama.NewBalanceStrategyRoundRobin()',
+  '',
+  'client, _ := sarama.NewConsumerGroup(brokers, "mygroup", config)',
+  '',
+  'handler := &MyHandler{}  // implements ConsumerGroupHandler',
+  'for {',
+  '    // blocks until rebalance or shutdown',
+  '    client.Consume(ctx, []string{"orders"}, handler)',
+  '}',
+  '',
+  '// Max parallelism = partition count',
+  '// Consumers > partitions: extra consumers are IDLE',
+  'func (h *MyHandler) ConsumeClaim(sess sarama.ConsumerGroupSession,',
+  '    claim sarama.ConsumerGroupClaim) error {',
+  '    for msg := range claim.Messages() {',
+  '        process(msg)',
+  '        sess.MarkMessage(msg, "")',
+  '    }',
+  '    return nil',
+  '}',
+],
+cx:`<strong>Consumer Group:</strong> N consumers sharing a topic — each partition assigned to exactly one consumer.<br><strong>Max parallelism:</strong> = num_partitions. More consumers than partitions = idle consumers.<br><strong>Rebalance:</strong> triggered on join/leave/crash — partitions redistributed.<br><strong>Offset tracking:</strong> each consumer tracks its own offset per partition in __consumer_offsets topic.<br><strong>Group coordinator:</strong> one broker manages group membership and offset storage.`,
+how:`Consumer groups provide load-balanced parallel consumption. The group coordinator assigns each partition to exactly one consumer in the group — no two consumers in the same group read the same partition.<br><br>The partition count hard-limits parallelism: you can never have more active consumers than partitions. Extra consumers wait idle, ready to take over if another fails.<br><br>Different consumer groups are fully independent — each has its own offset per partition. Multiple groups can read the same topic at different speeds with no interference.`,
+facts:`<span class="ok-tag">RULE</span> partition count = max consumer group parallelism<br><span class="warn-tag">TRAP</span> consumers > partitions: idle consumers waste resources, help only on failover<br><span class="tag">Independent groups</span> each group has own offsets — reread same data independently<br><span class="ok-tag">PATTERN</span> over-provision partitions at topic creation (e.g., 12 or 24)<br><span class="warn-tag">TRAP</span> group.id collision between services reading same topic = accidental sharing<br><span class="tag">Interview</span> "why can't you have more consumers than partitions?" → 1 partition = 1 consumer`,
+},
+
+rebalance:{label:'REBALANCE',
+code:[
+  '// ConsumerGroupHandler lifecycle',
+  'type MyHandler struct{}',
+  '',
+  '// Setup: called before consuming starts',
+  'func (h *MyHandler) Setup(sess sarama.ConsumerGroupSession) error {',
+  '    log.Printf("Assigned: %v", sess.Claims())',
+  '    return nil',
+  '}',
+  '',
+  '// Cleanup: called on rebalance/shutdown — COMMIT HERE',
+  'func (h *MyHandler) Cleanup(sess sarama.ConsumerGroupSession) error {',
+  '    sess.Commit()  // flush pending offsets!',
+  '    return nil',
+  '}',
+  '',
+  '// Triggers: new member joins, member leaves/crashes,',
+  '// partition count changes, session.timeout.ms expires',
+  '',
+  '// EAGER rebalance (default): ALL consumers stop,',
+  '// revoke ALL partitions, then reassign from scratch.',
+  '// COOPERATIVE rebalance (incremental): only moved',
+  '// partitions are revoked — others keep consuming.',
+],
+cx:`<strong>Rebalance trigger:</strong> consumer join, leave, crash, heartbeat timeout, or partition count change.<br><strong>Eager (default):</strong> stop-the-world — all consumers stop, all partitions revoked, reassigned.<br><strong>Cooperative:</strong> only partitions being moved are revoked — lower latency.<br><strong>Cleanup():</strong> called before revoke — commit any pending offsets here or lose them.<br><strong>Session timeout:</strong> if no heartbeat received in session.timeout.ms → declared dead → rebalance.`,
+how:`Rebalancing is Kafka's mechanism for redistributing partitions when the consumer group membership changes. In eager rebalance (default), all consumers stop and surrender all partitions simultaneously. The coordinator then re-runs the assignment algorithm and sends new assignments to all consumers.<br><br>This creates a "stop the world" gap where nothing is consumed. Cooperative rebalance (Kafka 2.4+) reduces this by only revoking the partitions that need to move.<br><br>Cleanup() is your last chance to commit pending offsets before losing partition ownership. If you skip this, you'll reprocess messages after the rebalance.`,
+facts:`<span class="warn-tag">TRAP</span> don't forget sess.Commit() in Cleanup() — or you'll reprocess on rebalance<br><span class="ok-tag">SETTING</span> max.poll.interval.ms: must be > processing time or triggers false rebalance<br><span class="warn-tag">TRAP</span> slow processing loops trigger rebalance via max.poll.interval.ms timeout<br><span class="tag">Cooperative</span> use BalanceStrategyCooperativeSticky to avoid stop-the-world<br><span class="ok-tag">INTERVIEW</span> "what triggers a rebalance?" → join/leave/crash/timeout/partition-change<br><span class="tag">Thundering herd</span> all consumers stop on eager rebalance → processing gap`,
+},
+
+offset_commit:{label:'OFFSET COMMIT',
+code:[
+  '// Manual commit: at-least-once (safe)',
+  'func (h *Handler) ConsumeClaim(sess sarama.ConsumerGroupSession,',
+  '    claim sarama.ConsumerGroupClaim) error {',
+  '    for msg := range claim.Messages() {',
+  '        if err := process(msg); err != nil {',
+  '            return err  // reprocess on restart',
+  '        }',
+  '        // commit ONLY after successful processing',
+  '        sess.MarkMessage(msg, "")',
+  '    }',
+  '    return nil',
+  '}',
+  '',
+  '// Auto-commit: AT-MOST-ONCE risk',
+  '// config.Consumer.Offsets.AutoCommit.Enable = true',
+  '// config.Consumer.Offsets.AutoCommit.Interval = 1s',
+  '',
+  '// If crash after auto-commit but before process():',
+  '// offset is already advanced — message is LOST',
+  '',
+  '// Exactly-once: requires transactions (see scenario 6)',
+],
+cx:`<strong>Committed offset:</strong> stored in __consumer_offsets topic — survives restarts.<br><strong>At-least-once:</strong> commit after processing. Crash → reprocess from committed offset.<br><strong>At-most-once:</strong> commit before processing. Crash after commit → message lost.<br><strong>Auto-commit:</strong> commits on a timer — NOT after processing — is at-most-once.<br><strong>MarkMessage:</strong> sarama queues the offset; actual commit via sess.Commit() or auto.`,
+how:`Kafka consumers track their position using committed offsets stored in the __consumer_offsets topic. On restart, a consumer resumes from the last committed offset.<br><br>Manual commit (MarkMessage after process) gives at-least-once semantics: you may process a message twice on crash-and-restart, but never skip one.<br><br>Auto-commit fires on a timer independent of processing — if the timer fires after consuming but before processing, a crash loses those messages. Auto-commit is at-most-once.<br><br>For exactly-once, you need transactions (idempotent producer + transactional consumer).`,
+facts:`<span class="warn-tag">TRAP</span> auto-commit = at-most-once risk — off by default in sarama<br><span class="ok-tag">RULE</span> MarkMessage + Commit() after process() = at-least-once<br><span class="tag">Idempotency</span> at-least-once + idempotent processing = effectively exactly-once<br><span class="warn-tag">TRAP</span> MarkMessage only queues — no guarantee it's committed unless Commit() called<br><span class="ok-tag">INTERVIEW</span> "difference between auto and manual commit?" → at-most-once vs at-least-once<br><span class="tag">Reset</span> OffsetOldest restarts from beginning, OffsetNewest skips old messages`,
+},
+
+replication:{label:'REPLICATION',
+code:[
+  '// Producer acks configuration',
+  'config := sarama.NewConfig()',
+  '',
+  '// acks=all: wait for ALL ISR replicas to confirm',
+  'config.Producer.RequiredAcks = sarama.WaitForAll',
+  '',
+  '// acks=1: wait for leader only (faster, less durable)',
+  '// config.Producer.RequiredAcks = sarama.WaitForLocal',
+  '',
+  '// acks=0: fire and forget (fastest, no durability)',
+  '// config.Producer.RequiredAcks = sarama.NoResponse',
+  '',
+  '// Broker config (server.properties):',
+  '// replication.factor=3',
+  '// min.insync.replicas=2  // min ISR for acks=all',
+  '',
+  '// ISR removal when replica lags:',
+  '// replica.lag.time.max.ms=10000',
+  '',
+  '// Leader election: only ISR members eligible',
+  '// unclean.leader.election.enable=false (default)',
+],
+cx:`<strong>ISR (In-Sync Replicas):</strong> set of replicas fully caught up to leader. Only ISR members can become leader.<br><strong>acks=all:</strong> leader waits for all ISR replicas to write before ack — max durability.<br><strong>acks=1:</strong> leader acks after local write — follower lag = potential data loss on leader crash.<br><strong>min.insync.replicas:</strong> minimum ISR size for acks=all. Below this: produce fails.<br><strong>Unclean election:</strong> disabled by default — prevents electing out-of-date replica as leader.`,
+how:`Each partition has one leader broker and N-1 follower brokers. Followers continuously fetch from the leader to stay in sync. Replicas in the ISR are within replica.lag.time.max.ms of the leader's latest offset.<br><br>With acks=all, the leader only acks a produce request after all ISR members have written the message. This guarantees no data loss as long as at least one ISR replica survives.<br><br>If a follower falls behind (GC pause, network issue), it leaves the ISR. If ISR shrinks below min.insync.replicas, produces with acks=all fail with NotEnoughReplicas error.<br><br>On leader failure, only ISR members are eligible for election (unclean.leader.election.enable=false).`,
+facts:`<span class="ok-tag">DURABILITY</span> acks=all + min.insync.replicas=2 + replication.factor=3 = strong durability<br><span class="warn-tag">TRAP</span> acks=1: leader crash before follower fetch = data loss<br><span class="tag">ISR removal</span> replica.lag.time.max.ms=10000 default — GC pause can cause ISR drop<br><span class="warn-tag">TRAP</span> min.insync.replicas=1 with acks=all = same as acks=1<br><span class="ok-tag">INTERVIEW</span> "what guarantees Kafka durability?" → acks=all + ISR + min.insync.replicas<br><span class="tag">Unclean election</span> enable only if availability > consistency (risk: data loss)`,
+},
+
+exactly_once:{label:'EXACTLY ONCE',
+code:[
+  '// Idempotent producer: PID + sequence dedup',
+  'config.Producer.Idempotent = true',
+  'config.Net.MaxOpenRequests = 1  // required',
+  '',
+  '// Transactional producer: atomic multi-partition',
+  'config.Producer.Transaction.ID = "my-app-tx-1"',
+  '',
+  'producer, _ := sarama.NewSyncProducer(brokers, config)',
+  '',
+  'producer.BeginTxn()',
+  '',
+  'producer.SendMessage(&sarama.ProducerMessage{',
+  '    Topic: "payments", Value: ...',
+  '})',
+  'producer.SendMessage(&sarama.ProducerMessage{',
+  '    Topic: "audit-log", Value: ...',
+  '})',
+  '',
+  '// Atomic: both committed or both aborted',
+  'if err := producer.CommitTxn(); err != nil {',
+  '    producer.AbortTxn()',
+  '}',
+  '',
+  '// Consumer: read_committed isolation',
+  '// config.Consumer.IsolationLevel = sarama.ReadCommitted',
+],
+cx:`<strong>Idempotent producer:</strong> broker assigns PID+epoch. Each msg has seq number. Duplicate retries discarded.<br><strong>Transactional:</strong> atomic writes across multiple partitions/topics via 2-phase commit.<br><strong>Transaction coordinator:</strong> special broker partition manages txn state machine.<br><strong>read_committed:</strong> consumer skips messages from open or aborted transactions.<br><strong>EOS = idempotent + transactional + read_committed</strong> — all three required.`,
+how:`Exactly-once semantics (EOS) requires three layers.<br><br>1. Idempotent producer: each message carries a PID and sequence number. If the producer retries (network timeout), the broker detects the duplicate PID+seq and silently discards it. No duplicates even under retries.<br><br>2. Transactional producer: use BeginTxn/CommitTxn to make writes across multiple partitions atomic. Uses a 2-phase commit via the Transaction Coordinator. Either all messages are visible or none are.<br><br>3. read_committed consumer: only reads committed transaction messages. Open or aborted transactions are invisible — consumers skip transaction markers.`,
+facts:`<span class="ok-tag">EOS</span> idempotent + transactional + read_committed = exactly-once guarantee<br><span class="warn-tag">COST</span> ~20% throughput penalty vs non-transactional<br><span class="tag">Transaction.ID</span> stable across restarts → same producer fenced by epoch bump<br><span class="warn-tag">TRAP</span> zombie producer: old instance with same Transaction.ID → broker fences it<br><span class="ok-tag">INTERVIEW</span> "3 layers of EOS?" → idempotent producer, transactions, read_committed<br><span class="tag">Kafka Streams</span> uses EOS internally — process-once guarantee built-in`,
+},
+
+};
+
+/* ═══════════════════════════════════════════
+   STEPS
+═══════════════════════════════════════════ */
+function buildSteps(key){
+  const S=[];
+  const snap=(phase,desc,cl,st)=>S.push({phase,desc,cl,...st});
+
+  if(key==='partitions'){
+    snap('init','Topic "orders" — 3 partitions, all empty. Offsets start at 0.',
+      0,{parts:[{msgs:[]},{msgs:[]},{msgs:[]}],inflight:null,msgs:0,lag:0,offset:0,partCount:3,isr:'3/3'});
+    snap('produce','key="user-1". murmur2("user-1") % 3 = 0. Message routed to P0.',
+      7,{parts:[{msgs:[]},{msgs:[]},{msgs:[]}],inflight:{key:'user-1',val:'order-A',dest:0,t:0.35},msgs:0,lag:0,offset:0,partCount:3,isr:'3/3'});
+    snap('produce','Message lands in P0 at offset=0. Producer ack: partition=0, offset=0.',
+      13,{parts:[{msgs:[{k:'u-1',v:'A',o:0}]},{msgs:[]},{msgs:[]}],inflight:null,msgs:1,lag:0,offset:0,partCount:3,isr:'3/3'});
+    snap('produce','key="user-2" → P1 (offset=0). key="user-3" → P2 (offset=0). Hash distributes evenly.',
+      7,{parts:[{msgs:[{k:'u-1',v:'A',o:0}]},{msgs:[{k:'u-2',v:'B',o:0}]},{msgs:[{k:'u-3',v:'C',o:0}]}],inflight:null,msgs:3,lag:0,offset:0,partCount:3,isr:'3/3'});
+    snap('produce','key="user-1" again → same hash → P0 again. Per-key ordering guaranteed.',
+      7,{parts:[{msgs:[{k:'u-1',v:'A',o:0},{k:'u-1',v:'D',o:1}]},{msgs:[{k:'u-2',v:'B',o:0}]},{msgs:[{k:'u-3',v:'C',o:0}]}],inflight:{key:'user-1',val:'order-D',dest:0,t:0.7},msgs:4,lag:0,offset:1,partCount:3,isr:'3/3'});
+    snap('produce','nil key → round-robin → P1 (no key affinity, no ordering guarantee).',
+      15,{parts:[{msgs:[{k:'u-1',v:'A',o:0},{k:'u-1',v:'D',o:1}]},{msgs:[{k:'u-2',v:'B',o:0},{k:'nil',v:'E',o:1}]},{msgs:[{k:'u-3',v:'C',o:0}]}],inflight:null,msgs:5,lag:0,offset:1,partCount:3,isr:'3/3'});
+    snap('done','5 messages committed. P0=2 msgs, P1=2 msgs, P2=1 msg. Same key → same partition always.',
+      13,{parts:[{msgs:[{k:'u-1',v:'A',o:0},{k:'u-1',v:'D',o:1}]},{msgs:[{k:'u-2',v:'B',o:0},{k:'nil',v:'E',o:1}]},{msgs:[{k:'u-3',v:'C',o:0}]}],inflight:null,msgs:5,lag:0,offset:2,partCount:3,isr:'3/3'});
+  }
+
+  else if(key==='consumer_group'){
+    snap('init','Group "order-processors": 3 partitions, 3 consumers. 1:1 assignment by coordinator.',
+      5,{parts:3,consumers:[{id:0,part:0,lag:3,st:'consuming'},{id:1,part:1,lag:2,st:'consuming'},{id:2,part:2,lag:1,st:'consuming'}],msgs:6,lag:6,offset:0,partCount:3,isr:'3/3'});
+    snap('consume','All 3 consumers reading in parallel. C0←P0, C1←P1, C2←P2. Lag draining.',
+      16,{parts:3,consumers:[{id:0,part:0,lag:2,st:'consuming'},{id:1,part:1,lag:1,st:'consuming'},{id:2,part:2,lag:0,st:'consuming'}],msgs:6,lag:3,offset:1,partCount:3,isr:'3/3'});
+    snap('consume','All partitions drained. Lag=0. Consumers idle — waiting for new messages.',
+      16,{parts:3,consumers:[{id:0,part:0,lag:0,st:'idle'},{id:1,part:1,lag:0,st:'idle'},{id:2,part:2,lag:0,st:'idle'}],msgs:6,lag:0,offset:3,partCount:3,isr:'3/3'});
+    snap('rebalance','C3 joins group. Rebalance triggered. 3 partitions for 4 consumers → C3 gets nothing.',
+      5,{parts:3,consumers:[{id:0,part:0,lag:0,st:'consuming'},{id:1,part:1,lag:0,st:'consuming'},{id:2,part:2,lag:0,st:'consuming'},{id:3,part:-1,lag:0,st:'idle'}],msgs:6,lag:0,offset:3,partCount:3,isr:'3/3'});
+    snap('done','RULE: max_parallelism = num_partitions. C3 is idle — wasted. Plan partition count upfront.',
+      5,{parts:3,consumers:[{id:0,part:0,lag:1,st:'consuming'},{id:1,part:1,lag:1,st:'consuming'},{id:2,part:2,lag:1,st:'consuming'},{id:3,part:-1,lag:0,st:'idle'}],msgs:9,lag:3,offset:3,partCount:3,isr:'3/3'});
+  }
+
+  else if(key==='rebalance'){
+    snap('init','2 consumers, 3 partitions. C0→[P0,P1] C1→[P2]. Normal consumption.',
+      4,{consumers:[{id:0,parts:[0,1],st:'ok'},{id:1,parts:[2],st:'ok'}],phase:null,partCount:3,isr:'3/3',msgs:0,lag:2,offset:4});
+    snap('rebalance','C2 joins. Coordinator receives JoinGroup. REBALANCE triggered — all must stop.',
+      15,{consumers:[{id:0,parts:[0,1],st:'stopping'},{id:1,parts:[2],st:'stopping'},{id:2,parts:[],st:'joining'}],phase:'JOIN',partCount:3,isr:'3/3',msgs:0,lag:2,offset:4});
+    snap('rebalance','REVOKE: all partitions released. Cleanup() called — commit pending offsets NOW.',
+      11,{consumers:[{id:0,parts:[],st:'revoked'},{id:1,parts:[],st:'revoked'},{id:2,parts:[],st:'waiting'}],phase:'REVOKE',partCount:3,isr:'3/3',msgs:0,lag:2,offset:4});
+    snap('rebalance','Coordinator assigns new partitions. Setup() called. Consumers resume.',
+      5,{consumers:[{id:0,parts:[0],st:'ok'},{id:1,parts:[1],st:'ok'},{id:2,parts:[2],st:'ok'}],phase:'ASSIGN',partCount:3,isr:'3/3',msgs:0,lag:2,offset:4});
+    snap('crash','C1 crashes. Heartbeat timeout. Coordinator detects → new rebalance.',
+      15,{consumers:[{id:0,parts:[0],st:'ok'},{id:1,parts:[],st:'dead'},{id:2,parts:[2],st:'stopping'}],phase:'JOIN',partCount:3,isr:'3/3',msgs:0,lag:2,offset:4});
+    snap('done','Recovery complete. C0→[P0,P1], C2→[P2]. C1 partition recovered. No messages lost.',
+      4,{consumers:[{id:0,parts:[0,1],st:'ok'},{id:1,parts:[],st:'dead'},{id:2,parts:[2],st:'ok'}],phase:null,partCount:3,isr:'3/3',msgs:0,lag:2,offset:4});
+  }
+
+  else if(key==='offset_commit'){
+    snap('init','P0 has 8 messages (offsets 0–7). committed=0. Consumer starting.',
+      0,{latest:8,committed:0,proc:-1,mode:'manual',crashed:false,lost:false,msgs:8,lag:8,offset:0,partCount:1,isr:'3/3'});
+    snap('consume','Read offset=0. Processing in progress. Not yet committed.',
+      4,{latest:8,committed:0,proc:0,mode:'manual',crashed:false,lost:false,msgs:8,lag:7,offset:0,partCount:1,isr:'3/3'});
+    snap('commit','process() done. MarkMessage(offset=0). CommitOffsets. committed=1.',
+      8,{latest:8,committed:1,proc:0,mode:'manual',crashed:false,lost:false,msgs:8,lag:7,offset:1,partCount:1,isr:'3/3'});
+    snap('consume','Processing offsets 1–4. committed still at 1. Lag=4.',
+      4,{latest:8,committed:1,proc:4,mode:'manual',crashed:false,lost:false,msgs:8,lag:4,offset:4,partCount:1,isr:'3/3'});
+    snap('crash','CRASH at offset=4. Not committed. Restart → resume from committed=1. Re-process 1–4.',
+      0,{latest:8,committed:1,proc:4,mode:'manual',crashed:true,lost:false,msgs:8,lag:7,offset:1,partCount:1,isr:'3/3'});
+    snap('warn','AUTO-COMMIT risk: timer fires at offset=6, then crash before processing 4–6. LOST.',
+      14,{latest:8,committed:6,proc:3,mode:'auto',crashed:true,lost:true,msgs:8,lag:2,offset:6,partCount:1,isr:'3/3'});
+    snap('done','Manual commit: safe at-least-once. Auto-commit: at-most-once risk. Choose wisely.',
+      8,{latest:8,committed:8,proc:7,mode:'manual',crashed:false,lost:false,msgs:8,lag:0,offset:8,partCount:1,isr:'3/3'});
+  }
+
+  else if(key==='replication'){
+    snap('init','P0: replication=3. Leader=B0. Followers=B1,B2. ISR=[B0,B1,B2]. All synced.',
+      2,{brokers:[{id:0,role:'leader',ok:true,log:4},{id:1,role:'follower',ok:true,log:4},{id:2,role:'follower',ok:true,log:4}],isr:[0,1,2],rline:null,msgs:4,lag:0,offset:3,partCount:1,isr2:'3/3'});
+    snap('produce','Producer sends (acks=all). B0 appends offset=4. Followers start fetch.',
+      4,{brokers:[{id:0,role:'leader',ok:true,log:5},{id:1,role:'follower',ok:true,log:4},{id:2,role:'follower',ok:true,log:4}],isr:[0,1,2],rline:{from:0,prog:0.4},msgs:5,lag:1,offset:4,partCount:1,isr2:'3/3'});
+    snap('replicate','B1 and B2 fetch offset=4. Both ack. acks=all satisfied. Producer gets success.',
+      4,{brokers:[{id:0,role:'leader',ok:true,log:5},{id:1,role:'follower',ok:true,log:5},{id:2,role:'follower',ok:true,log:5}],isr:[0,1,2],rline:null,msgs:5,lag:0,offset:4,partCount:1,isr2:'3/3'});
+    snap('warn','B2: GC pause. Falls behind. replica.lag.time.max.ms exceeded. B2 removed from ISR.',
+      16,{brokers:[{id:0,role:'leader',ok:true,log:6},{id:1,role:'follower',ok:true,log:6},{id:2,role:'follower',ok:true,log:5}],isr:[0,1],rline:null,msgs:6,lag:1,offset:5,partCount:1,isr2:'2/3'});
+    snap('crash','B0 (leader) crashes. Only ISR=[B1] eligible. B1 elected new leader.',
+      19,{brokers:[{id:0,role:'dead',ok:false,log:6},{id:1,role:'leader',ok:true,log:6},{id:2,role:'follower',ok:true,log:5}],isr:[1],rline:null,msgs:6,lag:0,offset:5,partCount:1,isr2:'1/3'});
+    snap('done','B0 recovers, rejoins as follower. B2 catches up, re-enters ISR. Full replication restored.',
+      2,{brokers:[{id:0,role:'follower',ok:true,log:6},{id:1,role:'leader',ok:true,log:6},{id:2,role:'follower',ok:true,log:6}],isr:[0,1,2],rline:null,msgs:6,lag:0,offset:5,partCount:1,isr2:'3/3'});
+  }
+
+  else if(key==='exactly_once'){
+    snap('init','Idempotent producer: PID=42, epoch=1. seq=0. Transaction.ID set for stability.',
+      1,{pid:42,epoch:1,seq:0,txState:'idle',msgs:[],dup:false,aborted:false,msgs2:0,lag:0,offset:0,partCount:2,isr:'3/3'});
+    snap('txn','BeginTxn(). Transaction Coordinator notified. txState=open.',
+      9,{pid:42,epoch:1,seq:0,txState:'open',msgs:[],dup:false,aborted:false,msgs2:0,lag:0,offset:0,partCount:2,isr:'3/3'});
+    snap('produce','SendMessage: payments (seq=0). PID+seq stamped on message.',
+      11,{pid:42,epoch:1,seq:0,txState:'open',msgs:[{seq:0,topic:'payments',st:'pending'}],dup:false,aborted:false,msgs2:1,lag:0,offset:0,partCount:2,isr:'3/3'});
+    snap('produce','SendMessage: audit-log (seq=1). Both messages in same transaction.',
+      13,{pid:42,epoch:1,seq:1,txState:'open',msgs:[{seq:0,topic:'payments',st:'pending'},{seq:1,topic:'audit-log',st:'pending'}],dup:false,aborted:false,msgs2:2,lag:0,offset:0,partCount:2,isr:'3/3'});
+    snap('produce','RETRY: network timeout. Resend seq=0. Broker sees same PID+seq → DEDUP. Not written twice.',
+      11,{pid:42,epoch:1,seq:0,txState:'open',msgs:[{seq:0,topic:'payments',st:'pending',retry:true},{seq:1,topic:'audit-log',st:'pending'}],dup:true,aborted:false,msgs2:2,lag:0,offset:0,partCount:2,isr:'3/3'});
+    snap('txn','CommitTxn(). Coordinator runs 2PC: PREPARE → COMMIT. Both partitions atomically visible.',
+      18,{pid:42,epoch:1,seq:1,txState:'committing',msgs:[{seq:0,topic:'payments',st:'committed'},{seq:1,topic:'audit-log',st:'committed'}],dup:false,aborted:false,msgs2:2,lag:0,offset:1,partCount:2,isr:'3/3'});
+    snap('done','Committed. read_committed consumers now see both messages. Aborted tx = invisible.',
+      22,{pid:42,epoch:1,seq:1,txState:'committed',msgs:[{seq:0,topic:'payments',st:'committed'},{seq:1,topic:'audit-log',st:'committed'}],dup:false,aborted:false,msgs2:2,lag:0,offset:1,partCount:2,isr:'3/3'});
+  }
+
+  return S;
+}
+
+/* ═══════════════════════════════════════════
+   CANVAS
+═══════════════════════════════════════════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){
+  const w=document.getElementById('viz-wrap');
+  CW=canvas.width=w.clientWidth;
+  CH=canvas.height=w.clientHeight;
+  if(ST.steps.length)renderFrame(ST.steps[ST.idx]);
+}
+const C={AMBER:'#ffb229',DIM:'rgba(255,178,41,.25)',GREEN:'#4ade80',RED:'#f43f5e',
+  BLUE:'#60a5fa',ORANGE:'#f97316',PURPLE:'#a855f7',CYAN:'#22d3ee'};
+const PART_COL=[C.BLUE,C.ORANGE,C.PURPLE,C.CYAN];
+
+/* ── DRAWING HELPERS ── */
+function title(t){
+  ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.2)';
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(t,CW/2,5);ctx.restore();
+}
+function note(t,y,col){
+  ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=col||'rgba(255,178,41,.45)';
+  ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(t,CW/2,y||CH-6);ctx.restore();
+}
+function box(x,y,w,h,col,fill,dash,glow){
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.fillStyle=fill||'rgba(0,0,0,.3)';
+  if(glow){ctx.shadowColor=col;ctx.shadowBlur=10;}
+  if(dash)ctx.setLineDash([4,3]);
+  ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.setLineDash([]);ctx.restore();
+}
+function label(t,x,y,col,size,align,baseline){
+  ctx.save();ctx.font=`${size||12}px 'VT323'`;ctx.fillStyle=col||C.AMBER;
+  ctx.textAlign=align||'center';ctx.textBaseline=baseline||'middle';
+  ctx.fillText(t,x,y);ctx.restore();
+}
+function smallLabel(t,x,y,col,align){
+  ctx.save();ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col||'rgba(255,178,41,.5)';
+  ctx.textAlign=align||'center';ctx.textBaseline='middle';ctx.fillText(t,x,y);ctx.restore();
+}
+function arrow(x1,y1,x2,y2,col,lbl,dashed){
+  ctx.save();ctx.strokeStyle=col||C.AMBER;ctx.lineWidth=1.5;
+  if(col){ctx.shadowColor=col;ctx.shadowBlur=5;}
+  if(dashed)ctx.setLineDash([4,3]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1),al=8,aw=0.3;
+  ctx.shadowBlur=0;ctx.fillStyle=col||C.AMBER;ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-al*Math.cos(a-aw),y2-al*Math.sin(a-aw));
+  ctx.lineTo(x2-al*Math.cos(a+aw),y2-al*Math.sin(a+aw));
+  ctx.closePath();ctx.fill();
+  if(lbl){ctx.shadowBlur=0;ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col||C.AMBER;
+    ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(lbl,(x1+x2)/2,(y1+y2)/2-3);}
+  ctx.restore();
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: PARTITIONS
+   Layout: left=partition logs (3 rows), right=producer box + hash formula
+═══════════════════════════════════════════ */
+function renderPartitions(s){
+  title('TOPIC "orders" — KEY ROUTING via murmur2(key) % numPartitions');
+  const parts=s.parts||[];
+  const nParts=parts.length;
+  const pad=CW*.04;
+  const logX=pad, logW=CW*.62;
+  const prodX=CW*.72, prodW=CW*.24, prodY=CH*.38, prodH=56;
+  const rowH=Math.floor((CH-80)/(nParts))-8;
+  const rowGap=8;
+
+  // Partition log rows
+  parts.forEach((p,pi)=>{
+    const rowY=40+pi*(rowH+rowGap);
+    const col=PART_COL[pi];
+    box(logX,rowY,logW,rowH,col,'rgba(0,0,0,.25)',false,false);
+    label('P'+pi,logX+14,rowY+rowH/2,col,14);
+
+    // Message slots — evenly spaced inside box
+    const msgArea=logW-36;
+    const slotW=Math.min(56, msgArea/Math.max(p.msgs.length,1)-4);
+    p.msgs.forEach((m,mi)=>{
+      const sx=logX+30+mi*(slotW+4);
+      if(sx+slotW>logX+logW-4)return; // clamp
+      ctx.save();ctx.fillStyle=col+'1A';ctx.strokeStyle=col+'55';ctx.lineWidth=1;
+      ctx.fillRect(sx,rowY+4,slotW,rowH-8);ctx.strokeRect(sx,rowY+4,slotW,rowH-8);
+      const ky=rowY+10,vy=rowY+rowH/2,oy=rowY+rowH-12;
+      ctx.font=`9px 'IBM Plex Mono'`;ctx.textAlign='center';
+      ctx.fillStyle=col;ctx.textBaseline='top';ctx.fillText('k:'+m.k,sx+slotW/2,ky);
+      ctx.fillStyle='rgba(255,255,255,.45)';ctx.textBaseline='middle';ctx.fillText(m.v,sx+slotW/2,vy);
+      ctx.fillStyle='rgba(255,178,41,.3)';ctx.textBaseline='bottom';ctx.fillText('@'+m.o,sx+slotW/2,oy);
+      ctx.restore();
+    });
+    if(!p.msgs.length){
+      smallLabel('empty',logX+logW/2,rowY+rowH/2,'rgba(255,178,41,.15)');
+    }
+  });
+
+  // Producer box (right)
+  box(prodX,prodY,prodW,prodH,C.AMBER,'rgba(0,0,0,.4)',false,true);
+  label('PRODUCER',prodX+prodW/2,prodY+prodH/2,C.AMBER,15);
+
+  // Hash formula below producer
+  smallLabel('murmur2(key) % 3',prodX+prodW/2,prodY+prodH+16,'rgba(255,178,41,.4)');
+
+  // In-flight message particle
+  if(s.inflight){
+    const f=s.inflight;
+    const rowY=40+f.dest*(rowH+rowGap)+rowH/2;
+    const startX=prodX, endX=logX+logW;
+    const px=startX+(endX-startX)*f.t;
+    ctx.save();ctx.fillStyle=PART_COL[f.dest];ctx.shadowColor=PART_COL[f.dest];ctx.shadowBlur=14;
+    ctx.beginPath();ctx.arc(px,rowY,7,0,Math.PI*2);ctx.fill();ctx.restore();
+    smallLabel(f.key?'key:'+f.key:'nil',px,rowY-14,PART_COL[f.dest]);
+    arrow(startX,rowY,px-8,rowY,PART_COL[f.dest],'',false);
+  }
+
+  note(s.annotation,'rgba(255,178,41,.5)',CH-6);
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: CONSUMER GROUP
+   Layout: top row=partition boxes, bottom row=consumer boxes, arrows between
+═══════════════════════════════════════════ */
+function renderConsumerGroup(s){
+  title('CONSUMER GROUP — PARTITION ASSIGNMENT AND PARALLELISM');
+  const nParts=s.parts||3;
+  const consumers=s.consumers||[];
+
+  // --- Partition row (top) ---
+  const partRowY=40, partH=44, partW=Math.min(130,Math.floor((CW-40)/nParts)-10);
+  const partTotalW=nParts*partW+(nParts-1)*10;
+  const partStartX=(CW-partTotalW)/2;
+
+  // partition center coords (for arrows)
+  const partCX=[];
+  for(let pi=0;pi<nParts;pi++){
+    const px=partStartX+pi*(partW+10);
+    const cx2=px+partW/2;
+    partCX.push(cx2);
+    const col=PART_COL[pi];
+    box(px,partRowY,partW,partH,col,'rgba(0,0,0,.25)',false,false);
+    label('P'+pi,cx2,partRowY+partH/2,col,14);
+  }
+
+  // --- Consumer row (bottom) ---
+  const nCons=consumers.length;
+  const consH=60, consW=Math.min(100,Math.floor((CW-40)/nCons)-10);
+  const consTotalW=nCons*consW+(nCons-1)*10;
+  const consStartX=(CW-consTotalW)/2;
+  const consRowY=CH*.62;
+
+  // consumer center coords
+  const consCX=[];
+  consumers.forEach((c,ci)=>{
+    const cx2=consStartX+ci*(consW+10);
+    const ccx=cx2+consW/2;
+    const ccy=consRowY;
+    consCX.push(ccx);
+    const isIdle=c.st==='idle'||c.part===-1;
+    const isDead=c.st==='dead';
+    const col=isDead?C.RED:isIdle?C.DIM:C.GREEN;
+    const fill=isDead?'rgba(244,63,94,.05)':isIdle?'rgba(0,0,0,.15)':'rgba(74,222,128,.06)';
+    box(cx2,ccy,consW,consH,col,fill,isDead,!isIdle&&!isDead);
+    label('C'+c.id,ccx,ccy+18,col,15);
+    smallLabel(isDead?'DEAD':isIdle?'IDLE':'consuming',ccx,ccy+34,col);
+    if(c.lag>0)smallLabel('lag:'+c.lag,ccx,ccy+48,'rgba(249,115,22,.7)');
+
+    // Arrow from consumer to its assigned partition
+    if(c.part>=0&&c.part<nParts&&!isDead){
+      const ty=partRowY+partH;
+      arrow(ccx,ccy,partCX[c.part],ty,col,'',isIdle);
+    }
+    if(isIdle&&!isDead&&c.part===-1){
+      smallLabel('no partition',ccx,ccy+48,'rgba(255,178,41,.3)');
+    }
+  });
+
+  // IDLE indicator banner
+  const hasIdle=consumers.some(c=>c.st==='idle'&&c.part===-1);
+  if(hasIdle){
+    ctx.save();ctx.font=`13px 'VT323'`;ctx.fillStyle=C.ORANGE;ctx.shadowColor=C.ORANGE;ctx.shadowBlur=8;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('max_parallelism = num_partitions = '+nParts,CW/2,CH*.88);ctx.restore();
+  }
+  note(s.annotation,'rgba(255,178,41,.5)',CH-6);
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: REBALANCE
+   Layout: consumer boxes row (top-center), partition boxes row (bottom-center)
+           phase banner at very top, arrows consumer→partition
+═══════════════════════════════════════════ */
+function renderRebalance(s){
+  const consumers=s.consumers||[];
+  const nParts=s.partCount||3;
+
+  // Phase banner
+  const phaseCol={JOIN:C.ORANGE,REVOKE:C.RED,ASSIGN:C.GREEN};
+  if(s.phase){
+    ctx.save();ctx.font=`16px 'VT323'`;const pc=phaseCol[s.phase]||C.AMBER;
+    ctx.fillStyle=pc;ctx.shadowColor=pc;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('── REBALANCE: '+s.phase+' ──',CW/2,6);ctx.restore();
+  } else {
+    title('REBALANCE — PARTITION REASSIGNMENT LIFECYCLE');
+  }
+
+  // Partition boxes row (bottom)
+  const partH=38, partW=Math.min(90,Math.floor((CW-40)/nParts)-10);
+  const partTotalW=nParts*partW+(nParts-1)*12;
+  const partStartX=(CW-partTotalW)/2;
+  const partRowY=CH*.76;
+  const partCX=[];
+  for(let pi=0;pi<nParts;pi++){
+    const px=partStartX+pi*(partW+12);
+    const cx2=px+partW/2;
+    partCX.push(cx2);
+    box(px,partRowY,partW,partH,PART_COL[pi],'rgba(0,0,0,.25)',false,false);
+    label('P'+pi,cx2,partRowY+partH/2,PART_COL[pi],14);
+  }
+
+  // Consumer boxes row (top area)
+  const nCons=consumers.length;
+  const consW=Math.min(96,Math.floor((CW-40)/nCons)-10);
+  const consH=62;
+  const consTotalW=nCons*consW+(nCons-1)*10;
+  const consStartX=(CW-consTotalW)/2;
+  const consRowY=CH*.28;
+
+  consumers.forEach((c,ci)=>{
+    const cx2=consStartX+ci*(consW+10);
+    const ccx=cx2+consW/2;
+    const ccy=consRowY;
+    const isDead=c.st==='dead';
+    const isStopped=c.st==='revoked'||c.st==='stopping';
+    const isJoining=c.st==='joining'||c.st==='waiting';
+    const col=isDead?C.RED:isStopped?C.ORANGE:isJoining?C.CYAN:C.GREEN;
+    const fill=isDead?'rgba(244,63,94,.05)':'rgba(0,0,0,.3)';
+    box(cx2,ccy,consW,consH,col,fill,isDead,!isDead&&!isStopped);
+    label('C'+c.id,ccx,ccy+18,col,15);
+    smallLabel(isDead?'DEAD':c.st.toUpperCase(),ccx,ccy+34,col);
+
+    // Show assigned partitions text
+    if(c.parts&&c.parts.length){
+      smallLabel('P'+c.parts.join('+P'),ccx,ccy+50,C.AMBER);
+    }
+
+    // Arrows consumer → partition
+    if(c.parts){
+      c.parts.forEach(pi=>{
+        if(pi<nParts){
+          const dashed=isStopped||c.st==='stopping';
+          arrow(ccx,ccy+consH,partCX[pi],partRowY,PART_COL[pi],'',dashed);
+        }
+      });
+    }
+  });
+
+  note(s.annotation,'rgba(255,178,41,.5)',CH-6);
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: OFFSET COMMIT
+   Layout: top=offset grid (full width), middle=commit pointer, bottom=crash/mode banner
+═══════════════════════════════════════════ */
+function renderOffsetCommit(s){
+  title('OFFSET COMMIT — AT-LEAST-ONCE vs AT-MOST-ONCE');
+  const latest=s.latest||8;
+  const committed=s.committed||0;
+  const proc=s.proc;
+
+  // Offset grid
+  const gridX=CW*.05, gridW=CW*.9, gridY=CH*.22, gridH=46;
+  const slotW=gridW/latest;
+
+  for(let i=0;i<latest;i++){
+    const sx=gridX+i*slotW, sw=slotW-3;
+    const isCom=i<committed;
+    const isProc=i===proc;
+    const isLost=s.lost&&i>=4&&i<6;
+    const col=isLost?C.RED:isCom?C.GREEN:isProc?C.CYAN:'rgba(255,178,41,.15)';
+    const fill=isLost?'rgba(244,63,94,.12)':isCom?'rgba(74,222,128,.1)':isProc?'rgba(34,211,238,.1)':'rgba(255,178,41,.02)';
+    box(sx,gridY,sw,gridH,col,fill,false,isCom||isProc);
+    label(String(i),sx+sw/2,gridY+gridH/2,col,13);
+  }
+
+  // Labels under grid
+  const ly=gridY+gridH+14;
+  smallLabel('committed='+committed,gridX+committed*slotW*0.5,ly,C.GREEN,'center');
+  if(proc>=0) smallLabel('processing='+proc,gridX+(proc+0.5)*slotW,ly,C.CYAN,'center');
+  const lag=latest-committed;
+  smallLabel('lag='+lag,gridX+gridW-50,ly,lag>0?C.ORANGE:C.GREEN);
+
+  // Committed pointer line
+  if(committed>0){
+    const cx2=gridX+committed*slotW;
+    ctx.save();ctx.strokeStyle='rgba(74,222,128,.4)';ctx.lineWidth=1.5;ctx.setLineDash([3,4]);
+    ctx.beginPath();ctx.moveTo(cx2,gridY+gridH);ctx.lineTo(cx2,gridY+gridH+22);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+
+  // Mode badge
+  const modeCol=s.mode==='manual'?C.GREEN:C.ORANGE;
+  const modeY=CH*.55;
+  ctx.save();ctx.font=`16px 'VT323'`;ctx.fillStyle=modeCol;ctx.shadowColor=modeCol;ctx.shadowBlur=8;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(s.mode==='manual'?'MANUAL COMMIT (at-least-once)':'AUTO-COMMIT (5s timer — at-most-once)',CW/2,modeY);
+  ctx.restore();
+
+  // Crash banner
+  if(s.crashed){
+    ctx.save();ctx.font=`15px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=14;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('CRASH! Restart resumes from committed='+s.committed,CW/2,CH*.68);
+    ctx.restore();
+    triggerCA();
+  }
+  if(s.lost){
+    ctx.save();ctx.font=`14px 'VT323'`;ctx.fillStyle=C.RED;ctx.shadowColor=C.RED;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('MESSAGES LOST: offsets 4–5 committed before processing',CW/2,CH*.78);
+    ctx.restore();
+  }
+
+  note(s.annotation,'rgba(255,178,41,.5)',CH-6);
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: REPLICATION
+   Layout: 3 broker boxes evenly spaced, log strip inside each, arrows between
+═══════════════════════════════════════════ */
+function renderReplication(s){
+  title('REPLICATION — ISR, acks=all, LEADER ELECTION');
+  const brokers=s.brokers||[];
+  const nb=brokers.length;
+  const isrSet=new Set(s.isr||[]);
+
+  const bW=Math.min(140, Math.floor((CW-60)/nb)-16);
+  const bH=110;
+  const totalW=nb*bW+(nb-1)*20;
+  const startX=(CW-totalW)/2;
+  const bY=CH*.22;
+
+  // Compute center x for each broker (used for arrows)
+  const bcx=brokers.map((_,i)=>startX+i*(bW+20)+bW/2);
+
+  brokers.forEach((b,i)=>{
+    const bx=startX+i*(bW+20);
+    const isDead=!b.ok||b.role==='dead';
+    const isLeader=b.role==='leader';
+    const inISR=isrSet.has(b.id)&&!isDead;
+    const col=isDead?'rgba(244,63,94,.4)':isLeader?C.AMBER:inISR?C.GREEN:C.ORANGE;
+
+    box(bx,bY,bW,bH,col,'rgba(0,0,0,.35)',isDead,isLeader&&!isDead);
+    label('B'+b.id,bx+bW/2,bY+14,col,15);
+    label(isDead?'DEAD':isLeader?'LEADER':'FOLLOWER',bx+bW/2,bY+32,
+      isDead?C.RED:isLeader?C.AMBER:C.GREEN,13);
+    smallLabel(isDead?'—':inISR?'ISR ✓':'NOT IN ISR',bx+bW/2,bY+50,
+      inISR?'rgba(74,222,128,.6)':'rgba(249,115,22,.6)');
+
+    // Log strip (last 5 offsets)
+    const logCount=b.log||4;
+    const slots=Math.min(logCount,5);
+    const slotW2=Math.min(22,(bW-12)/slots);
+    for(let j=0;j<slots;j++){
+      const lx=bx+6+j*(slotW2+2), ly=bY+62;
+      ctx.save();ctx.fillStyle=isLeader?'rgba(255,178,41,.15)':'rgba(74,222,128,.1)';
+      ctx.strokeStyle=isLeader?'rgba(255,178,41,.4)':'rgba(74,222,128,.35)';
+      ctx.lineWidth=1;ctx.fillRect(lx,ly,slotW2,22);ctx.strokeRect(lx,ly,slotW2,22);
+      ctx.font=`10px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(logCount-slots+j,lx+slotW2/2,ly+11);ctx.restore();
+    }
+  });
+
+  // Replication arrows (leader → followers)
+  const leaderIdx=brokers.findIndex(b=>b.role==='leader');
+  if(leaderIdx>=0&&s.rline){
+    const ly=bY+bH/2;
+    brokers.forEach((b,i)=>{
+      if(i!==leaderIdx&&b.ok&&b.role!=='dead'){
+        const lx2=bcx[leaderIdx], fx=bcx[i];
+        const midX=lx2+(fx-lx2)*s.rline.prog;
+        ctx.save();ctx.fillStyle=C.PURPLE;ctx.shadowColor=C.PURPLE;ctx.shadowBlur=10;
+        ctx.beginPath();ctx.arc(midX,ly,6,0,Math.PI*2);ctx.fill();ctx.restore();
+        arrow(lx2,ly,fx,ly,C.PURPLE,'FETCH',false);
+      }
+    });
+  }
+
+  // ISR badge
+  ctx.save();ctx.font=`14px 'VT323'`;const isrStr='ISR = ['+s.isr.map(id=>'B'+id).join(', ')+']';
+  const isrCol=(s.isr||[]).length>=2?C.GREEN:(s.isr||[]).length===1?C.ORANGE:C.RED;
+  ctx.fillStyle=isrCol;ctx.shadowColor=isrCol;ctx.shadowBlur=8;
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(isrStr,CW/2,bY+bH+16);ctx.restore();
+
+  // acks annotation
+  smallLabel('acks=all: producer waits for all ISR replicas to confirm',CW/2,CH*.82,'rgba(255,178,41,.4)');
+
+  note(s.annotation,'rgba(255,178,41,.5)',CH-6);
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: EXACTLY ONCE
+   Layout: left=Producer box, right=Coordinator box, below=message list
+═══════════════════════════════════════════ */
+function renderExactlyOnce(s){
+  title('EXACTLY-ONCE SEMANTICS — IDEMPOTENT + TRANSACTIONAL + read_committed');
+
+  // Producer box (left)
+  const pW=160, pH=80, pX=CW*.05, pY=CH*.15;
+  const txColMap={idle:C.AMBER,open:C.CYAN,committing:C.GREEN,committed:C.GREEN,aborted:C.RED};
+  const txCol=txColMap[s.txState]||C.AMBER;
+  box(pX,pY,pW,pH,C.AMBER,'rgba(0,0,0,.4)',false,true);
+  label('PRODUCER',pX+pW/2,pY+14,C.AMBER,15);
+  smallLabel('PID='+s.pid+'  epoch='+s.epoch,pX+pW/2,pY+34,'rgba(255,178,41,.65)');
+  smallLabel('seq='+s.seq,pX+pW/2,pY+48,'rgba(255,178,41,.65)');
+  label('TXN: '+s.txState.toUpperCase(),pX+pW/2,pY+66,txCol,13);
+
+  // Coordinator box (right)
+  const cW=160, cH=70, cX=CW*.65, cY=CH*.15;
+  box(cX,cY,cW,cH,C.PURPLE,'rgba(168,85,247,.06)',false,s.txState==='committing');
+  label('TXN COORDINATOR',cX+cW/2,cY+18,C.PURPLE,13);
+  smallLabel(
+    s.txState==='committing'?'2PC: PREPARE→COMMIT':
+    s.txState==='open'?'tracking open txn':'idle',
+    cX+cW/2,cY+44,'rgba(168,85,247,.6)');
+
+  // Arrow producer ↔ coordinator
+  if(s.txState==='open'||s.txState==='committing'){
+    arrow(pX+pW,pY+pH/2,cX,cY+cH/2,C.PURPLE,
+      s.txState==='committing'?'CommitTxn':'BeginTxn',false);
+  }
+
+  // Message list
+  const msgs=s.msgs||[];
+  const msgStartY=CH*.42;
+  const msgH=38, msgW=CW*.84, msgX=CW*.05;
+
+  msgs.forEach((m,i)=>{
+    const my=msgStartY+i*(msgH+6);
+    if(my+msgH>CH*.9)return; // guard
+    const stCol={pending:C.CYAN,committed:C.GREEN,aborted:'rgba(244,63,94,.45)'}[m.st]||C.CYAN;
+    box(msgX,my,msgW,msgH,stCol,stCol+'0D',false,m.st==='committed');
+    label(`seq=${m.seq}  →  ${m.topic}  [${m.st.toUpperCase()}]`,msgX+msgW/2,my+msgH/2,stCol,13,'center','middle');
+
+    // Dedup annotation
+    if(s.dup&&m.retry&&m.seq===0){
+      ctx.save();ctx.font=`12px 'VT323'`;ctx.fillStyle=C.ORANGE;ctx.shadowColor=C.ORANGE;ctx.shadowBlur=8;
+      ctx.textAlign='right';ctx.textBaseline='middle';
+      ctx.fillText('DEDUP: same PID+seq → broker discards retry',msgX+msgW-8,my+msgH/2);ctx.restore();
+    }
+  });
+
+  // 2PC commit glow
+  if(s.txState==='committed'){
+    ctx.save();ctx.font=`16px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.shadowColor=C.GREEN;ctx.shadowBlur=12;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('COMMITTED — read_committed consumers now see these messages',CW/2,CH*.82);ctx.restore();
+  }
+
+  note(s.annotation,'rgba(255,178,41,.5)',CH-6);
+}
+
+/* ── DISPATCHER ── */
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  switch(curScene){
+    case'partitions':     renderPartitions(step);break;
+    case'consumer_group': renderConsumerGroup(step);break;
+    case'rebalance':      renderRebalance(step);break;
+    case'offset_commit':  renderOffsetCommit(step);break;
+    case'replication':    renderReplication(step);break;
+    case'exactly_once':   renderExactlyOnce(step);break;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   PLAYBACK
+═══════════════════════════════════════════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:700};
+let curScene='partitions';
+const PSND={produce:'produce',consume:'consume',commit:'commit',rebalance:'rebalance',
+  crash:'crash',elect:'elect',replicate:'replicate',txn:'txn',warn:'warn',done:'done',init:'commit'};
+
+function applyStep(step){
+  renderFrame(step);
+  document.getElementById('st-m').textContent=step.msgs??'—';
+  const lagEl=document.getElementById('st-l');
+  lagEl.textContent=step.lag??'—';
+  lagEl.style.color=(step.lag||0)>0?'var(--orange)':'var(--green)';
+  document.getElementById('st-o').textContent=step.offset??'—';
+  document.getElementById('st-p').textContent=step.partCount??'—';
+  const isrEl=document.getElementById('st-i');
+  const isrStr=step.isr||step.isr2||'—';
+  isrEl.textContent=isrStr;
+  isrEl.style.color=isrStr.startsWith('3')?'var(--green)':isrStr.startsWith('2')?'var(--orange)':'var(--red)';
+  const badge=document.getElementById('pbadge');badge.textContent=step.phase.toUpperCase();badge.className='pbadge '+step.phase;
+  document.getElementById('step-txt').textContent=step.desc;
+  document.getElementById('prog-bar').style.width=(ST.steps.length>1?(ST.idx/(ST.steps.length-1)*100):0)+'%';
+  document.getElementById('step-ctr').textContent=(ST.idx+1)+' / '+ST.steps.length;
+  renderCode(SC[curScene].code,step.cl>=0?step.cl:-1);
+  snd(PSND[step.phase]||'commit');
+  if(step.phase==='crash'||step.phase==='warn')triggerCA();
+}
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){
+  if(ST.playing){clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+  else{ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');
+    ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}
+}
+function doReset(){if(ST.playing)togglePlay();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);}
+function changeSpeed(v){ST.speed=Math.round(2200-v*200);if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}}
+function selectScene(key){
+  if(ST.playing)togglePlay();
+  curScene=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  ST.steps=buildSteps(key);ST.idx=0;
+  const sc=SC[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  applyStep(ST.steps[0]);
+  snd('commit');
+}
+function buildTabs(){
+  const order=[['partitions','1. PARTITIONS'],['consumer_group','2. CONSUMER GROUP'],
+    ['rebalance','3. REBALANCE'],['offset_commit','4. OFFSET COMMIT'],
+    ['replication','5. REPLICATION'],['exactly_once','6. EXACTLY ONCE']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>
+    `<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectScene('partitions');break;case'2':selectScene('consumer_group');break;
+    case'3':selectScene('rebalance');break;case'4':selectScene('offset_commit');break;
+    case'5':selectScene('replication');break;case'6':selectScene('exactly_once');break;
+  }
+});
+
+/* ── BOOT ── */
+function boot(){
+  const term=document.getElementById('boot-terminal'),fill=document.getElementById('boot-fill');
+  const lines=[
+    ['Connecting to Kafka cluster (3 brokers)','OK'],
+    ['Discovering topic metadata and partition leaders','OK'],
+    ['Initializing consumer group coordinator','OK'],
+    ['Loading ISR replica sets','OK'],
+    ['Bootstrapping transaction coordinator','OK'],
+    ['Building offset commit state machine','OK'],
+    ['KAFKA.VIZ READY',''],
+  ];
+  let i=0;
+  function nxt(){
+    if(i>=lines.length){setTimeout(sa,400);return;}
+    const [msg,ok]=lines[i];
+    const div=document.createElement('div');div.className='bl';
+    div.innerHTML=`<span>${msg}</span><span class="bl-ok">${ok||(i===lines.length-1?'<span id="boot-cursor"> </span>':'')}</span>`;
+    term.appendChild(div);setTimeout(()=>div.classList.add('show'),30);
+    fill.style.width=((i+1)/lines.length*100)+'%';
+    i++;setTimeout(nxt,i===lines.length?300:110);
+  }
+  setTimeout(nxt,200);
+}
+function sa(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  const sc=SC['partitions'];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  setTimeout(()=>selectScene('partitions'),350);
+}
+boot();
+</script>
+</body>
+</html>

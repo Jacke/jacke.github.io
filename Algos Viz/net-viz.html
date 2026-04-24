@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NET.VIZ v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.48)100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.syn{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,.07);}
+.pbadge.ack{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.tls{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.09);}
+.pbadge.data{color:#ffb229;border-color:#ffb229;background:rgba(255,178,41,.07);}
+.pbadge.stream{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.08);}
+.pbadge.grpc{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.09);}
+.pbadge.pool{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.fin{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.08);}
+.pbadge.reset{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.1);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:'VT323',monospace;font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}.cline.active{background:rgba(255,178,41,.09);}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}#r-scroll::-webkit-scrollbar{width:3px;}#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas><div id="scan-line"></div><div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">NET.VIZ</div>
+  <div id="boot-tagline">NETWORK PROTOCOLS VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">NET.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc"><span class="pbadge init" id="pbadge">INIT</span><span id="step-txt">Select scenario (1–5).</span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">RTT</span><span class="sv" id="s-rtt">—</span></div>
+        <div class="si"><span class="sl">PACKETS</span><span class="sv" id="s-pkt">0</span></div>
+        <div class="si"><span class="sl">STATE</span><span class="sv" id="s-state" style="font-size:11px">CLOSED</span></div>
+        <div class="si"><span class="sl">STREAMS</span><span class="sv" id="s-streams">0</span></div>
+        <div class="si"><span class="sl">BYTES</span><span class="sv" id="s-bytes">0</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–5</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ LATENCY PROFILE</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ INTERVIEW FACTS</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(t){if(muted||!AC)return;try{const g=AC.createGain(),ws=AC.createWaveShaper();const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}ws.curve=cv;ws.connect(AC.destination);g.connect(ws);const o=AC.createOscillator();o.connect(g);const p={syn:[320,.07],ack:[480,.06],tls:[400,.08],data:[520,.05],stream:[460,.06],grpc:[500,.07],pool:[440,.06],fin:[220,.08],reset:[180,.1],click:[360,.04]};const[f,d]=p[t]||[380,.05];o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+function hlGo(l){let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');s=s.replace(/(\/\/.*)/g,'<span class="cm">$1</span>');s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');s=s.replace(/\b(func|go|var|type|struct|return|if|for|make|new|nil|int|string|bool|defer|net|http|context|error|proto)\b/g,'<span class="kw">$1</span>');s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');return s;}
+function renderCode(lines,active){const el=document.getElementById('code-scroll');el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc">${hlGo(l)}</span></div>`).join('');if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}}
+
+const SCENARIOS={
+  tcp:{label:'TCP HANDSHAKE',
+    code:['// TCP 3-way handshake + data + teardown','','// CONNECT','conn, err := net.Dial("tcp", "server:80")','// 1. SYN:  client → server (seq=x)','// 2. SYN-ACK: server → client (seq=y, ack=x+1)','// 3. ACK: client → server (ack=y+1)','// connection ESTABLISHED — 1.5 RTT total','','// DATA TRANSFER','conn.Write([]byte("GET / HTTP/1.1"))','conn.Read(buf)','','// TEARDOWN (active close)','conn.Close()','// 4. FIN: client → server','// 5. ACK: server → client','// 6. FIN: server → client','// 7. ACK: client → server (TIME_WAIT 2×MSL)'],
+    cx:`<strong>SYN flood</strong>: 1.5 RTT to establish (SYN+SYN-ACK+ACK)<br><strong>Data</strong>: full-duplex after handshake<br><strong>Teardown</strong>: 4-way FIN: 2 RTT (or 1 if piggybacked)<br><strong>TIME_WAIT</strong>: 2×MSL (60-120s) prevents old packets`,
+    how:`TCP is a reliable, ordered, connection-oriented protocol. The 3-way handshake establishes sequence numbers for both directions independently.<br><br><strong>SYN</strong>: "I want to connect, my seq starts at X"<br><strong>SYN-ACK</strong>: "OK, my seq starts at Y, I got your X"<br><strong>ACK</strong>: "Got it, connection open"<br><br>Each byte is numbered; the receiver ACKs the next expected byte. Retransmit on timeout.`,
+    facts:`<span class="rw-tag">SYN cookies</span> server-side SYN flood defense — no state until ACK<br><span class="rw-tag">TCP_NODELAY</span> disable Nagle's algorithm for low-latency<br><span class="rw-tag">SO_REUSEADDR</span> reuse port while in TIME_WAIT (important for restarts)<br><span class="rw-tag">keepalive</span> TCP keepalive: detect dead connections (SO_KEEPALIVE)<br><span class="rw-tag">TIME_WAIT</span> 2×MSL = 60–120s; limits connection rate on same port pair`,
+  },
+  tls:{label:'TLS 1.3',
+    code:['// TLS 1.3 handshake (1-RTT, 0-RTT on resumption)','','conf := &tls.Config{','    MinVersion: tls.VersionTLS13,','    ServerName: "api.example.com",','}','conn, _ := tls.Dial("tcp", "server:443", conf)','// 1. ClientHello: cipher suites + key_share (DH)','// 2. ServerHello: chosen cipher + key_share','//    → both derive shared secret here!','//    EncryptedExtensions + Certificate','//    CertificateVerify + Finished','// 3. Client: Finished','// ESTABLISHED — 1 RTT (vs TLS 1.2: 2 RTT)','','// 0-RTT resumption (PSK):','// Client sends data in first flight','// Risk: replay attacks on non-idempotent ops'],
+    cx:`<strong>TLS 1.3</strong>: 1 RTT (vs TLS 1.2: 2 RTT)<br><strong>0-RTT</strong>: resume with PSK, send data immediately<br><strong>Key exchange</strong>: ECDHE only (forward secrecy always)<br><strong>Removed</strong>: RSA key exchange, MD5/SHA1, CBC, RC4`,
+    how:`TLS 1.3 is dramatically simpler than 1.2:<br><br>1. Client sends <strong>ClientHello</strong> with key share (DH public key) and supported ciphers.<br>2. Server replies with <strong>ServerHello</strong> + its DH key share. Both sides derive the session keys immediately — no separate key exchange round trip.<br>3. Server sends encrypted Certificate + Finished in the same flight.<br>4. Client sends Finished. Data flows.<br><br>Forward secrecy: ECDHE means past sessions can't be decrypted even if the private key is later compromised.`,
+    facts:`<span class="rw-tag">Forward secrecy</span> ECDHE: each session unique keys — no key reuse<br><span class="rw-tag">0-RTT risk</span> replay attacks: only use for idempotent ops (GET)<br><span class="rw-tag">ALPN</span> application protocol negotiation in TLS hello (h2, http/1.1)<br><span class="rw-tag">SNI</span> server name in ClientHello — enables virtual hosting on TLS<br><span class="rw-tag">OCSP stapling</span> server includes cert validity proof — no extra roundtrip`,
+  },
+  http2:{label:'HTTP/2',
+    code:['// HTTP/2: multiplexed streams over one TCP conn','','// All requests share ONE connection','tr := &http.Transport{','    TLSClientConfig: tlsCfg,','    // Go net/http uses HTTP/2 by default over TLS','    // Disable: GODEBUG=http2client=0','    ForceAttemptHTTP2: true,','}','','// Streams are independent — no head-of-line blocking','// Each stream: HEADERS + DATA frames','// Server push: server sends resources proactively','// HPACK: header compression (delta encoding)','// flow control: per-stream + connection window','// priority: weight + dependency tree (deprecated h3)','','// HTTP/1.1 pipelining: sequential (HOL blocking)','// HTTP/2 multiplexing: concurrent streams (no HOL)','// HTTP/3 (QUIC): fixes TCP-level HOL blocking'],
+    cx:`<strong>HTTP/1.1</strong>: 1 req/conn, pipelining (HOL)<br><strong>HTTP/2</strong>: 100 streams/conn, no HOL at HTTP layer<br><strong>HPACK</strong>: 85-90% header reduction vs HTTP/1.1<br><strong>HOL caveat</strong>: TCP-level HOL still exists (fixed by QUIC)`,
+    how:`HTTP/2 multiplexes multiple logical streams over a single TCP connection using <strong>frames</strong>:<br><br><strong>HEADERS frame</strong>: request/response headers (HPACK compressed)<br><strong>DATA frame</strong>: body chunks<br><strong>SETTINGS frame</strong>: configure connection parameters<br><strong>GOAWAY</strong>: graceful connection close<br><br>Streams are interleaved — no waiting. But a single TCP packet loss blocks all streams (TCP HOL blocking). HTTP/3/QUIC solves this with independent UDP streams.`,
+    facts:`<span class="rw-tag">HPACK</span> static table (61 entries) + dynamic table for custom headers<br><span class="rw-tag">Server push</span> proactively push resources — mostly abandoned in practice<br><span class="rw-tag">h2c</span> HTTP/2 cleartext (no TLS) — Go supports with h2c package<br><span class="rw-tag">SETTINGS_MAX_CONCURRENT_STREAMS</span> default 100 (configurable)<br><span class="rw-tag">HTTP/3</span> QUIC (UDP) — independent streams, 0-RTT, connection migration`,
+  },
+  grpc:{label:'gRPC',
+    code:['// gRPC: HTTP/2 + Protocol Buffers + codegen','','// Define in .proto:','// service UserService {','//   rpc GetUser(UserReq) returns (UserResp);','//   rpc StreamUsers(Filter) returns (stream User);','// }','','conn, _ := grpc.Dial("server:50051",','    grpc.WithTransportCredentials(creds),','    grpc.WithDefaultCallOptions(',
+'        grpc.MaxCallSendMsgSize(4*1024*1024),','    ),',')','client := pb.NewUserServiceClient(conn)','','// Unary RPC: 1 request → 1 response','resp, _ := client.GetUser(ctx, &pb.UserReq{Id:1})','// Server streaming: 1 request → N responses','stream, _ := client.StreamUsers(ctx, filter)','for { u, err := stream.Recv(); if err != nil { break } }'],
+    cx:`<strong>Unary</strong>: 1 req + 1 resp: ~1 HTTP/2 stream<br><strong>Server stream</strong>: 1 req + N DATA frames<br><strong>Bidi stream</strong>: N DATA frames both ways, concurrent<br><strong>Protobuf</strong>: 3-10x smaller + faster than JSON`,
+    how:`gRPC encodes everything as HTTP/2 frames:<br><br><strong>Request</strong>: HEADERS frame (method, path, content-type: application/grpc) + DATA frame (length-prefixed protobuf)<br><strong>Response</strong>: HEADERS + DATA + HEADERS (trailers with grpc-status)<br><br>Streaming reuses the same HTTP/2 stream, sending multiple DATA frames. Deadlines propagate via context; cancellation sends RST_STREAM.<br><br>Interceptors (middleware) chain on both client and server.`,
+    facts:`<span class="rw-tag">grpc-status</span> trailer header: 0=OK, 1=CANCELLED, 14=UNAVAILABLE<br><span class="rw-tag">Deadlines</span>: grpc-timeout header — always set; never rely on defaults<br><span class="rw-tag">Interceptors</span>: middleware for logging, tracing, auth, retry<br><span class="rw-tag">health check</span>: grpc.health.v1.Health — standard liveness probe<br><span class="rw-tag">reflection</span>: grpc.reflection — enables grpcurl, grpc-ui tooling`,
+  },
+  pool:{label:'CONN POOLING',
+    code:['// Connection pooling: reuse TCP+TLS handshakes','','// net/http default transport pool:','tr := &http.Transport{','    MaxIdleConns:        100,  // total idle pool','    MaxIdleConnsPerHost: 10,   // per host limit','    IdleConnTimeout:     90 * time.Second,','    // close idle conn after 90s of inactivity','    DisableKeepAlives:   false,  // NEVER true','    DialContext: (&net.Dialer{','        Timeout:   30 * time.Second,','        KeepAlive: 30 * time.Second,','    }).DialContext,','}','','// Database pool (sql.DB):','db.SetMaxOpenConns(25)     // hard cap','db.SetMaxIdleConns(10)     // idle pool size','db.SetConnMaxLifetime(5 * time.Minute)','db.SetConnMaxIdleTime(2 * time.Minute)'],
+    cx:`<strong>Without pool</strong>: 3-way TCP + TLS per request = 150ms+<br><strong>With pool</strong>: reuse idle conn = <1ms overhead<br><strong>MaxIdleConnsPerHost</strong>: bottleneck for high throughput<br><strong>sql.DB</strong>: pool built-in, tune for your workload`,
+    how:`Connection pooling avoids the cost of TCP 3-way handshake + TLS 1-RTT handshake on every request.<br><br><strong>Get conn</strong>: check idle pool first (microseconds), else dial new (milliseconds).<br><strong>Return conn</strong>: after response, return to idle pool if count below max.<br><strong>Expiry</strong>: idle connections closed after timeout; max lifetime prevents stale connections behind NAT/LB.<br><br>Go's net/http Transport is safe for concurrent use. Create one per process, share it.`,
+    facts:`<span class="rw-tag">DisableKeepAlives</span> never set true in production — kills pooling<br><span class="rw-tag">MaxIdleConnsPerHost</span> default is 2 — way too low for high throughput<br><span class="rw-tag">sql.DB</span> concurrent goroutines > MaxOpenConns → goroutines block<br><span class="rw-tag">pgx</span> pgx/v5 pool: pgxpool.New() — native PostgreSQL pool<br><span class="rw-tag">Redis</span> go-redis uses pool internally; tune PoolSize, MinIdleConns`,
+  },
+};
+
+/* ══════ CANVAS ENGINE ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const w=document.getElementById('viz-wrap');CW=canvas.width=w.clientWidth;CH=canvas.height=w.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+
+/* Shared drawing helpers */
+const CLR={client:'#60a5fa',server:'#4ade80',tls:'#a855f7',data:'#ffb229',stream:'#22d3ee',grpc:'#f97316',pool:'#4ade80',fin:'#f43f5e'};
+const NODE_W=90,NODE_H=44;
+
+function drawNode(label,sublabel,x,y,col,glow){
+  ctx.save();
+  if(glow){ctx.shadowColor=col;ctx.shadowBlur=18;}
+  ctx.fillStyle=col+'18';ctx.strokeStyle=col;ctx.lineWidth=glow?2:1;
+  ctx.fillRect(x,y,NODE_W,NODE_H);ctx.strokeRect(x,y,NODE_W,NODE_H);
+  ctx.font=`16px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(label,x+NODE_W/2,y+NODE_H/2-6);
+  ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle=col+'88';ctx.textBaseline='middle';
+  ctx.fillText(sublabel||'',x+NODE_W/2,y+NODE_H/2+8);
+  ctx.restore();
+}
+
+function drawArrow(x1,y1,x2,y2,label,col,dashed,thick){
+  ctx.save();
+  if(thick){ctx.shadowColor=col;ctx.shadowBlur=6;}
+  ctx.strokeStyle=col;ctx.lineWidth=thick?2:1;
+  if(dashed)ctx.setLineDash([5,4]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  // arrowhead
+  const ang=Math.atan2(y2-y1,x2-x1);const hs=7;
+  ctx.fillStyle=col;ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-hs*Math.cos(ang-0.4),y2-hs*Math.sin(ang-0.4));
+  ctx.lineTo(x2-hs*Math.cos(ang+0.4),y2-hs*Math.sin(ang+0.4));
+  ctx.closePath();ctx.fill();
+  // label
+  if(label){
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    const off=x1<x2?-10:10;
+    ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(label,mx,my+off);
+  }
+  ctx.restore();
+}
+
+function seqDiagram(step){
+  const{msgs,states,extras}=step;
+  const PAD=14,topY=24;
+  const cX=PAD+NODE_W/2,sX=CW-PAD-NODE_W/2;
+  const nodeY=topY;
+
+  // lifelines
+  ctx.save();ctx.strokeStyle='rgba(96,165,250,.12)';ctx.lineWidth=1;ctx.setLineDash([4,6]);
+  ctx.beginPath();ctx.moveTo(cX,nodeY+NODE_H);ctx.lineTo(cX,CH-10);ctx.stroke();
+  ctx.strokeStyle='rgba(74,222,128,.12)';
+  ctx.beginPath();ctx.moveTo(sX,nodeY+NODE_H);ctx.lineTo(sX,CH-10);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+
+  // nodes
+  drawNode('CLIENT','net.Dial',PAD,nodeY,CLR.client,states&&states.client);
+  drawNode('SERVER','net.Listen',CW-PAD-NODE_W,nodeY,CLR.server,states&&states.server);
+
+  if(!msgs||msgs.length===0)return;
+  const msgAreaH=CH-nodeY-NODE_H-30;
+  const rowH=Math.min(44,msgAreaH/msgs.length);
+  const startY=nodeY+NODE_H+10;
+
+  msgs.forEach((m,i)=>{
+    const my=startY+i*rowH+rowH/2;
+    const fromX=m.dir==='cs'?cX:sX;
+    const toX=m.dir==='cs'?sX:cX;
+    const col=m.col||CLR.data;
+    const fromEdge=m.dir==='cs'?fromX+2:fromX-2;
+    const toEdge=m.dir==='cs'?toX-2:toX+2;
+    drawArrow(fromEdge,my,toEdge,my,m.label,col,m.dashed,m.active);
+    if(m.note){
+      ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col+'88';
+      ctx.textAlign='center';ctx.textBaseline='top';
+      const nx=(fromX+toX)/2;ctx.fillText(m.note,nx,my+3);
+    }
+  });
+
+  if(extras)extras.forEach(e=>{
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(e,PAD,CH-30+(extras.indexOf(e)*12));
+  });
+}
+
+/* ══════ STEP BUILDERS ══════ */
+function buildSteps(key){
+  const steps=[];
+  function snap(phase,desc,cl,state){steps.push({phase,desc,cl,...state});}
+  const cs='cs',sc='sc';
+
+  if(key==='tcp'){
+    snap('init','TCP connection lifecycle. Client initiates. 3-way handshake: SYN → SYN-ACK → ACK.',0,{msgs:[],states:{},rtt:'—',pkts:0,tcpState:'CLOSED',streams:0,bytes:0});
+    snap('syn','SYN: client sends segment with ISN (initial sequence number). seq=1000, flags=SYN.',3,{msgs:[{dir:cs,label:'SYN seq=1000',col:CLR.client,active:true}],states:{client:true},rtt:'0.5 RTT',pkts:1,tcpState:'SYN_SENT',streams:0,bytes:0});
+    snap('syn','SYN-ACK: server picks its ISN. Acknowledges client seq. seq=2000, ack=1001.',4,{msgs:[{dir:cs,label:'SYN seq=1000',col:CLR.client},{dir:sc,label:'SYN-ACK seq=2000 ack=1001',col:CLR.server,active:true}],states:{server:true},rtt:'1.0 RTT',pkts:2,tcpState:'SYN_RCVD',streams:0,bytes:0});
+    snap('ack','ACK: client acknowledges server seq. ack=2001. Connection ESTABLISHED. 1.5 RTT total.',5,{msgs:[{dir:cs,label:'SYN seq=1000',col:CLR.client},{dir:sc,label:'SYN-ACK seq=2000 ack=1001',col:CLR.server},{dir:cs,label:'ACK ack=2001',col:CLR.client,active:true}],states:{client:true,server:true},rtt:'1.5 RTT',pkts:3,tcpState:'ESTABLISHED',streams:1,bytes:0});
+    snap('data','Data transfer: HTTP request sent. Server ACKs. Full-duplex — both directions simultaneously.',9,{msgs:[{dir:cs,label:'SYN',col:'rgba(96,165,250,.3)'},{dir:sc,label:'SYN-ACK',col:'rgba(74,222,128,.3)'},{dir:cs,label:'ACK',col:'rgba(96,165,250,.3)'},{dir:cs,label:'GET / HTTP/1.1',col:CLR.data,active:true},{dir:sc,label:'ACK',col:CLR.server},{dir:sc,label:'HTTP/1.1 200 OK',col:CLR.data,active:true}],states:{client:true,server:true},rtt:'2.0 RTT',pkts:6,tcpState:'ESTABLISHED',streams:1,bytes:1400});
+    snap('fin','FIN teardown: client sends FIN. Server ACKs. Server sends FIN. Client ACKs.',13,{msgs:[{dir:cs,label:'data...',col:'rgba(255,178,41,.2)'},{dir:cs,label:'FIN',col:CLR.fin,active:true},{dir:sc,label:'ACK',col:CLR.server},{dir:sc,label:'FIN',col:CLR.fin,active:true},{dir:cs,label:'ACK',col:CLR.client}],states:{},rtt:'3.5 RTT',pkts:10,tcpState:'TIME_WAIT',streams:0,bytes:1400,extras:['TIME_WAIT: 2×MSL = 60-120s to prevent old duplicate packets']});
+  }
+
+  else if(key==='tls'){
+    snap('init','TLS 1.3 handshake. Only 1 RTT (vs TLS 1.2 = 2 RTT). ECDHE for forward secrecy.',0,{msgs:[],states:{},rtt:'—',pkts:0,tcpState:'TCP_ESTAB',streams:0,bytes:0});
+    snap('syn','ClientHello: supported cipher suites + key_share (ECDH public key). Version: TLS 1.3.',6,{msgs:[{dir:cs,label:'ClientHello + key_share',col:CLR.client,active:true,note:'cipher suites, ECDH pubkey'}],states:{client:true},rtt:'0.5 RTT',pkts:1,tcpState:'TLS_HANDSHAKE',streams:0,bytes:256});
+    snap('tls','ServerHello: chosen cipher + server key_share. BOTH SIDES DERIVE SHARED SECRET NOW.',7,{msgs:[{dir:cs,label:'ClientHello + key_share',col:CLR.client},{dir:sc,label:'ServerHello + key_share',col:CLR.tls,active:true,note:'→ both derive session keys here'}],states:{server:true},rtt:'1.0 RTT',pkts:2,tcpState:'TLS_HANDSHAKE',streams:0,bytes:512});
+    snap('tls','Server sends encrypted: EncryptedExtensions + Certificate + CertificateVerify + Finished. All in one flight.',9,{msgs:[{dir:cs,label:'ClientHello',col:'rgba(96,165,250,.3)'},{dir:sc,label:'ServerHello + key_share',col:CLR.tls},{dir:sc,label:'[Encrypted] Cert + Finished',col:CLR.tls,active:true,dashed:true}],states:{server:true},rtt:'1.0 RTT',pkts:3,tcpState:'TLS_HANDSHAKE',streams:0,bytes:1400});
+    snap('ack','Client sends Finished. TLS ESTABLISHED. 1 RTT total. Data flows immediately after.',11,{msgs:[{dir:cs,label:'ClientHello',col:'rgba(96,165,250,.3)'},{dir:sc,label:'ServerHello + Cert',col:'rgba(168,85,247,.3)'},{dir:cs,label:'Finished',col:CLR.client,active:true},{dir:cs,label:'[App Data] GET /api/...',col:CLR.data,active:true}],states:{client:true,server:true},rtt:'1.5 RTT',pkts:4,tcpState:'TLS_ESTABLISHED',streams:1,bytes:1400+512});
+    snap('tls','0-RTT (PSK): resumed sessions send app data in first flight. 0 RTT. Replay risk on non-idempotent ops.',14,{msgs:[{dir:cs,label:'ClientHello + early_data',col:CLR.client,active:true,note:'0-RTT: app data in first flight'},{dir:sc,label:'ServerHello',col:CLR.tls},{dir:sc,label:'[App Response]',col:CLR.data,active:true}],states:{client:true,server:true},rtt:'0 RTT',pkts:3,tcpState:'TLS_RESUMED',streams:1,bytes:2048,extras:['0-RTT PSK resumption: NO forward secrecy for early data','Use only for idempotent requests (GET, not POST)']});
+  }
+
+  else if(key==='http2'){
+    snap('init','HTTP/2 over TLS. Single TCP connection multiplexes many streams. No head-of-line blocking.',0,{msgs:[],states:{},rtt:'—',pkts:0,tcpState:'TCP+TLS',streams:0,bytes:0});
+    snap('syn','Connection preface: magic string + SETTINGS frame. Server replies with SETTINGS.',3,{msgs:[{dir:cs,label:'PRI * HTTP/2.0 + SETTINGS',col:CLR.client,active:true},{dir:sc,label:'SETTINGS (max_streams=100)',col:CLR.server,active:true}],states:{client:true,server:true},rtt:'0.5 RTT',pkts:2,tcpState:'H2_CONNECTED',streams:0,bytes:54});
+    snap('data','Stream 1: client sends HEADERS frame (request). HPACK compressed headers.',10,{msgs:[{dir:cs,label:'SETTINGS',col:'rgba(96,165,250,.3)'},{dir:cs,label:'HEADERS [stream=1] GET /users',col:CLR.data,active:true,note:'HPACK: ~85% smaller vs HTTP/1.1'}],states:{client:true},rtt:'—',pkts:3,tcpState:'H2_CONNECTED',streams:1,bytes:54+60});
+    snap('stream','Stream 3: second request on same TCP connection. CONCURRENT — no waiting for stream 1.',10,{msgs:[{dir:cs,label:'HEADERS [s=1] GET /users',col:CLR.data},{dir:cs,label:'HEADERS [s=3] GET /posts',col:CLR.stream,active:true,note:'stream 3 interleaved with stream 1'}],states:{client:true},rtt:'—',pkts:4,tcpState:'H2_CONNECTED',streams:2,bytes:54+120});
+    snap('data','Server responds to both streams with DATA frames. Interleaved on same TCP connection.',14,{msgs:[{dir:sc,label:'HEADERS [s=1] 200 OK',col:CLR.data,active:true},{dir:sc,label:'DATA [s=1] users.json',col:CLR.data,active:true},{dir:sc,label:'HEADERS [s=3] 200 OK',col:CLR.stream,active:true},{dir:sc,label:'DATA [s=3] posts.json',col:CLR.stream,active:true}],states:{client:true,server:true},rtt:'1.5 RTT',pkts:8,tcpState:'H2_CONNECTED',streams:2,bytes:54+8200,extras:['HTTP/1.1: would need 2 separate TCP connections (or serialize)','HTTP/2: 1 TCP conn, 2 concurrent streams → 2× throughput']});
+    snap('stream','GOAWAY: graceful shutdown. Server sends last processed stream ID. Client stops new requests.',17,{msgs:[{dir:sc,label:'GOAWAY last_stream=3',col:CLR.fin,active:true,note:'no new requests; existing streams drain'}],states:{server:true},rtt:'—',pkts:9,tcpState:'H2_GOAWAY',streams:0,bytes:54+8200+9});
+  }
+
+  else if(key==='grpc'){
+    snap('init','gRPC: HTTP/2 + protobuf + codegen. Unary, server-streaming, bidi-streaming patterns.',0,{msgs:[],states:{},rtt:'—',pkts:0,tcpState:'IDLE',streams:0,bytes:0});
+    snap('grpc','Dial: TCP + TLS + HTTP/2 handshake. Connection established. gRPC channel created.',9,{msgs:[{dir:cs,label:'TCP SYN → TLS → HTTP/2',col:CLR.grpc,active:true,note:'dial: 1.5 RTT TCP + 1 RTT TLS'}],states:{client:true,server:true},rtt:'2.5 RTT',pkts:5,tcpState:'READY',streams:0,bytes:512});
+    snap('grpc','Unary RPC: HEADERS frame (method=/UserService/GetUser) + DATA frame (protobuf bytes).',15,{msgs:[{dir:cs,label:'HEADERS :method=POST :path=/UserService/GetUser',col:CLR.grpc,active:true,note:'content-type: application/grpc'},{dir:cs,label:'DATA [len-prefix + protobuf]',col:CLR.grpc,active:true}],states:{client:true},rtt:'—',pkts:7,tcpState:'READY',streams:1,bytes:512+28});
+    snap('data','Server processes. Replies: HEADERS (200) + DATA (protobuf resp) + HEADERS/trailers (grpc-status=0).',15,{msgs:[{dir:cs,label:'HEADERS + DATA (req)',col:'rgba(249,115,22,.3)'},{dir:sc,label:'HEADERS :status=200',col:CLR.server,active:true},{dir:sc,label:'DATA [protobuf response]',col:CLR.server,active:true},{dir:sc,label:'HEADERS grpc-status=0',col:CLR.server,active:true,note:'trailers: status + message'}],states:{client:true,server:true},rtt:'1.5 RTT',pkts:10,tcpState:'READY',streams:1,bytes:512+28+156});
+    snap('stream','Server streaming: single request, server sends N DATA frames on same HTTP/2 stream.',18,{msgs:[{dir:cs,label:'HEADERS + DATA (stream filter)',col:CLR.grpc,active:true},{dir:sc,label:'DATA user[0] (protobuf)',col:CLR.stream,active:true},{dir:sc,label:'DATA user[1] (protobuf)',col:CLR.stream,active:true},{dir:sc,label:'DATA user[N] (protobuf)',col:CLR.stream,active:true},{dir:sc,label:'HEADERS grpc-status=0',col:CLR.server}],states:{client:true,server:true},rtt:'1+N×0',pkts:15,tcpState:'READY',streams:1,bytes:512+28+1400*3,extras:['Bidi-stream: both sides send frames concurrently','Deadline: grpc-timeout header propagates to all RPCs']});
+  }
+
+  else if(key==='pool'){
+    snap('init','Connection pooling: reuse expensive TCP+TLS setup across multiple requests.',0,{msgs:[],states:{},rtt:'—',pkts:0,tcpState:'CLOSED',streams:0,bytes:0,pool:{idle:0,active:0,max:10}});
+    snap('syn','No pool. Request 1: TCP 3-way + TLS 1-RTT. Total overhead: ~150ms on wan.',3,{msgs:[{dir:cs,label:'TCP SYN',col:CLR.client,active:true},{dir:sc,label:'SYN-ACK',col:CLR.server,active:true},{dir:cs,label:'ACK + TLS ClientHello',col:CLR.client,active:true},{dir:sc,label:'ServerHello + Cert',col:CLR.tls,active:true},{dir:cs,label:'GET /api/v1/data',col:CLR.data}],states:{client:true,server:true},rtt:'2.5 RTT',pkts:6,tcpState:'NEW_CONN',streams:0,bytes:1400,pool:{idle:0,active:1,max:10}});
+    snap('pool','Connection returned to pool after response. idle_count=1.',3,{msgs:[{dir:cs,label:'full handshake...',col:'rgba(255,178,41,.2)'},{dir:sc,label:'200 OK',col:CLR.server},{dir:sc,label:'[conn returned to pool]',col:CLR.pool,active:true,dashed:true}],states:{server:true},rtt:'—',pkts:7,tcpState:'IDLE_IN_POOL',streams:0,bytes:1400,pool:{idle:1,active:0,max:10}});
+    snap('pool','Request 2: pool hit. Existing idle conn reused. No TCP or TLS overhead. <1ms.',8,{msgs:[{dir:cs,label:'[get conn from pool]',col:CLR.pool,active:true,dashed:true},{dir:cs,label:'GET /api/v1/data',col:CLR.data,active:true},{dir:sc,label:'200 OK',col:CLR.server,active:true}],states:{client:true,server:true},rtt:'0.5 RTT',pkts:9,tcpState:'REUSED',streams:0,bytes:2800,pool:{idle:0,active:1,max:10}});
+    snap('pool','High concurrency: MaxIdleConnsPerHost=10. 10 requests reuse pool, 11th waits or opens new conn.',4,{msgs:[{dir:cs,label:'req1 [pool hit]',col:CLR.pool,active:true},{dir:cs,label:'req2 [pool hit]',col:CLR.pool,active:true},{dir:cs,label:'req3 [pool hit]',col:CLR.pool,active:true},{dir:cs,label:'req11 [DIAL NEW]',col:CLR.client,active:true,note:'>MaxIdleConnsPerHost → new dial'}],states:{client:true,server:true},rtt:'varies',pkts:14,tcpState:'POOL_FULL',streams:4,bytes:5600,pool:{idle:0,active:10,max:10}});
+    snap('fin','IdleConnTimeout: unused connections evicted after 90s. Prevents stale conns behind NAT/LB.',6,{msgs:[{dir:sc,label:'[idle 90s → evict]',col:CLR.fin,active:true,dashed:true,note:'IdleConnTimeout exceeded'}],states:{},rtt:'—',pkts:14,tcpState:'EVICTED',streams:0,bytes:5600,pool:{idle:0,active:0,max:10},extras:['SetConnMaxLifetime: hard limit (e.g. 5min) for LB affinity','SetMaxOpenConns: DB pool — goroutines block if exceeded']});
+  }
+
+  return steps;
+}
+
+/* ══════ RENDER ══════ */
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  // header text
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`${curScene.toUpperCase()}  rtt=${step.rtt||'—'}  pkts=${step.pkts||0}  state=${step.tcpState||'—'}  streams=${step.streams||0}  bytes=${step.bytes||0}`,14,4);
+  seqDiagram(step);
+  // pool bar if applicable
+  if(step.pool){
+    const p=step.pool,PAD=14,bY=CH-52;
+    ctx.font=`9px 'VT323'`;ctx.fillStyle='rgba(255,178,41,.4)';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`POOL  idle=${p.idle}  active=${p.active}  max=${p.max}`,PAD,bY);
+    const bW=CW-PAD*2-100,bH=12;
+    ctx.strokeStyle='rgba(255,178,41,.2)';ctx.lineWidth=1;ctx.strokeRect(PAD,bY+14,bW,bH);
+    const used=(p.idle+p.active)/p.max;
+    const uc=used>0.9?CLR.fin:used>0.6?CLR.grpc:CLR.pool;
+    ctx.fillStyle=uc+'60';ctx.fillRect(PAD,bY+14,bW*Math.min(used,1),bH);
+    ctx.fillStyle='rgba(74,222,128,.4)';ctx.fillRect(PAD,bY+14,bW*(p.idle/p.max),bH);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText('IDLE',PAD,bY+28);
+    ctx.fillStyle='rgba(249,115,22,.3)';ctx.fillText('  ACTIVE',PAD+32,bY+28);
+  }
+}
+
+/* ══════ PLAYBACK ══════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:520};
+let curScene='tcp';
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  const phase=step.phase||'init';
+  badge.className='pbadge '+phase;badge.textContent=phase.toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-rtt').textContent=step.rtt||'—';
+  document.getElementById('s-pkt').textContent=step.pkts||0;
+  document.getElementById('s-state').textContent=step.tcpState||'—';
+  document.getElementById('s-streams').textContent=step.streams||0;
+  document.getElementById('s-bytes').textContent=step.bytes>1024?Math.round(step.bytes/1024)+'KB':(step.bytes||0)+'B';
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SCENARIOS[curScene].code,step.cl>=0?step.cl:-1);
+  if(phase&&phase!=='init')snd(phase);
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){if(!ST.steps.length)return;if(ST.idx>=ST.steps.length-1)ST.idx=0;ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENARIOS[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  if(ST.playing)pause();
+  ST.steps=buildSteps(key);ST.idx=0;
+  if(ST.steps.length){applyStep(ST.steps[0]);setTimeout(()=>play(),300);}
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectScene('tcp');break;case'2':selectScene('tls');break;
+    case'3':selectScene('http2');break;case'4':selectScene('grpc');break;
+    case'5':selectScene('pool');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['tcp','1. TCP HANDSHAKE'],['tls','2. TLS 1.3'],['http2','3. HTTP/2'],['grpc','4. gRPC'],['pool','5. CONN POOL']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+
+function boot(){
+  const term=document.getElementById('boot-terminal');const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'NET.VIZ v1.0 — INITIALIZING...',s:'',d:180},
+    {t:'LOADING: TCP_HANDSHAKE.MOD (RFC 793)',s:'OK',d:120},
+    {t:'LOADING: TLS13.MOD (RFC 8446, 1-RTT)',s:'OK',d:120},
+    {t:'LOADING: HTTP2.MOD (RFC 7540, HPACK)',s:'OK',d:120},
+    {t:'LOADING: GRPC.MOD (HTTP/2 + protobuf)',s:'OK',d:120},
+    {t:'LOADING: POOL.MOD (net/http Transport)',s:'OK',d:120},
+    {t:'NETWORK STACK ONLINE.',s:'',d:200},
+  ];
+  let li=0;
+  function al(){if(li>=lines.length){setTimeout(sa,300);return;}const bl=lines[li];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));fill.style.width=Math.round((li/lines.length)*100)+'%';li++;setTimeout(al,bl.d);}al();
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();const sc=SCENARIOS['tcp'];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);window.addEventListener('resize',resizeCanvas);resizeCanvas();setTimeout(()=>selectScene('tcp'),300);}
+boot();
+</script>
+</body>
+</html>

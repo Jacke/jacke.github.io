@@ -1,0 +1,634 @@
+════════════════════════════════════════════════════════════════════════════════
+  CRT TERMINAL VISUALIZER — MASTER DESIGN PROMPT
+  For replicating the full visual system, audio engine, and UI architecture
+  as used in SORT.VIZ / SEARCH.EXE / GRAPH.LAB / GMP.SIM / CHAN.VIZ /
+  HASH.MAP / CONSISTENT.HASH / RAFT.SIM / RETRY.VIZ / TXLOG.SIM /
+  BTREE.VIZ / LRU.VIZ / MEM.VIZ / CONC.VIZ / NET.VIZ / DB.VIZ / APPEND.VIZ
+════════════════════════════════════════════════════════════════════════════════
+
+Build a single-file HTML visualizer for [TOPIC] in the style of a retro CRT
+phosphor terminal from the 1980s. No frameworks, no external CSS files.
+Everything in one .html file. Use Canvas 2D for all visualization rendering
+(never SVG — SVG causes z-index and positioning bugs with overlays).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. COLOR PALETTE (CSS variables — reuse exactly)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  --bg:         #04050a   (near-black with a hint of deep navy)
+  --amber:      #ffb229   (primary phosphor amber — all text, borders, accents)
+  --amber-dim:  #a06800   (dimmed amber — labels, secondary text, inactive tabs)
+  --green:      #4ade80   (success, confirmed, "fix" states)
+  --red:        #f43f5e   (error, warning, corrupted, danger states)
+  --purple:     #a855f7   (nil, special types, alternative states)
+  --blue:       #60a5fa   (primary pointer / first slice / info)
+  --cyan:       #22d3ee   (task, interview tag, secondary info)
+  --orange:     #f97316   (grow, allocate, write pointer, second slice)
+
+  Code syntax highlighting (IBM Plex Mono):
+    keywords:   #c678dd
+    strings:    #98c379
+    numbers:    #d19a66
+    functions:  #61afef
+    comments:   #4b5263 (italic)
+    operators:  #56b6c2
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  2. FONTS (Google Fonts — always import all three)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  VT323             — logo, large decorative text, phase badges (pixel font)
+  Share Tech Mono   — all UI chrome: labels, stats, tab buttons, descriptions
+  IBM Plex Mono     — code panel, font sizes 9-10px, line height 1.65
+
+  Import: https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono
+          &family=IBM+Plex+Mono:wght@400;500&display=swap
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  3. CRT EFFECTS LAYER (layered in exact z-index order)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  All effects are position:fixed, pointer-events:none, above everything.
+
+  a) VIGNETTE (z-index: 9000)
+     A pseudo-element ::before on body or a dedicated fixed div.
+     radial-gradient(ellipse at center, transparent 65%, rgba(0,0,0,0.52) 100%)
+     This darkens the corners like a real phosphor CRT screen.
+
+  b) SCAN LINE (z-index: 8999)
+     A 3px-tall horizontal strip with background rgba(255,178,41,0.05).
+     Animated top: -3px → top: 100vh over 8 seconds, infinite linear.
+     Keyframes name: "scanmove". Represents the CRT electron beam refresh.
+
+  c) NOISE CANVAS (z-index: 8998, opacity: 0.028)
+     A full-screen <canvas id="noise"> rendered every frame via requestAnimationFrame.
+     Each frame: create ImageData, iterate all pixels, ~3.2% chance per pixel of
+     being white (rgba 255,255,255,130), rest transparent. This creates live film grain.
+     The canvas resizes on window resize.
+
+  d) CRT FLICKER (applied to the main wrapper div via CSS animation)
+     @keyframes crt-flicker: at 95% keyframe, reduce brightness to 0.82 briefly.
+     Duration: 0.18s, timing: steps(1), infinite. Subtle — easy to miss, feels right.
+
+  e) CHROMATIC ABERRATION OVERLAY (z-index: 9002)
+     A fixed div #ca-overlay, normally opacity:0.
+     On "fire" class: box-shadow inset -4px 0 rgba(255,30,30,0.35),
+                                   inset  4px 0 rgba(30,80,255,0.35)
+     CSS animation "ca-anim" runs 0.3s ease forwards then fades out.
+     Triggered via JS on: grow events, warn events, corruption reveals, and
+     whenever a backing array reallocation occurs. The class is toggled by
+     removing then re-adding it (with offsetWidth flush to force reflow).
+
+  f) RANDOM BLACKOUT GLITCH (JS setTimeout loop)
+     Every 3.8–10s (random): briefly set main wrapper filter to brightness(0.2)
+     for 18–34ms (random), then restore. Looks like a CRT power flicker.
+     Code pattern:
+       function sGlitch() {
+         setTimeout(() => {
+           el.style.filter = 'brightness(.2)';
+           setTimeout(() => { el.style.filter = ''; sGlitch(); }, 18 + Math.random()*16);
+         }, 3800 + Math.random()*6200);
+       }
+       sGlitch();
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  4. BOOT SEQUENCE (shown before main UI, full-screen overlay)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  The boot screen is a position:fixed overlay (z-index: 7000), bg var(--bg),
+  flex column, centered horizontally and vertically.
+
+  Structure top to bottom:
+    1. LOGO (#boot-logo)
+       VT323 font, ~82px, color var(--amber), text-shadow 0 0 44px var(--amber)
+       letter-spacing 10px. Content: "YOURNAME.VIZ"
+
+    2. TAGLINE (#boot-tagline)
+       Share Tech Mono, 13px, color var(--amber-dim), letter-spacing 5px,
+       margin-bottom 48px. Content: short subtitle in all caps.
+
+    3. TERMINAL LINES (#boot-terminal)
+       A list of boot log entries rendered one-by-one with setTimeout delays.
+       Each line is a .bl div (display:flex, justify-content:space-between).
+       Left side: module loading message.
+       Right side: [OK] in green (#4ade80) or a blinking cursor span.
+       Lines start opacity:0, transition to opacity:1 when .show class is added.
+       The LAST line has no [OK] — it ends with a blinking cursor element:
+         <span id="boot-cursor"> — display:inline-block, 9×14px, bg var(--amber),
+         animation: bcursor 0.7s step-end infinite (50% opacity:0).
+
+    4. PROGRESS BAR (#boot-progress / #boot-fill)
+       Width: 680px (max-width 92vw). Height: 3px.
+       Container: border 1px solid rgba(255,178,41,0.2), bg rgba(255,178,41,0.1)
+       Fill: background var(--amber), box-shadow 0 0 10px var(--amber),
+             width advances from 0% → 100% proportional to lines loaded.
+
+    5. COPYRIGHT (#boot-copy)
+       "© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED."
+       12px, color rgba(255,178,41,0.25), letter-spacing 3px, margin-top 20px.
+
+  Boot timing: each line displays with a delay (first line ~180ms, subsequent ~110ms,
+  last line ~200ms). After all lines, a brief pause then fade to main UI.
+
+  Transition to main UI:
+    - Set boot overlay display:none
+    - Add .show class to #main (which has @keyframes fadeIn, opacity 0→1, 0.5s ease)
+    - Build tabs, set initial right panel content, call resizeCanvas(), start scene.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  5. MAIN LAYOUT (after boot)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  #crt-wrap: 100vw, 100vh, flex column. Has the crt-flicker animation.
+  #main: flex column, flex:1, height:100vh, overflow:hidden. Initially display:none.
+
+  TOP HEADER (#header) — height: 44px, flex row, align-items center, gap 10px
+    padding: 5px 14px
+    border-bottom: 1px solid rgba(255,178,41,0.18)
+    background: rgba(0,0,0,0.5)
+
+    - #logo: VT323 32px, color+shadow var(--amber), letter-spacing 4px, flex-shrink:0
+    - #tabs: flex row, gap 4px, flex:1, overflow-x auto (hide scrollbar)
+    - #snd-btn: emoji button 🔊/🔇, border 1px solid rgba(255,178,41,0.25), flex-shrink:0
+
+  TAB BUTTONS (.tab)
+    font: Share Tech Mono 9px, letter-spacing 1.5px, padding 3px 9px
+    border: 1px solid rgba(255,178,41,0.22), bg transparent, color var(--amber-dim)
+    white-space: nowrap, flex-shrink:0
+    hover / .active: border-color var(--amber), bg rgba(255,178,41,0.1), color var(--amber)
+    Tab labels: "1. TOPIC_NAME", "2. NEXT_TOPIC", etc.
+
+  PANELS (#panels) — flex row, flex:1, overflow:hidden
+
+  LEFT PANEL (#left) — flex:1, flex column, border-right 1px solid rgba(255,178,41,0.12)
+
+    a) CANVAS WRAPPER (#viz-wrap) — flex:1, position relative, overflow hidden
+       Contains <canvas id="viz-canvas"> at 100% width/height.
+       Canvas is resized in JS on window resize and initial load.
+
+    b) PROGRESS BAR ROW (#prog-wrap) — height 2px, flex-shrink:0
+       bg rgba(255,178,41,0.08). Contains #prog-bar:
+       height 100%, width 0–100% based on step index / total steps.
+       bg: linear-gradient(to right, rgba(255,178,41,0.2), var(--amber))
+       Transitions width 0.1s.
+
+    c) STEP DESCRIPTION BAR (#step-desc) — padding 4px 12px, min-height 32px
+       flex row, align-items center, gap 9px
+       border-top: 1px solid rgba(255,178,41,0.09)
+       background: rgba(0,0,0,0.32)
+       Contains:
+         - #pbadge: phase badge (see Phase Badges below)
+         - #step-txt: Share Tech Mono 9.5px, color rgba(255,178,41,0.65), flex:1
+
+    d) STATS BAR (#stats) — padding 3px 12px, flex row, gap 14px, flex-wrap wrap
+       border-top 1px solid rgba(255,178,41,0.09), bg rgba(0,0,0,0.2)
+       Each stat is a .si div: flex row, gap 5px, align-items baseline
+         .sl (label): 7.5px, color var(--amber-dim), letter-spacing 1.5px
+         .sv (value): VT323 18px, color var(--amber)
+       Default stats: LEN, CAP, BACKING_ARR, ALLOCS (orange), SHARED
+       (adapt stat names and colors to the topic)
+
+    e) CONTROLS BAR (#controls) — padding 4px 12px, flex row, gap 6px, flex-wrap wrap
+       border-top 1px solid rgba(255,178,41,0.13), bg rgba(0,0,0,0.28)
+       .cbtn buttons: VT323 14px, padding 2px 9px,
+         border 1px solid rgba(255,178,41,0.35), bg transparent, cursor pointer
+         hover: bg rgba(255,178,41,0.08)
+       Buttons in order: ◀ PREV | ▶ PLAY | NEXT ▶ | [separator] | ↺ RESET | [separator]
+       SPEED label + range input (width 60px, styled thumb)
+       #step-ctr: VT323 14px, color var(--amber-dim), margin-left:auto → "N / TOTAL"
+       #play-btn.playing: color #f43f5e, border-color #f43f5e, text "⏸ PAUSE"
+
+    f) KEYBOARD HINTS BAR (#kbhints) — padding 2px 12px, flex row, gap 10px
+       bg rgba(0,0,0,0.35), border-top 1px solid rgba(255,178,41,0.06)
+       Each hint: 7.5px color rgba(255,178,41,0.28)
+       Key labels: border 1px solid rgba(255,178,41,0.18), font-size 7px, padding 0 3px
+       Content: [← →] Step  [SPACE] Play/Pause  [R] Reset  [M] Mute  [1–N] Scenario
+
+  RIGHT PANEL (#right) — width 360px, flex-shrink:0, flex column, overflow hidden
+    bg rgba(0,0,0,0.18)
+    Divided into sections with .psec (flex-shrink:0, border-bottom 1px solid rgba(255,178,41,0.09))
+
+    Each section header (.phdr):
+      VT323 12px, letter-spacing 3px, color var(--amber-dim)
+      padding 4px 11px, bg rgba(0,0,0,0.3), border-bottom 1px solid rgba(255,178,41,0.07)
+      Content: "▸ SECTION NAME"
+
+    Sections (top to bottom):
+      1. GO SOURCE / PSEUDOCODE
+         #code-scroll: max-height ~220px, overflow-y auto, padding 3px 0
+         Scrollbar: width 3px, thumb rgba(255,178,41,0.25)
+         Each line is .cline div: display flex, IBM Plex Mono 9.5px, line-height 1.65
+         Active line (.active): bg rgba(255,178,41,0.1), border-left 2px solid var(--amber)
+         .ln (line number): color rgba(255,178,41,0.18), width 18px, text-align right,
+           margin-right 8px, user-select none
+         Apply Go syntax highlighting: keywords purple, strings green, numbers orange,
+           function names blue, comments gray italic, operators cyan
+
+      2. KEY RULE / COMPLEXITY (#cx-info) — .info-block
+         9.5px, line-height 1.8, color rgba(255,178,41,0.48)
+         <strong> tags: color rgba(255,178,41,0.8)
+         Short inline code: styled inline
+
+      3. HOW IT WORKS (#how-info) — .info-block (same styling)
+
+      4. INTERVIEW FACTS (#facts) — .info-block
+         Contains colored tags:
+           .rw-tag: bg rgba(255,178,41,0.07), border rgba(255,178,41,0.2), padding 1px 6px
+           .warn-tag: bg rgba(244,63,94,0.07), border rgba(244,63,94,0.3), color #f43f5e
+
+    The bottom 3 sections (#r-scroll) are overflow-y scrollable.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  6. PHASE BADGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  .pbadge: VT323 13px, padding 2px 7px, border 1px solid, letter-spacing 2px, flex-shrink:0
+  Each phase has a unique color for border + text + faint bg tint:
+
+    init    — var(--amber-dim), #a06800
+    append  — #fbbf24 (warm yellow) + rgba(251,191,36,0.08)
+    grow    — var(--orange) + rgba(249,115,22,0.09)
+    share   — var(--red) + rgba(244,63,94,0.10)
+    copy    — var(--blue) + rgba(96,165,250,0.07)
+    fix     — var(--green) + rgba(74,222,128,0.08)
+    nil     — var(--purple) + rgba(168,85,247,0.08)
+    task    — var(--cyan) + rgba(34,211,238,0.07)
+    swap    — var(--orange) + rgba(249,115,22,0.09)
+    done    — var(--green) + rgba(74,222,128,0.08)
+    warn    — var(--red) + rgba(244,63,94,0.10)
+    read    — var(--blue) + rgba(96,165,250,0.07)
+    write   — var(--orange) + rgba(249,115,22,0.09)
+    compact — var(--cyan) + rgba(34,211,238,0.07)
+    elect   — var(--purple) + rgba(168,85,247,0.08)
+    commit  — var(--green) + rgba(74,222,128,0.08)
+    crash   — var(--red) + rgba(244,63,94,0.10)
+    scan    — var(--cyan) + rgba(34,211,238,0.07)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  7. AUDIO ENGINE (Web Audio API with WaveShaper distortion)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  let AC = null, muted = false;
+
+  Initialize lazily: create AudioContext on first interaction or at boot end.
+  try/catch everything — AudioContext can be blocked by browser policy.
+
+  WaveShaper curve (256 samples, soft clipping distortion):
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2 / 256) - 1;
+      curve[i] = x * (Math.PI + 12) / (Math.PI + 12 * Math.abs(x));
+    }
+
+  Signal chain: OscillatorNode → GainNode → WaveShaperNode → destination
+  Oscillator type: 'sawtooth' (raw, harsh, CRT-like)
+  Gain: starts 0.1, exponentialRampToValueAtTime(0.001) over duration
+
+  Sound map (phase → [frequency_hz, duration_s]):
+    append  → [420, 0.07]   mid blip
+    grow    → [300, 0.12]   low warning tone (allocation)
+    share   → [200, 0.10]   low menacing
+    copy    → [500, 0.07]   mid-high
+    fix     → [560, 0.08]   bright confirmation
+    nil     → [350, 0.08]   mid mysterious
+    task    → [460, 0.07]   neutral blip
+    swap    → [380, 0.07]   swap click
+    done    → [580, 0.09]   high success
+    warn    → [180, 0.12]   deep alarm
+    click   → [360, 0.04]   UI click
+    read    → [420, 0.06]   short read
+    write   → [300, 0.08]   write tone
+    elect   → [440, 0.10]   election
+    commit  → [520, 0.08]   commit
+    crash   → [150, 0.15]   crash low
+    compact → [380, 0.09]   compact
+    scan    → [460, 0.07]   scan
+
+  toggleMute(): flip muted flag, update button emoji, play 'click' if unmuting.
+  Keyboard M toggles mute.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  8. STEP / SCENARIO ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Each scenario is a key in a SCENARIOS object. Each entry has:
+    code:    string[]   — lines of Go source code for the right panel
+    cx:      string     — HTML for "KEY RULE / COMPLEXITY" section
+    how:     string     — HTML for "HOW IT WORKS" section
+    facts:   string     — HTML for "INTERVIEW FACTS" section
+
+  buildSteps(scenarioKey) → Step[]
+    Each step is a plain object with:
+      phase:   string   — controls badge color and sound
+      desc:    string   — text shown in step description bar
+      cl:      number   — code line to highlight (0-indexed), -1 for none
+      + arbitrary state fields used by the render function
+
+  State object examples (adapt to topic):
+    arr, len, cap, allocs, shared — for slice/memory topics
+    nodes, edges, visited         — for graph topics
+    goroutines, Ps, Ms, runq      — for GMP topics
+    term, leader, log             — for Raft topics
+
+  snap() helper used inside buildSteps:
+    const snap = (phase, desc, cl, state) =>
+      steps.push({ phase, desc, cl, ...state });
+
+  PlayBack state:
+    ST = { steps: [], idx: 0, playing: false, timer: null, speed: 600 }
+
+  speed map (slider value 1–10 → interval ms):
+    1→1400, 2→1000, 3→750, 4→550, 5→380, 6→260, 7→170, 8→100, 9→60, 10→28
+
+  applyStep(step):
+    1. Call renderFrame(step) → canvas redraw
+    2. Update pbadge: set className and textContent
+    3. Update step-txt text
+    4. Update all stat values
+    5. Update progress bar width
+    6. Update step counter "N / TOTAL"
+    7. Call renderCode(lines, step.cl)
+    8. Call snd(step.phase)
+    9. If phase === 'warn' or 'grow' or 'crash': call triggerCA()
+
+  selectScene(key):
+    1. Update tab .active classes
+    2. Set right panel HTML from SCENARIOS[key]
+    3. renderCode with no active line
+    4. Pause if playing
+    5. buildSteps(key) → set ST.steps, ST.idx = 0
+    6. applyStep(steps[0])
+    7. setTimeout(() => play(), 400)  — auto-play after 400ms
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  9. CANVAS RENDERING CONVENTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Always use Canvas 2D. Never use SVG (z-index and overlay bugs).
+
+  Canvas is resized to its parent container dimensions on load and on
+  window resize. Always call renderFrame(currentStep) after resize.
+
+  Coordinate system: CW = canvas.width, CH = canvas.height (set on resize).
+
+  Cell drawing (drawCell pattern for arrays/slots):
+    - A rectangle with fill + stroke, no border-radius
+    - Color based on cell state: live (amber), cap (faint dashed), highlighted
+      (brighter, glow), corrupted (red glow), new/fixed (green glow)
+    - ctx.shadowColor + ctx.shadowBlur on highlighted cells
+    - Value text: VT323 font, centered, sized to ~40% of cell height
+    - Dashed border (ctx.setLineDash([3,3])) for "reserved but empty" capacity cells
+    - Index labels below each cell: Share Tech Mono 9px, rgba(255,178,41,0.2)
+    - Always ctx.save() / ctx.restore() around cells with custom shadow
+
+  Bracket / span drawings (for len/cap indicators):
+    - Thin 1.5px lines, colored by role (blue=len, amber-dim=cap dashed)
+    - Small perpendicular end-caps (4px vertical lines at both ends)
+    - Label text above/below the bracket center
+
+  Arrow drawings (for pointers, edges, message flows):
+    - ctx.beginPath(), moveTo, lineTo
+    - Arrowhead: compute direction vector, rotate ±25deg for two wing lines
+    - Dashed arrows for potential/future relationships
+    - Solid arrows for current active pointers
+
+  Node drawings (for graph algorithms, Raft nodes, goroutines):
+    - Circles via ctx.arc()
+    - State determines fill color with ~15-20% alpha fill + solid stroke
+    - Active/highlighted: shadowBlur 12-16, shadowColor = stroke color
+    - Text: VT323 inside node for short labels; Share Tech Mono 9px for details
+    - State ring: additional thin outer circle for role distinction
+
+  Text rendering:
+    - All labels: ctx.save(), set font + fillStyle, fillText, ctx.restore()
+    - textAlign: 'left' for labels, 'center' for centered overlays
+    - textBaseline: 'top' for positioned blocks, 'middle' for vertically centered
+
+  Warning/alert overlays:
+    - Full-width colored banner at bottom of canvas: CH-36 to CH
+    - Faint bg fill (rgba with ~0.08 alpha) + VT323 18px text centered
+    - Colors: red for errors, orange for warnings, green for fixes
+
+  Phase-specific visual cues:
+    - On 'grow' / reallocation: old array shown faded above new array,
+      connected by dashed arrow, "DIVERGED" banner between them
+    - On 'warn' / corruption: corrupted cells in red with glow,
+      full-width red warning bar at bottom
+    - On 'done': green glow on result cells, "DONE O(n)..." text below
+    - On 'fix': green borders and confirmation styling
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  10. CODE PANEL (syntax highlighting)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  renderCode(lines, activeLine):
+    Build innerHTML for #code-scroll.
+    Each line: <div class="cline [active]">
+                 <span class="ln">N</span>
+                 <span class="cc">[highlighted HTML]</span>
+               </div>
+
+  hlGo(line) applies regex-based highlighting in this order:
+    1. Escape HTML entities: & < >
+    2. Comments: /(\/\/.*)/ → .cm span (must be first to avoid re-highlighting)
+    3. Strings: /"([^"]*)"/ → .str span
+    4. Keywords: /\b(func|go|var|type|struct|return|if|else|for|range|make|
+                    new|nil|int|string|bool|append|copy|len|cap|delete)\b/
+    5. Capitalized identifiers: /\b([A-Z][a-zA-Z0-9]*)\b/ → .fn span
+    6. Numbers: /\b(\d+)\b/ → .nm span
+    7. Operators: /(:=|==|!=|<=|>=|\+=|-=)/ → .op span
+
+  After rendering, scroll active line into view: element.scrollIntoView({block:'nearest'})
+  Active line scrollbar: width 3px, thumb rgba(255,178,41,0.25)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  11. KEYBOARD SHORTCUTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  All shortcuts disabled during boot sequence (check if boot overlay visible).
+
+  document.addEventListener('keydown', e => {
+    ArrowRight  → next()
+    ArrowLeft   → prev()
+    Space       → e.preventDefault(); togglePlay()
+    r / R       → doReset()
+    m / M       → toggleMute()
+    1 – 6       → selectScene(keys[0..5])
+    (add more number keys for more scenarios)
+  });
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  12. SMALL DETAILS THAT COMPLETE THE AESTHETIC
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - All borders use rgba with low alpha (0.09–0.22) — never solid opaque lines
+  - Background panels use rgba(0,0,0,0.18–0.50) — translucent, layered depth
+  - Global scrollbar: width 4px, thumb rgba(255,178,41,0.2)
+  - html, body overflow:hidden — no page scroll, everything fits in viewport
+  - All buttons: no border-radius (rectangular, sharp, terminal-like)
+  - Separator between button groups: a 1px-wide, 16px-tall rgba div (.csep)
+  - Stats bar ALLOCS value: always colored var(--orange), not amber
+  - The entire right panel has its own vertical scroll (overflow-y auto)
+  - .info-block padding 7px 11px — slightly tighter than standard
+  - Tab overflow: overflow-x auto, hide scrollbar (-webkit-scrollbar display:none)
+  - Canvas clears with ctx.clearRect(0,0,CW,CH) on every render call
+  - No border-radius anywhere except the speed slider thumb (border-radius 50%)
+  - All text in canvas uses ctx.save()/ctx.restore() to avoid state leaks
+  - triggerCA() always does: el.classList.remove('fire'); void el.offsetWidth; el.classList.add('fire')
+    The void offsetWidth forces layout flush so CSS animation restarts properly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  13. TOPIC-SPECIFIC ADAPTATION CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  When building a new visualizer in this system:
+
+  [ ] Set logo name (e.g., "REDIS.VIZ", "KAFKA.VIZ", "GRPC.VIZ")
+  [ ] Write 6–8 boot lines relevant to the topic's modules
+  [ ] Define 4–6 scenarios, each with meaningful step counts (6–12 steps ideal)
+  [ ] Map each scenario to a code block in the right panel
+  [ ] Define cx/how/facts for each scenario (HTML strings)
+  [ ] Write buildSteps() for each scenario using snap() helper
+  [ ] Write a renderFrame() dispatcher (switch on curScene)
+  [ ] Write per-scenario render function (renderXxx)
+  [ ] Use appropriate phase names from the badge table (section 6)
+  [ ] Trigger triggerCA() on: errors, reallocations, corruptions, partitions
+  [ ] Add scenario-appropriate stats (adapt the 5 default stats)
+  [ ] Tab labels: "1. TOPIC", "2. TOPIC", etc. in keyboard hint bar
+  [ ] Update keyboard hints section to match scenario count
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  14. COMPLETE FILE STRUCTURE TEMPLATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <!-- meta charset, viewport, title -->
+    <!-- Google Fonts: VT323, Share Tech Mono, IBM Plex Mono -->
+    <style>
+      /* 1. CSS variables */
+      /* 2. Reset: margin, padding, box-sizing */
+      /* 3. html, body: bg, color, font, overflow:hidden */
+      /* 4. body::before: vignette radial-gradient */
+      /* 5. @keyframes crt-flicker */
+      /* 6. #crt-wrap: 100vw/vh, flex column, crt-flicker animation */
+      /* 7. #scan-line: fixed, animation scanmove 8s */
+      /* 8. @keyframes scanmove */
+      /* 9. #noise: fixed, pointer-events none */
+      /* 10. #ca-overlay: fixed, opacity 0, .fire animation */
+      /* 11. @keyframes ca-anim */
+      /* 12. #boot + all boot children styles */
+      /* 13. @keyframes bcursor */
+      /* 14. #main: display none → .show display flex */
+      /* 15. @keyframes fadeIn */
+      /* 16. #header and .tab styles */
+      /* 17. #panels, #left, #right layout */
+      /* 18. #viz-wrap, #viz-canvas */
+      /* 19. Progress bar, step-desc, stats bar */
+      /* 20. Controls bar, .cbtn, range input */
+      /* 21. Keyboard hints */
+      /* 22. .pbadge and all phase variants */
+      /* 23. Right panel sections: .psec, .phdr, .info-block */
+      /* 24. Code panel: #code-scroll, .cline, .ln, syntax colors */
+      /* 25. .rw-tag, .warn-tag */
+      /* 26. Scrollbar global styles */
+    </style>
+  </head>
+  <body>
+    <!-- LAYERS (in DOM order) -->
+    <canvas id="noise"></canvas>
+    <div id="scan-line"></div>
+    <div id="ca-overlay"></div>
+
+    <!-- BOOT SCREEN -->
+    <div id="boot">
+      <div id="boot-logo">NAME.VIZ</div>
+      <div id="boot-tagline">SUBTITLE HERE</div>
+      <div id="boot-terminal"></div>
+      <div id="boot-progress"><div id="boot-fill"></div></div>
+      <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+    </div>
+
+    <!-- MAIN UI -->
+    <div id="crt-wrap"><div id="main">
+      <div id="header">
+        <div id="logo">NAME.VIZ</div>
+        <div id="tabs"></div>
+        <button id="snd-btn" onclick="toggleMute()">🔊</button>
+      </div>
+      <div id="panels">
+        <div id="left">
+          <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+          <div id="prog-wrap"><div id="prog-bar"></div></div>
+          <div id="step-desc">
+            <span class="pbadge init" id="pbadge">INIT</span>
+            <span id="step-txt">Select scenario (1–N).</span>
+          </div>
+          <div id="stats">
+            <!-- .si elements for topic-specific stats -->
+          </div>
+          <div id="controls">
+            <button class="cbtn" onclick="prev()">◀ PREV</button>
+            <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+            <button class="cbtn" onclick="next()">NEXT ▶</button>
+            <div class="csep"></div>
+            <button class="cbtn" onclick="doReset()">↺ RESET</button>
+            <div class="csep"></div>
+            <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+            <input type="range" id="sp-sl" min="1" max="10" value="4"
+                   oninput="changeSpeed(this.value)">
+            <span id="step-ctr">0 / 0</span>
+          </div>
+          <div id="kbhints">
+            <span class="kbh"><span class="kbk">← →</span> Step</span>
+            <span class="kbh"><span class="kbk">SPACE</span> Play/Pause</span>
+            <span class="kbh"><span class="kbk">R</span> Reset</span>
+            <span class="kbh"><span class="kbk">M</span> Mute</span>
+            <span class="kbh"><span class="kbk">1–N</span> Scenario</span>
+          </div>
+        </div>
+        <div id="right">
+          <div class="psec">
+            <div class="phdr">▸ GO SOURCE</div>
+            <div id="code-scroll"></div>
+          </div>
+          <div id="r-scroll">
+            <div class="psec"><div class="phdr">▸ KEY RULE</div>
+              <div id="cx-info" class="info-block"></div></div>
+            <div class="psec"><div class="phdr">▸ HOW IT WORKS</div>
+              <div id="how-info" class="info-block"></div></div>
+            <div class="psec"><div class="phdr">▸ INTERVIEW FACTS</div>
+              <div id="facts" class="info-block"></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <script>
+      // Section order:
+      // 1. Noise canvas init + rAF loop
+      // 2. Glitch blackout loop (sGlitch)
+      // 3. Audio engine (initAudio, snd, toggleMute)
+      // 4. Chromatic aberration trigger (triggerCA)
+      // 5. Code highlight (hlGo, renderCode)
+      // 6. SCENARIOS object (code, cx, how, facts per key)
+      // 7. buildSteps(key) → Step[]
+      // 8. Canvas + resize (resizeCanvas)
+      // 9. Per-scenario render functions
+      // 10. renderFrame(step) dispatcher
+      // 11. Playback engine (applyStep, next, prev, play, pause, etc.)
+      // 12. selectScene(key)
+      // 13. buildTabs()
+      // 14. Keyboard event listener
+      // 15. boot() function
+      // 16. sa() (start app after boot)
+      // 17. boot() call to kick it all off
+    </script>
+  </body>
+  </html>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  END OF MASTER DESIGN PROMPT
+  This prompt is sufficient to build any new visualizer in the series.
+  Combine with a topic-specific scenario outline for complete output.
+════════════════════════════════════════════════════════════════════════════════

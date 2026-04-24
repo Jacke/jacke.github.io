@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TXLOG.SIM v1.0 — Внутренности транзакций БД</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;--font-logo:'VT323',monospace;--font-ui:'Share Tech Mono',monospace;--font-code:'IBM Plex Mono',monospace;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:var(--font-ui);}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,0.48) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(0.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker 0.18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,0.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:0.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:var(--font-logo);font-size:72px;color:var(--amber);text-shadow:0 0 40px var(--amber);letter-spacing:6px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:var(--font-logo);font-size:28px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:3px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-family:var(--font-ui);font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover{border-color:var(--amber);color:var(--amber);background:rgba(255,178,41,.05);}
+.tab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:var(--font-logo);font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.begin{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.07);}
+.pbadge.write{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,.07);}
+.pbadge.read{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.07);}
+.pbadge.commit{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.rollback{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.08);}
+.pbadge.wal{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.08);}
+.pbadge.mvcc{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.08);}
+.pbadge.dirty{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.1);}
+.pbadge.phantom{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.08);}
+.pbadge.lock{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.08);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}.sv{font-family:var(--font-logo);font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:var(--font-logo);font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:var(--font-logo);font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:var(--font-logo);font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:var(--font-code);font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}.cline.active{background:rgba(255,178,41,.09);}
+.cline.active .cc{position:relative;}.cline.active .cc::before{content:attr(data-t);position:absolute;inset:0;color:transparent;text-shadow:-1px 0 1px rgba(255,50,50,.4),1px 0 1px rgba(50,80,255,.4);pointer-events:none;}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}#r-scroll::-webkit-scrollbar{width:3px;}#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas><div id="scan-line"></div><div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">TXLOG.SIM</div>
+  <div id="boot-tagline">DATABASE TRANSACTION INTERNALS VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">&copy; 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">TXLOG.SIM</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc"><span class="pbadge init" id="pbadge">INIT</span><span id="step-txt">Select scenario (1–5).</span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">TX</span><span class="sv" id="s-tx">—</span></div>
+        <div class="si"><span class="sl">LSN</span><span class="sv" id="s-lsn">0</span></div>
+        <div class="si"><span class="sl">ISOLATION</span><span class="sv" id="s-iso" style="font-size:10px">—</span></div>
+        <div class="si"><span class="sl">VERSIONS</span><span class="sv" id="s-ver">0</span></div>
+        <div class="si"><span class="sl">ANOMALY</span><span class="sv" id="s-ano" style="font-size:9px;color:var(--red)">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Sound</span>
+        <span class="kbh"><span class="kbk">1–5</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ SQL / ПСЕВДОКОД</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ КОНЦЕПЦИЯ</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ КАК ЭТО РАБОТАЕТ</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ ФАКТЫ ДЛЯ СОБЕСЕДОВАНИЯ</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const g=AC.createGain(),ws=AC.createWaveShaper();const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}ws.curve=cv;ws.connect(AC.destination);g.connect(ws);const o=AC.createOscillator();o.connect(g);const p={begin:[400,.06],write:[420,.07],read:[300,.06],commit:[560,.09],rollback:[160,.1],wal:[380,.07],mvcc:[340,.06],dirty:[200,.1],phantom:[250,.1],lock:[440,.07],click:[360,.04]};const[f,d]=p[type]||[360,.05];o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+function hlSQL(l){let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');s=s.replace(/(--[^\n]*)/g,'<span class="cm">$1</span>');s=s.replace(/'([^']*)'/g,"<span class='str'>'$1'</span>");s=s.replace(/\b(BEGIN|COMMIT|ROLLBACK|SELECT|UPDATE|INSERT|DELETE|SET|FROM|WHERE|FOR|UPDATE|LOCK|IN|SHARE|MODE|READ|WRITE|UNCOMMITTED|COMMITTED|REPEATABLE|SERIALIZABLE|WAL|UNDO|REDO|LSN|MVCC|xmin|xmax|txid|TRANSACTION|ISOLATION|LEVEL|COUNT|INTO|VALUES|name|bal|amt|accounts|orders)\b/g,'<span class="kw">$1</span>');s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');return s;}
+function renderCode(lines,active){const el=document.getElementById('code-scroll');el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc" data-t="${l.replace(/"/g,'&quot;')}">${hlSQL(l)}</span></div>`).join('');if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}}
+
+const SCENARIOS={
+  wal:{label:'WAL',
+    code:[
+      '-- Перевод 500₽: Алиса → Боб',
+      'BEGIN;                          -- начинаем транзакцию (xid=101)',
+      '',
+      '  -- Шаг 1: списываем у Алисы',
+      '  UPDATE accounts SET bal = bal - 500',
+      '    WHERE name = \'Алиса\';',
+      '  -- WAL буфер: LSN=41 | xid=101 | UPDATE',
+      '  -- accounts | Алиса: 5000 → 4500',
+      '',
+      '  -- Шаг 2: начисляем Бобу',
+      '  UPDATE accounts SET bal = bal + 500',
+      '    WHERE name = \'Боб\';',
+      '  -- WAL буфер: LSN=42 | xid=101 | UPDATE',
+      '  -- accounts | Боб: 3000 → 3500',
+      '',
+      'COMMIT;',
+      '  -- WAL буфер: LSN=43 | xid=101 | COMMIT',
+      '  -- fsync WAL → диск (данные в безопасности!)',
+      '  -- страницы данных пишутся лениво (фоново)',
+      '',
+      '-- При краше: повторяем WAL с последнего',
+      '-- checkpoint → REDO всех закоммиченных транзакций',
+    ],
+    cx:`<strong>Write-Ahead Log</strong>: изменения пишутся в журнал ДО страниц данных<br><strong>LSN</strong> (Log Sequence Number): монотонный номер позиции в WAL<br><strong>Checkpoint</strong>: сбрасываем грязные страницы, фиксируем точку восстановления<br><strong>Восстановление</strong>: при старте REDO всех записей после последнего checkpoint`,
+    how:`WAL гарантирует <em>долговечность</em> (D в ACID): записи в журнал делаются последовательно (быстро!), а изменение страниц данных может откладываться.<br><br><strong>При COMMIT</strong>: WAL сбрасывается на диск через fsync. Только после этого транзакция считается зафиксированной.<br><strong>При краше</strong>: REDO — повторяем все WAL-записи от последнего checkpoint. Незакоммиченные изменения просто игнорируются — UNDO не нужен.<br><br>Аналогия: как бухгалтерский журнал в банке — сначала пишем запись в журнал, потом меняем счета.`,
+    facts:`<span class="rw-tag">PostgreSQL</span> WAL: директория pg_wal, сегменты по 16 МБ<br><span class="rw-tag">MySQL InnoDB</span> redo log: параметр innodb_log_file_size<br><span class="rw-tag">group commit</span>: несколько транзакций в одном fsync — сильно ускоряет запись<br><span class="rw-tag">Checkpoint</span>: уменьшает время восстановления — ограничивает окно повтора WAL<br><span class="rw-tag">WAL shipping</span>: стриминговая репликация — отправляем WAL на реплики в реальном времени`,
+  },
+  mvcc:{label:'MVCC',
+    code:[
+      '-- MVCC: каждая строка хранит версии',
+      '-- Формат: (xmin, xmax, данные)',
+      '--   xmin = транзакция, создавшая версию',
+      '--   xmax = транзакция, удалившая/обновившая (0=жива)',
+      '',
+      '-- T1 (xid=100) и T2 (xid=101) стартуют',
+      '',
+      '-- T1: читает баланс Алисы',
+      'SELECT bal FROM accounts WHERE name=\'Алиса\';',
+      '-- видит: xmin=90, xmax=0 → строка жива',
+      '-- → bal=5000 (снимок T1)',
+      '',
+      '-- T2: обновляет баланс Алисы',
+      'UPDATE accounts SET bal=4500 WHERE name=\'Алиса\';',
+      '-- создаёт НОВУЮ версию: (xmin=101, xmax=0, bal=4500)',
+      '-- помечает старую:     (xmin=90,  xmax=101, bal=5000)',
+      '',
+      '-- T1: снова читает — видит СТАРУЮ версию!',
+      '-- xmin=101 > 100 (снимок T1) → новая версия НЕВИДИМА',
+      '-- → bal=5000 (повторяемое чтение, snapshot isolation)',
+      '',
+      '-- T2: COMMIT',
+      '-- T3 (xid=102): видит bal=4500 (новая версия)',
+    ],
+    cx:`<strong>Читатели не блокируют писателей</strong> — нет общих блокировок на чтение<br><strong>Писатели не блокируют читателей</strong> — старые версии видны параллельным транзакциям<br><strong>Цепочка версий</strong>: текущая → предыдущая → самая старая<br><strong>Vacuum</strong>: сборщик мусора удаляет версии, которые уже никто не видит`,
+    how:`MVCC хранит несколько версий каждой строки. Каждая транзакция видит снимок данных на момент своего старта — и этот снимок не меняется.<br><br>Правило видимости: строка видна, если <code>xmin ≤ мой_txid И (xmax=0 ИЛИ xmax > мой_txid)</code>. Это даёт <strong>snapshot isolation</strong> без блокировок на чтение.<br><br>Аналогия: представь что каждая строка в БД — папка с документами. При обновлении не заменяем документ, а кладём новый рядом с пометкой даты. Старые читатели видят старый документ, новые — новый.`,
+    facts:`<span class="rw-tag">PostgreSQL</span> MVCC в heap — версии хранятся в основных страницах, VACUUM их чистит<br><span class="rw-tag">MySQL InnoDB</span> MVCC через undo log — версии в отдельных undo сегментах<br><span class="rw-tag">Снимок</span> в REPEATABLE READ берётся при BEGIN, в READ COMMITTED — при каждом запросе<br><span class="rw-tag">Write skew</span>: возможен в snapshot isolation — для полной защиты нужен SERIALIZABLE`,
+  },
+  dirty:{label:'DIRTY READ',
+    code:[
+      '-- Грязное чтение: читаем незакоммиченные данные',
+      '-- Уровень изоляции: READ UNCOMMITTED',
+      '',
+      '-- T1 (xid=100): начинает перевод',
+      'BEGIN;',
+      '  UPDATE accounts SET bal = 0',
+      '    WHERE name = \'Алиса\';',
+      '  -- bal=0, но транзакция ЕЩЁ НЕ закоммичена!',
+      '',
+      '-- T2 (xid=101): читает баланс',
+      'BEGIN;',
+      '  SELECT bal FROM accounts',
+      '    WHERE name = \'Алиса\';',
+      '  -- READ UNCOMMITTED: видит незакоммиченное!',
+      '  -- → bal=0  ← ГРЯЗНОЕ ЧТЕНИЕ!',
+      '',
+      '-- T1: что-то пошло не так...',
+      '  ROLLBACK;  -- T1 откатывает транзакцию!',
+      '  -- bal снова = 5000',
+      '',
+      '-- T2 прочитала bal=0 — данных которых НИКОГДА',
+      '-- не существовало в согласованном состоянии!',
+      '',
+      '-- Защита: READ COMMITTED или выше.',
+      '-- MVCC: T2 видит только xmax=0 (закоммиченные строки)',
+    ],
+    cx:`<strong>Грязное чтение</strong>: T2 читает данные, изменённые T1, до того как T1 сделала COMMIT<br><strong>Опасность</strong>: T1 может сделать ROLLBACK — T2 прочитала данные, которых никогда не было<br><strong>Предотвращают</strong>: READ COMMITTED, REPEATABLE READ, SERIALIZABLE<br><strong>Разрешает</strong>: только READ UNCOMMITTED`,
+    how:`Грязное чтение — самая опасная аномалия. T2 читает «грязную» (dirty) страницу данных, изменённую T1, до завершения T1.<br><br>Если T1 откатывается — T2 уже использовала данные, которых никогда не существовало. Это может привести к некорректным решениям: например, списать деньги со счёта, который ещё не был пополнен.<br><br><strong>READ COMMITTED</strong> предотвращает это: T2 видит только строки с закоммиченным xmin. MVCC делает это без блокировок.`,
+    facts:`<span class="rw-tag">PostgreSQL</span> минимальный уровень — READ COMMITTED (READ UNCOMMITTED не поддерживается)<br><span class="rw-tag">MySQL</span> поддерживает READ UNCOMMITTED, но используется крайне редко<br><span class="rw-tag">Применение</span> грязных чтений: грубая приблизительная аналитика, где точность не важна<br><span class="rw-tag">MVCC</span> предотвращает грязные чтения без блокировок`,
+  },
+  phantom:{label:'PHANTOM READ',
+    code:[
+      '-- Фантомное чтение: новые строки "появляются"',
+      '',
+      '-- T1 (менеджер, REPEATABLE READ):',
+      'BEGIN;',
+      '  SELECT COUNT(*) FROM orders',
+      '    WHERE amt > 10000;',
+      '  -- Результат: 3 заказа (ids: 1, 2, 3)',
+      '',
+      '-- T2 (другой сотрудник):',
+      'BEGIN;',
+      '  INSERT INTO orders (amt) VALUES (15000);',
+      'COMMIT;  -- T2 добавила новый заказ id=4',
+      '',
+      '-- T1: снова считает заказы',
+      '  SELECT COUNT(*) FROM orders',
+      '    WHERE amt > 10000;',
+      '',
+      '-- REPEATABLE READ (PostgreSQL):',
+      '--   → 3 (снимок держится) — фантом предотвращён',
+      '-- READ COMMITTED:',
+      '--   → 4 ← ФАНТОМНОЕ ЧТЕНИЕ!',
+      '',
+      '-- SERIALIZABLE (SSI в PostgreSQL):',
+      '--   предотвращает даже write skew',
+      '--   ~10% накладных расходов',
+    ],
+    cx:`<strong>Фантомное чтение</strong>: диапазонный запрос возвращает разные строки в рамках одной транзакции<br><strong>Отличие от non-repeatable read</strong>: там меняется значение той же строки, здесь — появляются/исчезают строки<br><strong>Предотвращение</strong>: SERIALIZABLE (PostgreSQL SSI; MySQL next-key locks)<br><strong>REPEATABLE READ</strong> в PostgreSQL предотвращает фантомы через MVCC-снимок`,
+    how:`Фантомное чтение возникает когда диапазонный запрос (WHERE условие) возвращает разные строки внутри одной транзакции — потому что другая транзакция добавила или удалила подходящие строки.<br><br><strong>REPEATABLE READ</strong> в PostgreSQL защищает даже от фантомов благодаря MVCC-снимку. MySQL InnoDB использует next-key locks (блокировка диапазона). <strong>SERIALIZABLE</strong> через SSI (Serializable Snapshot Isolation) обнаруживает конфликты и откатывает одну из транзакций.`,
+    facts:`<span class="rw-tag">Иерархия аномалий</span>: грязное → non-repeatable → фантом → write skew<br><span class="rw-tag">PostgreSQL SSI</span>: Serializable Snapshot Isolation с версии 9.1 (2011)<br><span class="rw-tag">Next-key lock</span>: MySQL InnoDB блокирует промежуток между строками<br><span class="rw-tag">Write skew</span>: две транзакции читают пересекающиеся данные, каждая пишет в непересекающиеся — не предотвращается snapshot isolation`,
+  },
+  isolation:{label:'ISOLATION LEVELS',
+    code:[
+      '-- Уровни изоляции SQL — сравнительная таблица',
+      '',
+      '-- READ UNCOMMITTED (никогда не используй)',
+      '--   грязное чтение: ДА  non-rep: ДА  фантом: ДА',
+      '--   нет смысла кроме грубой аналитики',
+      '',
+      '-- READ COMMITTED (PostgreSQL по умолчанию)',
+      '--   грязное чтение: НЕТ  non-rep: ДА  фантом: ДА',
+      '--   MVCC: снимок берётся на каждый запрос',
+      '',
+      '-- REPEATABLE READ (MySQL InnoDB по умолчанию)',
+      '--   грязное чтение: НЕТ  non-rep: НЕТ  фантом: НЕТ*',
+      '--   PostgreSQL MVCC: снимок берётся при BEGIN',
+      '',
+      '-- SERIALIZABLE (для финансов и банков)',
+      '--   все аномалии: НЕТ',
+      '--   PostgreSQL: SSI  MySQL: 2PL',
+      '--   ~10-30% накладных расходов',
+      '',
+      '-- Установка уровня изоляции:',
+      'SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;',
+      'BEGIN;',
+      '  -- транзакция с полной изоляцией',
+      'COMMIT;',
+    ],
+    cx:`<strong>READ UNCOMMITTED</strong>: все аномалии возможны — практически не используется<br><strong>READ COMMITTED</strong>: нет грязных чтений — хватает для большинства приложений<br><strong>REPEATABLE READ</strong>: + нет non-repeatable reads — стабильность чтения в рамках транзакции<br><strong>SERIALIZABLE</strong>: + нет фантомов и write skew — для финансовых операций`,
+    how:`4 уровня изоляции — иерархия гарантий vs. производительности. Выше уровень = меньше аномалий, но больше накладных расходов и конкуренции.<br><br><strong>PostgreSQL по умолчанию</strong>: READ COMMITTED. <strong>MySQL InnoDB по умолчанию</strong>: REPEATABLE READ.<br><br>Большинству веб-приложений достаточно READ COMMITTED. Финансовые системы, где ошибка стоит дорого — SERIALIZABLE. Аналитические запросы на реплике — REPEATABLE READ.`,
+    facts:`<span class="rw-tag">ANSI SQL</span> 1992 определил 4 уровня — но покрывает не все возможные аномалии<br><span class="rw-tag">SSI</span>: статья "Serializable Isolation for Snapshot Databases" (Cahill, 2008)<br><span class="rw-tag">PostgreSQL</span> REPEATABLE READ через MVCC — на практике защищает от фантомов<br><span class="rw-tag">Стоимость</span>: SERIALIZABLE ~10-30% медленнее READ COMMITTED<br><span class="rw-tag">CockroachDB</span>: всегда SERIALIZABLE, без вариантов`,
+  },
+};
+
+/* ── STEP BUILDING ── */
+function buildScenarioSteps(key){
+  const steps=[];
+  function snap(phase,desc,cl,state){steps.push({phase,desc,cl,...state});}
+
+  if(key==='wal'){
+    const walLog=[];let lsn=40;
+    // step 0: init
+    snap('init','WAL (Write-Ahead Log): каждое изменение сначала записывается в журнал-файл, и только потом — в страницы данных. Это гарантирует: даже если сервер упадёт, данные не потеряются.',0,
+      {walLog:[],dataPages:{alice:{val:5000,before:5000},bob:{val:3000,before:3000}},dirtyPages:[],lsn,tx:null,versions:0,isolation:'—',anomaly:'—',flowStep:0});
+    // step 1: begin
+    snap('begin','BEGIN xid=101. Алиса переводит 500₽ Бобу. Запрос из приложения попадает в WAL буфер.',2,
+      {walLog:[],dataPages:{alice:{val:5000,before:5000},bob:{val:3000,before:3000}},dirtyPages:[],lsn,tx:'xid=101',versions:0,isolation:'—',anomaly:'—',flowStep:1});
+    // step 2: WAL begin record
+    walLog.push({lsn:++lsn,xid:101,op:'BEGIN xid=101'});
+    snap('wal',`WAL запись: LSN=${lsn} BEGIN xid=101. WAL — это append-only лог: только последовательные записи, никаких random I/O. Именно поэтому он такой быстрый.`,7,
+      {walLog:[...walLog],dataPages:{alice:{val:5000,before:5000},bob:{val:3000,before:3000}},dirtyPages:[],lsn,tx:'xid=101',versions:walLog.length,isolation:'—',anomaly:'—',flowStep:1,newEntry:0});
+    // step 3: UPDATE Alice
+    walLog.push({lsn:++lsn,xid:101,op:'UPDATE Alice: 5000→4500'});
+    snap('write',`UPDATE: списываем 500₽ у Алисы (5000→4500). WAL запись LSN=${lsn}. Страница данных в памяти (DIRTY) — на диск ещё не пошла.`,5,
+      {walLog:[...walLog],dataPages:{alice:{val:4500,before:5000},bob:{val:3000,before:3000}},dirtyPages:['alice'],lsn,tx:'xid=101',versions:walLog.length,isolation:'—',anomaly:'—',flowStep:1,newEntry:1});
+    // step 4: UPDATE Bob
+    walLog.push({lsn:++lsn,xid:101,op:'UPDATE Bob: 3000→3500'});
+    snap('write',`UPDATE: начисляем 500₽ Бобу (3000→3500). WAL запись LSN=${lsn}. Две страницы DIRTY в буфере. Данные ещё не на диске — только в WAL!`,10,
+      {walLog:[...walLog],dataPages:{alice:{val:4500,before:5000},bob:{val:3500,before:3000}},dirtyPages:['alice','bob'],lsn,tx:'xid=101',versions:walLog.length,isolation:'—',anomaly:'—',flowStep:1,newEntry:2});
+    // step 5: COMMIT + fsync
+    walLog.push({lsn:++lsn,xid:101,op:'COMMIT xid=101'});
+    snap('commit',`COMMIT → fsync! WAL запись LSN=${lsn} сбрасывается на диск. После fsync транзакция считается зафиксированной. Данные в безопасности!`,16,
+      {walLog:[...walLog],dataPages:{alice:{val:4500,before:5000},bob:{val:3500,before:3000}},dirtyPages:['alice','bob'],lsn,tx:'xid=101',versions:walLog.length,isolation:'—',anomaly:'NONE',flowStep:2,newEntry:3,fsync:true});
+    // step 6: lazy write + recovery
+    snap('commit',`Страницы данных запишутся фоново (checkpointer). При краше: REDO от LSN=41 → восстановим Алиса=4500, Боб=3500. WAL гарантирует долговечность (D в ACID).`,21,
+      {walLog:[...walLog],dataPages:{alice:{val:4500,before:5000},bob:{val:3500,before:3000}},dirtyPages:[],lsn,tx:null,versions:walLog.length,isolation:'—',anomaly:'NONE',flowStep:3,recovery:true});
+  }
+
+  else if(key==='mvcc'){
+    snap('init','MVCC (Multi-Version Concurrency Control): каждая строка хранит несколько версий. Читатели видят снимок на момент старта — и не блокируют писателей.',0,
+      {row:{xmin:90,xmax:0,val:5000},newRow:null,t1:{id:100,snap:null,action:null,sees:null},t2:{id:101,snap:null,action:null,sees:null},t3:null,visCheck:null,lsn:0,tx:'—',iso:'REPEATABLE READ',anomaly:'—',versions:1});
+    snap('begin','T1(xid=100) и T2(xid=101) стартуют параллельно. Каждый берёт снимок: T1 видит xid<100, T2 видит xid<101. Два читателя работают одновременно.',6,
+      {row:{xmin:90,xmax:0,val:5000},newRow:null,t1:{id:100,snap:100,action:'BEGIN',sees:null},t2:{id:101,snap:101,action:'BEGIN',sees:null},t3:null,visCheck:null,lsn:0,tx:'T1,T2',iso:'REPEATABLE READ',anomaly:'—',versions:1});
+    snap('read','T1 читает баланс Алисы. Проверка видимости: xmin=90 ≤ 100 ✓ И xmax=0 (строка жива) ✓. Строка ВИДИМА → bal=5000.',8,
+      {row:{xmin:90,xmax:0,val:5000},newRow:null,t1:{id:100,snap:100,action:'READ →',sees:5000},t2:{id:101,snap:101,action:null,sees:null},t3:null,visCheck:{txid:100,xmin:90,xmax:0,minOk:true,maxOk:true,visible:true},lsn:0,tx:'T1,T2',iso:'REPEATABLE READ',anomaly:'—',versions:1,activeCol:'left'});
+    snap('mvcc','T2 делает UPDATE: создаёт НОВУЮ версию (xmin=101, bal=4500) и помечает старую (xmax=101). Не перезаписывает — добавляет!',13,
+      {row:{xmin:90,xmax:101,val:5000},newRow:{xmin:101,xmax:0,val:4500},t1:{id:100,snap:100,action:null,sees:5000},t2:{id:101,snap:101,action:'← UPDATE',sees:null},t3:null,visCheck:null,lsn:0,tx:'T1,T2',iso:'REPEATABLE READ',anomaly:'—',versions:2,activeCol:'right'});
+    snap('read','T1 снова читает. Новая версия: xmin=101 > 100 → НЕВИДИМА ✗. Старая: xmin=90 ≤ 100 ✓, xmax=101 > 100 ✓ → ВИДИМА. T1 видит bal=5000! Это snapshot isolation.',17,
+      {row:{xmin:90,xmax:101,val:5000},newRow:{xmin:101,xmax:0,val:4500},t1:{id:100,snap:100,action:'READ →',sees:5000},t2:{id:101,snap:101,action:null,sees:null},t3:null,visCheck:{txid:100,xmin:101,xmax:0,minOk:false,maxOk:true,visible:false,label:'NEW'},visCheckOld:{txid:100,xmin:90,xmax:101,minOk:true,maxOk:true,visible:true,label:'OLD'},lsn:0,tx:'T1,T2',iso:'REPEATABLE READ',anomaly:'NONE (snapshot)',versions:2,activeCol:'left'});
+    snap('commit','T2 делает COMMIT. T3(xid=102) стартует → видит новую версию: xmin=101 < 102 ✓ → bal=4500. Старая версия — кандидат для VACUUM.',21,
+      {row:{xmin:90,xmax:101,val:5000},newRow:{xmin:101,xmax:0,val:4500},t1:{id:100,snap:100,action:null,sees:null},t2:{id:101,snap:101,action:'COMMIT ✓',sees:null},t3:{id:102,snap:102,action:'READ →',sees:4500},visCheck:{txid:102,xmin:101,xmax:0,minOk:true,maxOk:true,visible:true,label:'NEW'},lsn:0,tx:'T3',iso:'REPEATABLE READ',anomaly:'NONE',versions:2});
+  }
+
+  else if(key==='dirty'){
+    snap('init','Грязное чтение: T2 читает данные, изменённые T1 до COMMIT. Если T1 откатится — T2 прочитала данные, которых никогда не существовало.',0,
+      {dataVal:5000,committed:true,t1:{action:null,status:null},t2:{action:null,status:null,read:null},arrow:false,iso:'READ UNCOMMITTED',anomaly:'—',lsn:0,tx:'—',dangerBadge:false});
+    snap('begin','T1(xid=100) и T2(xid=101) стартуют. Уровень: READ UNCOMMITTED — самый опасный, разрешает читать незакоммиченные данные.',4,
+      {dataVal:5000,committed:true,t1:{action:'BEGIN',status:'active'},t2:{action:'BEGIN',status:'active',read:null},arrow:false,iso:'READ UNCOMMITTED',anomaly:'—',lsn:0,tx:'T1,T2',dangerBadge:false});
+    snap('write','T1 обнуляет баланс Алисы (5000→0). Транзакция НЕ закоммичена! При READ UNCOMMITTED эта грязная страница видна другим.',6,
+      {dataVal:0,committed:false,t1:{action:'UPDATE bal=0',status:'active'},t2:{action:null,status:'active',read:null},arrow:false,iso:'READ UNCOMMITTED',anomaly:'—',lsn:0,tx:'T1,T2',dangerBadge:false});
+    snap('dirty','T2 читает баланс Алисы. READ UNCOMMITTED → видит незакоммиченный bal=0. ГРЯЗНОЕ ЧТЕНИЕ! T2 думает у Алисы 0₽ — это ложь.',11,
+      {dataVal:0,committed:false,t1:{action:'UPDATE bal=0',status:'active'},t2:{action:'READ bal',status:'active',read:0},arrow:true,iso:'READ UNCOMMITTED',anomaly:'DIRTY READ!',lsn:0,tx:'T1,T2',dangerBadge:true});
+    snap('rollback','T1 делает ROLLBACK! Баланс возвращается к 5000₽. Но T2 уже прочитала bal=0 — данных которых НИКОГДА не было!',17,
+      {dataVal:5000,committed:true,t1:{action:'ROLLBACK ✗',status:'rollback'},t2:{action:'used bal=0',status:'stale',read:0},arrow:false,iso:'READ UNCOMMITTED',anomaly:'ANOMALY OCCURRED',lsn:0,tx:'T2',dangerBadge:true,rollbackDone:true});
+    snap('init','Защита: READ COMMITTED или выше. MVCC: T2 видит только строки с закоммиченным xmin. Незакоммиченные изменения невидимы. Проблема решена элегантно.',24,
+      {dataVal:5000,committed:true,t1:{action:null,status:'rolled back'},t2:{action:null,status:'active'},arrow:false,iso:'READ COMMITTED',anomaly:'PREVENTED',lsn:0,tx:'T2',dangerBadge:false,showShield:true});
+  }
+
+  else if(key==='phantom'){
+    const baseRows=[{id:1,amt:12000},{id:2,amt:18000},{id:3,amt:11000}];
+    snap('init','Фантомное чтение: диапазонный запрос возвращает разные строки в рамках одной транзакции. Новые строки "появляются из ниоткуда".',0,
+      {query1Rows:null,query2Rows:null,showComparison:false,insertEvent:null,iso:'READ COMMITTED',anomaly:'—',lsn:0,tx:'—',query:'amt>10000'});
+    snap('begin','T1 (менеджер) и T2 (сотрудник) стартуют. T1 хочет посчитать крупные заказы (amt > 10000₽).',3,
+      {query1Rows:null,query2Rows:null,showComparison:false,insertEvent:null,iso:'REPEATABLE READ',anomaly:'—',lsn:0,tx:'T1,T2',query:'amt>10000'});
+    snap('read','T1: SELECT COUNT(*) WHERE amt>10000 → 3 заказа. Результат зафиксирован в снимке.',5,
+      {query1Rows:[...baseRows],query2Rows:null,showComparison:false,insertEvent:null,iso:'REPEATABLE READ',anomaly:'—',lsn:0,tx:'T1,T2',query:'amt>10000'});
+    snap('write','T2 добавляет заказ на 15000₽ (id=4) и делает COMMIT. В таблице теперь 4 подходящие строки.',10,
+      {query1Rows:[...baseRows],query2Rows:null,showComparison:false,insertEvent:{id:4,amt:15000},iso:'REPEATABLE READ',anomaly:'—',lsn:0,tx:'T1',query:'amt>10000'});
+    snap('phantom','T1 повторяет запрос. Сравни результаты: QUERY 1 вернул 3 строки, QUERY 2 (при READ COMMITTED) вернёт 4 — ФАНТОМ! Новая строка появилась из ниоткуда.',14,
+      {query1Rows:[...baseRows],query2Rows:[...baseRows,{id:4,amt:15000,phantom:true}],showComparison:true,insertEvent:{id:4,amt:15000},iso:'READ COMMITTED',anomaly:'PHANTOM READ!',lsn:0,tx:'T1',query:'amt>10000'});
+    snap('commit','REPEATABLE READ (PostgreSQL) предотвращает фантомы через MVCC-снимок → COUNT=3. SERIALIZABLE (SSI) предотвращает даже write skew. Цена: ~10% накладных.',18,
+      {query1Rows:[...baseRows],query2Rows:[...baseRows],showComparison:true,insertEvent:null,iso:'SERIALIZABLE',anomaly:'PREVENTED',lsn:0,tx:'T1',query:'amt>10000',showShield:true});
+  }
+
+  else if(key==='isolation'){
+    const matrix=[
+      {level:'READ UNCOMMITTED',dirty:'YES',nonrep:'YES',phantom:'YES',col:'#f43f5e',note:'Никогда не используй',useCase:'Грубая аналитика'},
+      {level:'READ COMMITTED',dirty:'NO',nonrep:'YES',phantom:'YES',col:'#f97316',note:'PostgreSQL по умолчанию',useCase:'Веб-приложения'},
+      {level:'REPEATABLE READ',dirty:'NO',nonrep:'NO',phantom:'NO*',col:'#fbbf24',note:'MySQL InnoDB по умолчанию',useCase:'Отчёты, аналитика'},
+      {level:'SERIALIZABLE',dirty:'NO',nonrep:'NO',phantom:'NO',col:'#4ade80',note:'Для финансов и банков',useCase:'Финансы, банки'},
+    ];
+    snap('init','4 уровня изоляции SQL. Чем выше уровень — тем меньше аномалий, но тем больше накладных расходов и конкуренции между транзакциями.',0,{matrix,activeLevel:null,lsn:0,tx:'—',iso:'—',anomaly:'—',versions:0,shieldLevel:0});
+    matrix.forEach((m,i)=>{
+      const notes=['Почти не используется — только для грубой аналитики где точность не важна.','PostgreSQL по умолчанию. Подходит для большинства веб-приложений.','MySQL InnoDB по умолчанию. Гарантирует стабильность чтения в рамках транзакции.','Для финансов, банков, когда ошибка стоит дорого. PostgreSQL SSI.'];
+      snap(i===0?'dirty':i===1?'read':i===2?'read':'commit',`${m.level}: ${notes[i]}`,i*4,{matrix,activeLevel:i,lsn:0,tx:'—',iso:m.level,anomaly:m.phantom==='NO'?'NONE':m.dirty==='YES'?'ALL':'PARTIAL',versions:i+1,shieldLevel:i+1});
+    });
+    snap('commit','Итог: выбор уровня изоляции = компромисс между гарантиями согласованности и производительностью. Для большинства сервисов — READ COMMITTED. Финансы — SERIALIZABLE.',16,{matrix,activeLevel:3,lsn:0,tx:'—',iso:'SERIALIZABLE',anomaly:'NONE',versions:4,shieldLevel:4});
+  }
+
+  return steps;
+}
+
+/* ── CANVAS ── */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+let animT=0;
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+  const sc=curScene;
+  if(sc==='wal')renderWAL(step);
+  else if(sc==='mvcc')renderMVCC(step);
+  else if(sc==='dirty')renderDirty(step);
+  else if(sc==='phantom')renderPhantom(step);
+  else if(sc==='isolation')renderIsolation(step);
+}
+
+/* ── HELPER: draw rounded rect ── */
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+
+/* ── HELPER: draw arrow ── */
+function drawArrow(x1,y1,x2,y2,col,dashed){
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=2;
+  if(dashed)ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  const angle=Math.atan2(y2-y1,x2-x1);const hs=7;
+  ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(angle-0.4),y2-hs*Math.sin(angle-0.4));ctx.lineTo(x2-hs*Math.cos(angle+0.4),y2-hs*Math.sin(angle+0.4));ctx.closePath();ctx.fill();
+  ctx.restore();
+}
+
+/* ── HELPER: pulsing alpha ── */
+function pulse(min,max){return min+(max-min)*(0.5+0.5*Math.sin(animT));}
+
+/* ══════════════════════════════════════════════════
+   1. WAL — Flow Diagram
+   ══════════════════════════════════════════════════ */
+function renderWAL(step){
+  const{walLog,dataPages,dirtyPages,lsn,flowStep,newEntry,fsync,recovery}=step;
+  const PAD=14,TOP=8;
+
+  /* ── Title ── */
+  ctx.font="11px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.35)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`WAL FLOW DIAGRAM  |  LSN=${lsn}  |  DIRTY PAGES: ${(dirtyPages||[]).length}`,PAD,TOP);
+
+  /* ── Flow boxes: APP → WAL BUFFER → DISK ── */
+  const flowY=TOP+22;const boxH=42;const boxW=Math.min(130,(CW-PAD*2-80)/3);
+  const gap=(CW-PAD*2-boxW*3)/2;
+  const boxes=[
+    {label:'APP',sub:'(query)',x:PAD,col:'#fbbf24'},
+    {label:'WAL',sub:'BUFFER',x:PAD+boxW+gap,col:'#a855f7'},
+    {label:'DISK',sub:'(fsync)',x:PAD+2*(boxW+gap),col:'#4ade80'},
+  ];
+
+  boxes.forEach((b,i)=>{
+    const isActive=(flowStep||0)>=i+1||(i===0&&(flowStep||0)>=1);
+    const alpha=isActive?1:0.3;
+    ctx.save();
+    if(isActive&&i===(flowStep||0)-1){ctx.shadowColor=b.col;ctx.shadowBlur=12;}
+    if(fsync&&i===2){ctx.shadowColor='#4ade80';ctx.shadowBlur=pulse(8,22);}
+    ctx.strokeStyle=b.col+(isActive?'cc':'44');ctx.lineWidth=isActive?2:1;
+    ctx.fillStyle=b.col+(isActive?'18':'08');
+    roundRect(b.x,flowY,boxW,boxH,4);ctx.fill();ctx.stroke();
+    ctx.font="16px 'VT323'";ctx.fillStyle=b.col;ctx.globalAlpha=alpha;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(b.label,b.x+boxW/2,flowY+boxH/2-6);
+    ctx.font="9px 'Share Tech Mono'";ctx.fillText(b.sub,b.x+boxW/2,flowY+boxH/2+10);
+    ctx.restore();
+    // arrows between boxes
+    if(i<2){
+      const arrCol=(flowStep||0)>i?b.col:'rgba(255,178,41,0.15)';
+      drawArrow(b.x+boxW+4,flowY+boxH/2,boxes[i+1].x-4,flowY+boxH/2,arrCol);
+    }
+  });
+
+  // fsync flash
+  if(fsync){
+    ctx.save();ctx.font="bold 14px 'VT323'";ctx.fillStyle='#4ade80';
+    ctx.globalAlpha=pulse(0.6,1);ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.shadowColor='#4ade80';ctx.shadowBlur=16;
+    ctx.fillText('fsync!',boxes[2].x+boxW/2,flowY+boxH+4);ctx.restore();
+  }
+
+  /* ── Arrow down: WAL BUFFER → DATA PAGES (lazy write) ── */
+  const walBufCx=boxes[1].x+boxW/2;
+  const dpTopY=flowY+boxH+36;
+  ctx.save();ctx.strokeStyle='rgba(255,178,41,0.15)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(walBufCx,flowY+boxH);ctx.lineTo(walBufCx,dpTopY-6);ctx.stroke();ctx.setLineDash([]);
+  ctx.font="8px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.25)';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText('lazy write',walBufCx+6,flowY+boxH+18);ctx.restore();
+
+  /* ── WAL LOG entries ── */
+  const logX=PAD;const logY=dpTopY;const logW=CW*0.5-10;const logH=CH-logY-10;
+  ctx.strokeStyle='rgba(168,85,247,0.2)';ctx.lineWidth=1;ctx.strokeRect(logX,logY,logW,logH);
+  ctx.font="12px 'VT323'";ctx.fillStyle='#a855f7';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText('WAL LOG',logX+4,logY+3);
+
+  const entries=walLog||[];
+  entries.forEach((entry,i)=>{
+    const ey=logY+20+i*24;if(ey+20>logY+logH)return;
+    const isNew=i===newEntry;
+    ctx.save();
+    if(isNew){ctx.shadowColor='#a855f7';ctx.shadowBlur=pulse(4,14);}
+    ctx.fillStyle=isNew?'rgba(168,85,247,0.14)':'rgba(168,85,247,0.06)';
+    ctx.strokeStyle=isNew?'#a855f7aa':'#a855f744';ctx.lineWidth=1;
+    roundRect(logX+4,ey,logW-8,20,2);ctx.fill();ctx.stroke();
+    ctx.font="10px 'IBM Plex Mono'";ctx.fillStyle=isNew?'#e9d5ff':'#c4b5fd';
+    ctx.textAlign='left';ctx.textBaseline='middle';
+    const prefix=entry.op.includes('COMMIT')?'★ ':'  ';
+    ctx.fillText(`${prefix}LSN=${entry.lsn}  ${entry.op}`,logX+10,ey+10);
+    ctx.restore();
+  });
+  if(!entries.length){
+    ctx.font="12px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.1)';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('(empty)',logX+logW/2,logY+logH/2);
+  }
+
+  /* ── DATA PAGES ── */
+  const dpX=CW*0.53;const dpW=CW-dpX-PAD;const dpH=CH-dpTopY-10;
+  ctx.strokeStyle='rgba(96,165,250,0.2)';ctx.lineWidth=1;ctx.strokeRect(dpX,dpTopY,dpW,dpH);
+  ctx.font="12px 'VT323'";ctx.fillStyle='#60a5fa';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText('DATA PAGES',dpX+4,dpTopY+3);
+
+  const pages=[
+    {key:'alice',label:'Alice',data:dataPages?.alice||{val:5000,before:5000}},
+    {key:'bob',label:'Bob',data:dataPages?.bob||{val:3000,before:3000}}
+  ];
+  pages.forEach((p,i)=>{
+    const py=dpTopY+22+i*60;const isDirty=(dirtyPages||[]).includes(p.key);
+    const changed=p.data.val!==p.data.before;
+    ctx.save();
+    if(isDirty){ctx.shadowColor='#fbbf24';ctx.shadowBlur=pulse(4,10);}
+    ctx.fillStyle=isDirty?'rgba(251,191,36,0.08)':'rgba(96,165,250,0.04)';
+    ctx.strokeStyle=isDirty?'#fbbf2466':'#60a5fa33';ctx.lineWidth=isDirty?1.5:1;
+    roundRect(dpX+4,py,dpW-8,50,3);ctx.fill();ctx.stroke();
+    ctx.font="10px 'IBM Plex Mono'";ctx.fillStyle=isDirty?'#fcd34d':'#93c5fd';
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`accounts: ${p.label}`,dpX+10,py+5);
+    // before → after
+    if(changed){
+      ctx.font="16px 'VT323'";ctx.fillStyle='rgba(255,178,41,0.35)';ctx.textBaseline='middle';
+      ctx.fillText(`${p.data.before}`,dpX+10,py+34);
+      ctx.fillStyle=isDirty?'#fbbf24':'#60a5fa';
+      ctx.fillText(`→ ${p.data.val}₽`,dpX+60,py+34);
+    } else {
+      ctx.font="16px 'VT323'";ctx.fillStyle='rgba(255,178,41,0.5)';ctx.textBaseline='middle';
+      ctx.fillText(`${p.data.val}₽`,dpX+10,py+34);
+    }
+    if(isDirty){
+      ctx.font="9px 'VT323'";ctx.fillStyle='#fbbf24';ctx.globalAlpha=pulse(0.5,1);
+      ctx.textAlign='right';ctx.textBaseline='middle';
+      ctx.fillText('[DIRTY]',dpX+dpW-12,py+34);
+    }
+    ctx.restore();
+  });
+
+  /* ── Recovery note ── */
+  if(recovery){
+    ctx.save();ctx.font="11px 'VT323'";ctx.fillStyle='#4ade80';ctx.globalAlpha=pulse(0.6,1);
+    ctx.textAlign='center';ctx.textBaseline='bottom';ctx.shadowColor='#4ade80';ctx.shadowBlur=10;
+    ctx.fillText('CRASH → REDO from LSN=41 → Alice=4500, Bob=3500',CW/2,CH-4);ctx.restore();
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   2. MVCC — Two-Column Transaction Timeline
+   ══════════════════════════════════════════════════ */
+function renderMVCC(step){
+  const{row,newRow,t1,t2,t3,visCheck,visCheckOld,activeCol}=step;
+  const PAD=14,TOP=8;
+  const colW=(CW-PAD*3)/2;const midX=CW/2;
+
+  /* ── Title ── */
+  ctx.font="11px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.35)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`MVCC — MULTI-VERSION CONCURRENCY  |  VERSIONS: ${newRow?2:1}`,PAD,TOP);
+
+  /* ── Column headers ── */
+  const hdrY=TOP+18;const hdrH=22;
+  // T1 column (left, cyan)
+  ctx.save();ctx.fillStyle='rgba(34,211,238,0.08)';ctx.strokeStyle='#22d3ee44';ctx.lineWidth=1;
+  if(activeCol==='left'){ctx.strokeStyle='#22d3ee88';ctx.lineWidth=2;ctx.shadowColor='#22d3ee';ctx.shadowBlur=8;}
+  roundRect(PAD,hdrY,colW,hdrH,3);ctx.fill();ctx.stroke();
+  ctx.font="13px 'VT323'";ctx.fillStyle='#22d3ee';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`T1 (xid=${t1.id})  snap=${t1.snap||'—'}`,PAD+colW/2,hdrY+hdrH/2);ctx.restore();
+  // T2 column (right, orange)
+  ctx.save();ctx.fillStyle='rgba(249,115,22,0.08)';ctx.strokeStyle='#f9731644';ctx.lineWidth=1;
+  if(activeCol==='right'){ctx.strokeStyle='#f9731688';ctx.lineWidth=2;ctx.shadowColor='#f97316';ctx.shadowBlur=8;}
+  roundRect(midX+PAD/2,hdrY,colW,hdrH,3);ctx.fill();ctx.stroke();
+  ctx.font="13px 'VT323'";ctx.fillStyle='#f97316';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`T2 (xid=${t2.id})  snap=${t2.snap||'—'}`,midX+PAD/2+colW/2,hdrY+hdrH/2);ctx.restore();
+
+  /* ── T1 action ── */
+  const actY=hdrY+hdrH+8;
+  if(t1.action){
+    ctx.font="12px 'VT323'";ctx.fillStyle='#22d3ee';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(t1.action,PAD+colW/2,actY);
+  }
+  if(t1.sees!=null){
+    ctx.font="14px 'VT323'";ctx.fillStyle='#22d3ee';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.shadowColor='#22d3ee';ctx.shadowBlur=6;
+    ctx.fillText(`sees: ${t1.sees}₽`,PAD+colW/2,actY+16);ctx.shadowBlur=0;
+  }
+  /* ── T2 action ── */
+  if(t2.action){
+    ctx.font="12px 'VT323'";ctx.fillStyle='#f97316';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(t2.action,midX+PAD/2+colW/2,actY);
+  }
+  /* ── T3 action ── */
+  if(t3){
+    ctx.font="11px 'VT323'";ctx.fillStyle='#a855f7';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(`T3 (xid=${t3.id}): ${t3.action||''}`,midX+PAD/2+colW/2,actY+16);
+    if(t3.sees!=null){
+      ctx.font="13px 'VT323'";ctx.fillText(`sees: ${t3.sees}₽`,midX+PAD/2+colW/2,actY+30);
+    }
+  }
+
+  /* ── Central row versions ── */
+  const rowY=actY+50;const rowH=80;const rowW=Math.min(200,(CW-PAD*2-20)/2);
+
+  // Draw OLD version
+  const oldX=midX-rowW-6;
+  ctx.save();
+  const oldAlive=!newRow;// if no new row, old is alive
+  const oldCol=oldAlive?'#4ade80':'rgba(255,178,41,0.4)';
+  if(visCheckOld&&visCheckOld.visible){ctx.shadowColor='#4ade80';ctx.shadowBlur=8;}
+  ctx.fillStyle=oldAlive?'rgba(74,222,128,0.06)':'rgba(255,178,41,0.03)';
+  ctx.strokeStyle=oldCol+(oldAlive?'88':'44');ctx.lineWidth=1.5;
+  roundRect(oldX,rowY,rowW,rowH,4);ctx.fill();ctx.stroke();
+  // OLD label
+  ctx.font="9px 'Share Tech Mono'";ctx.fillStyle=oldCol;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(newRow?'OLD VERSION':'CURRENT VERSION',oldX+rowW/2,rowY+3);
+  // xmin/xmax
+  ctx.font="10px 'IBM Plex Mono'";ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`xmin=${row.xmin}`,oldX+8,rowY+18);
+  ctx.fillText(`xmax=${row.xmax}`,oldX+8,rowY+32);
+  // value
+  ctx.font="24px 'VT323'";ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(`${row.val}₽`,oldX+rowW/2,rowY+rowH/2+10);
+  ctx.restore();
+
+  // Draw NEW version (if exists)
+  if(newRow){
+    const newX=midX+6;
+    ctx.save();
+    const nCol='#22d3ee';
+    if(visCheck&&visCheck.visible&&visCheck.label==='NEW'){ctx.shadowColor='#22d3ee';ctx.shadowBlur=8;}
+    ctx.fillStyle='rgba(34,211,238,0.06)';ctx.strokeStyle=nCol+'88';ctx.lineWidth=1.5;
+    roundRect(newX,rowY,rowW,rowH,4);ctx.fill();ctx.stroke();
+    ctx.font="9px 'Share Tech Mono'";ctx.fillStyle=nCol;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('NEW VERSION',newX+rowW/2,rowY+3);
+    ctx.font="10px 'IBM Plex Mono'";ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`xmin=${newRow.xmin}`,newX+8,rowY+18);
+    ctx.fillText(`xmax=${newRow.xmax}`,newX+8,rowY+32);
+    ctx.font="24px 'VT323'";ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`${newRow.val}₽`,newX+rowW/2,rowY+rowH/2+10);
+    ctx.restore();
+    // chain arrow
+    ctx.save();ctx.strokeStyle='rgba(255,178,41,0.2)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
+    ctx.beginPath();ctx.moveTo(oldX+rowW,rowY+rowH/2);ctx.lineTo(newX,rowY+rowH/2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+  }
+
+  /* ── Visibility checks ── */
+  const checkY=rowY+rowH+8;
+  if(visCheck){
+    const vc=visCheck;
+    // Check for NEW version
+    const label=vc.label||'';
+    const checkX=label==='NEW'?(newRow?midX+6:midX-rowW-6):oldX;
+    ctx.save();
+    ctx.font="10px 'IBM Plex Mono'";ctx.textAlign='center';ctx.textBaseline='top';
+    const visCol=vc.visible?'#4ade80':'#f43f5e';
+    ctx.fillStyle=visCol;ctx.shadowColor=visCol;ctx.shadowBlur=6;
+    const icon=vc.visible?'VISIBLE ✓':'INVISIBLE ✗';
+    ctx.fillText(icon,checkX+(label==='NEW'?(newRow?rowW/2:rowW/2):rowW/2),checkY);
+    ctx.shadowBlur=0;ctx.font="8px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.4)';
+    ctx.fillText(`xmin=${vc.xmin} ${vc.minOk?'≤':'>'} txid=${vc.txid} ${vc.minOk?'✓':'✗'}`,checkX+(label==='NEW'?(newRow?rowW/2:rowW/2):rowW/2),checkY+14);
+    ctx.restore();
+  }
+  if(visCheckOld){
+    const vc=visCheckOld;
+    ctx.save();ctx.font="10px 'IBM Plex Mono'";ctx.textAlign='center';ctx.textBaseline='top';
+    const visCol=vc.visible?'#4ade80':'#f43f5e';
+    ctx.fillStyle=visCol;ctx.shadowColor=visCol;ctx.shadowBlur=6;
+    ctx.fillText(vc.visible?'VISIBLE ✓':'INVISIBLE ✗',oldX+rowW/2,checkY);
+    ctx.shadowBlur=0;ctx.font="8px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.4)';
+    ctx.fillText(`xmin=${vc.xmin}≤${vc.txid} ✓  xmax=${vc.xmax}>${vc.txid} ✓`,oldX+rowW/2,checkY+14);
+    ctx.restore();
+  }
+
+  /* ── Visibility rule at bottom ── */
+  ctx.font="10px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.22)';ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('Rule: xmin ≤ my_txid  AND  (xmax=0  OR  xmax > my_txid)',CW/2,CH-6);
+}
+
+/* ══════════════════════════════════════════════════
+   3. DIRTY READ — Danger Timeline with Red Arrow
+   ══════════════════════════════════════════════════ */
+function renderDirty(step){
+  const{dataVal,committed,t1,t2,arrow,iso,anomaly,dangerBadge,rollbackDone,showShield}=step;
+  const PAD=14,TOP=8;
+  const colW=(CW-PAD*3)/2;const midX=CW/2;
+
+  /* ── Title ── */
+  ctx.font="11px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.35)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`DIRTY READ  |  ISOLATION: ${iso||'—'}`,PAD,TOP);
+
+  /* ── Column headers ── */
+  const hdrY=TOP+20;const hdrH=22;
+  // T1 (writer, left)
+  const t1Col=rollbackDone?'#f43f5e':'#fbbf24';
+  ctx.save();ctx.fillStyle=t1Col+'12';ctx.strokeStyle=t1Col+'55';ctx.lineWidth=1;
+  roundRect(PAD,hdrY,colW,hdrH,3);ctx.fill();ctx.stroke();
+  ctx.font="13px 'VT323'";ctx.fillStyle=t1Col;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('T1 (writer)',PAD+colW/2,hdrY+hdrH/2);ctx.restore();
+  // T2 (reader, right)
+  const t2Col=t2.status==='stale'?'#f43f5e':'#22d3ee';
+  ctx.save();ctx.fillStyle=t2Col+'12';ctx.strokeStyle=t2Col+'55';ctx.lineWidth=1;
+  roundRect(midX+PAD/2,hdrY,colW,hdrH,3);ctx.fill();ctx.stroke();
+  ctx.font="13px 'VT323'";ctx.fillStyle=t2Col;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('T2 (reader)',midX+PAD/2+colW/2,hdrY+hdrH/2);ctx.restore();
+
+  /* ── Timeline events ── */
+  const evY=hdrY+hdrH+16;const evSpacing=36;let curY=evY;
+
+  // T1 action
+  if(t1.action){
+    ctx.font="13px 'VT323'";ctx.fillStyle=t1Col;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(t1.action,PAD+colW/2,curY);
+    if(!committed&&t1.status==='active'){
+      ctx.font="10px 'VT323'";ctx.fillStyle='#f43f5e';ctx.globalAlpha=pulse(0.5,1);
+      ctx.fillText('[UNCOMMITTED]',PAD+colW/2,curY+16);ctx.globalAlpha=1;
+    }
+  }
+
+  // T2 action
+  if(t2.action){
+    ctx.font="13px 'VT323'";ctx.fillStyle=t2Col;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(t2.action,midX+PAD/2+colW/2,curY);
+    if(t2.read!=null){
+      ctx.font="14px 'VT323'";ctx.fillStyle='#f43f5e';
+      ctx.fillText(`→ sees ${t2.read}₽ !!`,midX+PAD/2+colW/2,curY+16);
+    }
+  }
+
+  /* ── RED DANGER ARROW ── */
+  if(arrow){
+    ctx.save();
+    const arrY=curY+10;
+    ctx.shadowColor='#f43f5e';ctx.shadowBlur=pulse(6,18);
+    drawArrow(PAD+colW+4,arrY,midX+PAD/2-4,arrY,'#f43f5e',true);
+    // DANGER label
+    ctx.font="bold 12px 'VT323'";ctx.fillStyle='#f43f5e';ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.globalAlpha=pulse(0.6,1);
+    ctx.fillText('DANGER',midX,arrY-4);ctx.restore();
+  }
+
+  /* ── Rollback visual ── */
+  if(rollbackDone){
+    curY+=evSpacing+10;
+    ctx.font="13px 'VT323'";ctx.fillStyle='#f43f5e';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('ROLLBACK ✗',PAD+colW/2,curY);
+    ctx.fillText('bal → 5000₽',PAD+colW/2,curY+16);
+    ctx.fillStyle='#f43f5e';
+    ctx.fillText('already used 0₽',midX+PAD/2+colW/2,curY);
+    ctx.fillText('→ INCONSISTENT!',midX+PAD/2+colW/2,curY+16);
+  }
+
+  /* ── Data row at bottom ── */
+  const dataY=CH-90;const dataW=CW-PAD*2;
+  ctx.save();
+  const dCol=(!committed&&!rollbackDone)?'#f43f5e':committed?'#4ade80':'#fbbf24';
+  if(!committed){ctx.shadowColor='#f43f5e';ctx.shadowBlur=pulse(4,14);}
+  ctx.fillStyle=dCol+'12';ctx.strokeStyle=dCol+'55';ctx.lineWidth=(!committed)?2:1;
+  roundRect(PAD,dataY,dataW,36,4);ctx.fill();ctx.stroke();
+  ctx.font="12px 'IBM Plex Mono'";ctx.fillStyle=dCol;ctx.textAlign='left';ctx.textBaseline='middle';
+  const statusLabel=(!committed&&!rollbackDone)?'[UNCOMMITTED]':committed?'[committed]':'';
+  ctx.fillText(`  Alice  bal=${dataVal}₽  ${statusLabel}`,PAD+6,dataY+18);
+  ctx.restore();
+
+  /* ── Danger badge ── */
+  if(dangerBadge&&!showShield){
+    ctx.save();ctx.font="22px 'VT323'";
+    ctx.fillStyle='#f43f5e';ctx.shadowColor='#f43f5e';ctx.shadowBlur=pulse(8,22);
+    ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText('⚠ DIRTY READ OCCURRED ⚠',CW/2,CH-4);ctx.restore();
+  }
+
+  /* ── Shield (prevention) ── */
+  if(showShield){
+    ctx.save();ctx.font="18px 'VT323'";ctx.fillStyle='#4ade80';ctx.shadowColor='#4ade80';ctx.shadowBlur=12;
+    ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText('🛡 READ COMMITTED blocks this',CW/2,CH-4);ctx.restore();
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   4. PHANTOM READ — Before/After Table Comparison
+   ══════════════════════════════════════════════════ */
+function renderPhantom(step){
+  const{query1Rows,query2Rows,showComparison,insertEvent,iso,anomaly,showShield}=step;
+  const PAD=14,TOP=8;
+
+  ctx.font="11px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.35)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`PHANTOM READ  |  WHERE amt>10000  |  ISOLATION: ${iso}`,PAD,TOP);
+
+  if(!query1Rows&&!query2Rows){
+    ctx.font="14px 'VT323'";ctx.fillStyle='rgba(255,178,41,0.2)';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('Waiting for T1 first query...',CW/2,CH/2);
+    return;
+  }
+
+  const tableW=showComparison?Math.min(220,(CW-PAD*3)/2):Math.min(300,CW-PAD*2);
+  const rowH=26;const hdrH=30;
+  const tblY=TOP+24;
+
+  /* ── QUERY 1 table (left or center) ── */
+  if(query1Rows){
+    const tblX=showComparison?PAD:PAD;
+    // Header
+    ctx.save();ctx.fillStyle='rgba(96,165,250,0.1)';ctx.strokeStyle='#60a5fa55';ctx.lineWidth=1;
+    roundRect(tblX,tblY,tableW,hdrH,3);ctx.fill();ctx.stroke();
+    ctx.font="12px 'VT323'";ctx.fillStyle='#60a5fa';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('QUERY 1 (T1 first read)',tblX+tableW/2,tblY+hdrH/2);ctx.restore();
+    // Rows
+    query1Rows.forEach((r,i)=>{
+      const ry=tblY+hdrH+i*rowH;
+      ctx.save();ctx.fillStyle='rgba(96,165,250,0.04)';ctx.strokeStyle='#60a5fa22';ctx.lineWidth=1;
+      ctx.fillRect(tblX,ry,tableW,rowH);ctx.strokeRect(tblX,ry,tableW,rowH);
+      ctx.font="11px 'IBM Plex Mono'";ctx.fillStyle='#93c5fd';ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(`  id=${r.id}   ${r.amt}₽`,tblX+6,ry+rowH/2);ctx.restore();
+    });
+    // COUNT
+    const countY=tblY+hdrH+query1Rows.length*rowH+8;
+    ctx.font="16px 'VT323'";ctx.fillStyle='#60a5fa';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(`COUNT = ${query1Rows.length}`,tblX+tableW/2,countY);
+  }
+
+  /* ── QUERY 2 table (right, only when comparison) ── */
+  if(showComparison&&query2Rows){
+    const tblX2=CW/2+PAD/2;
+    // Header
+    ctx.save();
+    const q2HasPhantom=query2Rows.some(r=>r.phantom);
+    const q2Col=q2HasPhantom?'#f97316':'#4ade80';
+    ctx.fillStyle=q2Col+'18';ctx.strokeStyle=q2Col+'55';ctx.lineWidth=1;
+    roundRect(tblX2,tblY,tableW,hdrH,3);ctx.fill();ctx.stroke();
+    ctx.font="12px 'VT323'";ctx.fillStyle=q2Col;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('QUERY 2 (T1 re-read)',tblX2+tableW/2,tblY+hdrH/2);ctx.restore();
+    // Rows
+    query2Rows.forEach((r,i)=>{
+      const ry=tblY+hdrH+i*rowH;
+      const isPhantom=r.phantom;
+      ctx.save();
+      if(isPhantom){ctx.shadowColor='#f97316';ctx.shadowBlur=pulse(4,12);}
+      ctx.fillStyle=isPhantom?'rgba(249,115,22,0.12)':'rgba(96,165,250,0.04)';
+      ctx.strokeStyle=isPhantom?'#f97316'+Math.round(pulse(68,170)).toString(16):'#60a5fa22';ctx.lineWidth=isPhantom?2:1;
+      ctx.fillRect(tblX2,ry,tableW,rowH);ctx.strokeRect(tblX2,ry,tableW,rowH);
+      ctx.font="11px 'IBM Plex Mono'";ctx.fillStyle=isPhantom?'#f97316':'#93c5fd';ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(`  id=${r.id}   ${r.amt}₽${isPhantom?' ◀ PHANTOM':''}`,tblX2+6,ry+rowH/2);
+      ctx.restore();
+    });
+    // COUNT
+    const countY2=tblY+hdrH+query2Rows.length*rowH+8;
+    const countDiff=query2Rows.length!==query1Rows.length;
+    ctx.font="16px 'VT323'";ctx.fillStyle=countDiff?'#f97316':'#4ade80';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(`COUNT = ${query2Rows.length}${countDiff?' ← PHANTOM!':''}`,tblX2+tableW/2,countY2);
+
+    // Arrow between counts
+    if(countDiff&&query1Rows){
+      const arrowY=tblY+hdrH+Math.max(query1Rows.length,query2Rows.length)*rowH+16;
+      drawArrow(PAD+tableW+10,arrowY,tblX2-10,arrowY,'#f97316',true);
+    }
+  }
+
+  /* ── INSERT event label ── */
+  if(insertEvent){
+    const eventY=tblY+hdrH+(query1Rows?query1Rows.length:3)*rowH+36;
+    ctx.save();ctx.fillStyle='rgba(249,115,22,0.08)';ctx.strokeStyle='#f9731644';ctx.lineWidth=1;
+    const evW=CW-PAD*2;
+    roundRect(PAD,eventY,evW,28,3);ctx.fill();ctx.stroke();
+    ctx.font="11px 'IBM Plex Mono'";ctx.fillStyle='#f97316';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`T2 INSERT (id=${insertEvent.id}, ${insertEvent.amt}₽) — committed between T1's reads`,PAD+evW/2,eventY+14);
+    ctx.restore();
+  }
+
+  /* ── Bottom badge ── */
+  if(anomaly&&anomaly!=='—'){
+    ctx.save();
+    const isGood=anomaly==='PREVENTED';
+    ctx.font="18px 'VT323'";ctx.fillStyle=isGood?'#4ade80':'#f97316';
+    ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=12;ctx.textAlign='center';ctx.textBaseline='bottom';
+    if(isGood)ctx.fillText('🛡 REPEATABLE READ / SERIALIZABLE prevents this',CW/2,CH-4);
+    else ctx.fillText('Фантом: новая строка появилась из ниоткуда',CW/2,CH-4);
+    ctx.restore();
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   5. ISOLATION LEVELS — Enhanced Matrix
+   ══════════════════════════════════════════════════ */
+function renderIsolation(step){
+  const{matrix,activeLevel,shieldLevel}=step;
+  if(!matrix)return;
+  const PAD=14,TOP=22;
+
+  ctx.font="11px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.35)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText('ISOLATION LEVELS  |  ANOMALY MATRIX',PAD,4);
+
+  const colCount=6;
+  const COL_W=[(CW-PAD*2)*0.30,(CW-PAD*2)*0.13,(CW-PAD*2)*0.14,(CW-PAD*2)*0.13,(CW-PAD*2)*0.16,(CW-PAD*2)*0.14];
+  const headers=['ISOLATION LEVEL','DIRTY READ','NON-REPEAT','PHANTOM','USE CASE','NOTE'];
+  const ROW_H=42,HDR_H=24;
+
+  /* ── Header row ── */
+  let cx2=PAD;
+  headers.forEach((h,ci)=>{
+    ctx.fillStyle='rgba(255,178,41,0.15)';ctx.fillRect(cx2,TOP,COL_W[ci],HDR_H);
+    ctx.strokeStyle='rgba(255,178,41,0.12)';ctx.lineWidth=1;ctx.strokeRect(cx2,TOP,COL_W[ci],HDR_H);
+    ctx.font="9px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.55)';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(h,cx2+COL_W[ci]/2,TOP+HDR_H/2);cx2+=COL_W[ci];
+  });
+
+  /* ── Data rows ── */
+  matrix.forEach((row,ri)=>{
+    const ry=TOP+HDR_H+ri*ROW_H;const isAct=ri===activeLevel;
+    ctx.save();
+    if(isAct){ctx.shadowColor=row.col;ctx.shadowBlur=14;}
+    // left border highlight
+    if(isAct){
+      ctx.fillStyle=row.col;ctx.fillRect(PAD-3,ry,3,ROW_H);
+    }
+    let cx3=PAD;
+    const vals=[row.level,row.dirty,row.nonrep,row.phantom,row.useCase||'',row.note||''];
+    vals.forEach((val,ci)=>{
+      const isYes=val==='YES';const isNo=val==='NO';const isNoStar=val==='NO*';
+      const vCol=isYes?'#f43f5e':isNo?'#4ade80':isNoStar?'#fbbf24':row.col;
+      ctx.fillStyle=isAct?row.col+'18':'rgba(255,178,41,0.03)';
+      ctx.strokeStyle=isAct?row.col+'55':'rgba(255,178,41,0.1)';ctx.lineWidth=isAct?1.5:1;
+      ctx.fillRect(cx3,ry,COL_W[ci],ROW_H);ctx.strokeRect(cx3,ry,COL_W[ci],ROW_H);
+
+      if(ci===0){
+        ctx.font="14px 'VT323'";ctx.fillStyle=row.col;ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(val,cx3+COL_W[ci]/2,ry+ROW_H/2);
+      } else if(ci>=4){
+        // USE CASE or NOTE: wrap text
+        ctx.font="9px 'Share Tech Mono'";ctx.fillStyle='rgba(255,178,41,0.5)';ctx.textAlign='center';ctx.textBaseline='middle';
+        const words=val.split(' ');let line='';let lineY=ry+12;
+        words.forEach(w=>{if((line+w).length>16){ctx.fillText(line.trim(),cx3+COL_W[ci]/2,lineY);line=w+' ';lineY+=13;}else{line+=w+' ';}});
+        if(line.trim())ctx.fillText(line.trim(),cx3+COL_W[ci]/2,lineY);
+      } else {
+        // YES/NO with icon
+        ctx.font="15px 'VT323'";ctx.fillStyle=vCol;ctx.textAlign='center';ctx.textBaseline='middle';
+        const icon=isYes?' ✗':isNo?' ✓':isNoStar?' ✓':'';
+        ctx.fillText(val+icon,cx3+COL_W[ci]/2,ry+ROW_H/2);
+      }
+      cx3+=COL_W[ci];
+    });
+    ctx.restore();
+  });
+
+  /* ── Shield strength bar ── */
+  const barY=TOP+HDR_H+matrix.length*ROW_H+16;
+  const barW=CW-PAD*2;const barH=18;
+  const level=shieldLevel||0;
+  ctx.fillStyle='rgba(255,178,41,0.05)';roundRect(PAD,barY,barW,barH,3);ctx.fill();
+  ctx.strokeStyle='rgba(255,178,41,0.15)';ctx.lineWidth=1;roundRect(PAD,barY,barW,barH,3);ctx.stroke();
+
+  if(level>0){
+    const fillW=(level/4)*barW;
+    const gradColors=['#f43f5e','#f97316','#fbbf24','#4ade80'];
+    const col=gradColors[Math.min(level-1,3)];
+    ctx.save();ctx.shadowColor=col;ctx.shadowBlur=6;
+    ctx.fillStyle=col+'44';roundRect(PAD,barY,fillW,barH,3);ctx.fill();
+    ctx.fillStyle=col+'22';roundRect(PAD,barY,fillW,barH,3);ctx.fill();ctx.restore();
+  }
+
+  ctx.font="10px 'VT323'";ctx.fillStyle='rgba(255,178,41,0.45)';ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText('PROTECTION:',PAD+4,barY+barH/2);
+  const labels=['NONE','LOW','MEDIUM','HIGH','FULL'];
+  ctx.textAlign='right';ctx.fillStyle=level>=4?'#4ade80':level>=2?'#fbbf24':'#f43f5e';
+  ctx.fillText(labels[level]||'NONE',PAD+barW-4,barY+barH/2);
+}
+
+/* ── PLAYBACK ── */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:520};
+let curScene='wal';
+
+function resizeCanvas(){const wrap=document.getElementById('viz-wrap');CW=canvas.width=wrap.clientWidth;CH=canvas.height=wrap.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+/* animation tick for pulsing effects */
+(function tick(){animT=Date.now()*0.003;if(ST.steps.length&&!document.getElementById('boot').offsetParent)renderFrame(ST.steps[ST.idx]);requestAnimationFrame(tick);})();
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  const phase=step.phase||'init';
+  badge.className='pbadge '+phase;
+  const phaseLabel={init:'INIT',begin:'BEGIN',write:'WRITE',read:'READ',commit:'COMMIT',rollback:'ROLLBACK',wal:'WAL',mvcc:'MVCC',dirty:'DIRTY',phantom:'PHANTOM',lock:'LOCK'};
+  badge.textContent=(phaseLabel[phase]||phase).toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-tx').textContent=step.tx||'—';
+  document.getElementById('s-lsn').textContent=step.lsn||0;
+  document.getElementById('s-iso').textContent=step.iso||step.isolation||'—';
+  document.getElementById('s-ver').textContent=step.versions||(Array.isArray(step.versions)?step.versions.length:0)||0;
+  document.getElementById('s-ano').textContent=step.anomaly||'—';
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SCENARIOS[curScene].code,step.cl>=0?step.cl:-1);
+  if(phase&&phase!=='init')snd(phase);
+  if(phase==='dirty'||phase==='rollback')triggerCA();
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){if(!ST.steps.length)return;if(ST.idx>=ST.steps.length-1)ST.idx=0;ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENARIOS[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  if(ST.playing)pause();
+  ST.steps=buildScenarioSteps(key);ST.idx=0;
+  if(ST.steps.length){applyStep(ST.steps[0]);setTimeout(()=>play(),300);}
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectScene('wal');break;case'2':selectScene('mvcc');break;case'3':selectScene('dirty');break;case'4':selectScene('phantom');break;case'5':selectScene('isolation');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['wal','1. WAL'],['mvcc','2. MVCC'],['dirty','3. DIRTY READ'],['phantom','4. PHANTOM'],['isolation','5. ISOLATION']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+
+function boot(){
+  initAudio();
+  const term=document.getElementById('boot-terminal');const fill=document.getElementById('boot-fill');
+  const lines=[
+    {t:'TXLOG.SIM v1.0 — INITIALIZING...',s:'',d:180},
+    {t:'LOADING: WAL_ENGINE.MOD (LSN, checkpoint)',s:'OK',d:130},
+    {t:'LOADING: MVCC.MOD (version chains xmin/xmax)',s:'OK',d:130},
+    {t:'LOADING: ISOLATION_LEVELS.MOD (ANSI SQL)',s:'OK',d:130},
+    {t:'LOADING: ANOMALY_DETECTOR.MOD (dirty/phantom)',s:'OK',d:140},
+    {t:'MOUNTING CANVAS...',s:'DONE',d:150},
+    {t:'ACID PROPERTIES INITIALIZED.',s:'',d:220},
+  ];
+  let li=0;
+  function al(){if(li>=lines.length){setTimeout(sa,300);return;}const bl=lines[li];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));fill.style.width=Math.round((li/lines.length)*100)+'%';li++;setTimeout(al,bl.d);}al();
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();window.addEventListener('resize',resizeCanvas);resizeCanvas();selectScene('wal');}
+boot();
+</script>
+</body>
+</html>

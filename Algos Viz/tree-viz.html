@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>TREE.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04050a;--a:#ffb229;--ad:#a06800;
+  --g:#4ade80;--r:#f43f5e;--p:#a855f7;
+  --b:#60a5fa;--c:#22d3ee;--o:#f97316;--dim:rgba(255,178,41,.15);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--a);font-family:'Share Tech Mono',monospace;}
+@keyframes flicker{0%,93%{filter:brightness(1);}94%{filter:brightness(.6);}95%{filter:brightness(1);}}
+@keyframes scan{from{top:0}to{top:100vh}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+#crt{width:100vw;height:100vh;display:flex;flex-direction:column;animation:flicker .22s steps(1) infinite;}
+#scanline{position:fixed;top:0;left:0;right:0;height:2px;background:rgba(255,178,41,.04);pointer-events:none;z-index:999;animation:scan 8s linear infinite;}
+#vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 57%,rgba(0,0,0,.74) 100%);pointer-events:none;z-index:998;}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:997;opacity:.027;}
+#ca{position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:0;transition:opacity .04s;}
+#ca.on{opacity:1;box-shadow:inset -7px 0 0 rgba(255,0,0,.38),inset 7px 0 0 rgba(0,60,255,.33);}
+
+/* BOOT */
+#boot{position:fixed;inset:0;background:var(--bg);z-index:900;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#bl{font-family:'VT323';font-size:104px;color:var(--a);text-shadow:0 0 50px var(--a),0 0 100px rgba(255,178,41,.26);letter-spacing:10px;}
+#bs{font-size:11px;letter-spacing:7px;color:var(--ad);margin-bottom:44px;}
+#blog{width:640px;max-width:92vw;font-size:12px;line-height:2.1;}
+.bline{opacity:0;display:flex;justify-content:space-between;gap:16px;}.bline.v{opacity:1;}.bok{color:var(--g);}
+#bprog{width:640px;max-width:92vw;height:2px;background:rgba(255,178,41,.1);margin-top:22px;}
+#bfill{height:100%;width:0;background:var(--a);box-shadow:0 0 8px var(--a);transition:width .1s;}
+@keyframes blink{50%{opacity:0}}.bcur{display:inline-block;width:8px;height:13px;background:var(--a);animation:blink .7s step-end infinite;vertical-align:middle;}
+
+/* MAIN */
+#main{display:none;flex:1;flex-direction:column;height:100vh;}
+#main.show{display:flex;animation:fadein .4s ease;}
+
+/* HEADER */
+#hdr{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid rgba(255,178,41,.2);background:rgba(0,0,0,.7);flex-shrink:0;}
+#logo{font-family:'VT323';font-size:30px;color:var(--a);text-shadow:0 0 16px var(--a);letter-spacing:4px;}
+#tabs{display:flex;gap:3px;flex:1;overflow-x:auto;}
+#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 10px;border:1px solid rgba(255,178,41,.2);color:var(--ad);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .1s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--a);color:var(--a);background:rgba(255,178,41,.08);}
+#snd{font-size:14px;background:transparent;border:1px solid rgba(255,178,41,.18);color:var(--a);padding:2px 7px;cursor:pointer;}
+
+/* PANELS */
+#panels{display:flex;flex:1;overflow:hidden;}
+
+/* LEFT 36% */
+#left{width:36%;min-width:300px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz{flex:1;overflow:hidden;position:relative;}
+#vc{display:block;width:100%;height:100%;}
+#pbar-wrap{height:2px;background:rgba(255,178,41,.06);flex-shrink:0;}
+#pbar{height:100%;width:0;background:var(--a);transition:width .18s;}
+#stats{display:flex;gap:10px;padding:4px 10px;border-top:1px solid rgba(255,178,41,.08);background:rgba(0,0,0,.3);flex-shrink:0;flex-wrap:wrap;}
+.si{display:flex;gap:4px;align-items:baseline;}
+.sl{font-size:7px;color:var(--ad);letter-spacing:1.5px;}
+.sv{font-family:'VT323';font-size:18px;color:var(--a);}
+#ctrl{display:flex;align-items:center;gap:5px;padding:4px 10px;border-top:1px solid rgba(255,178,41,.1);background:rgba(0,0,0,.35);flex-shrink:0;flex-wrap:wrap;}
+.cb{font-family:'VT323';font-size:13px;padding:2px 9px;border:1px solid rgba(255,178,41,.28);background:transparent;color:var(--a);cursor:pointer;transition:.1s;white-space:nowrap;}
+.cb:hover{background:rgba(255,178,41,.07);}
+#pb.pl{color:var(--r);border-color:var(--r);}
+.csep{width:1px;height:14px;background:rgba(255,178,41,.1);}
+input[type=range]{-webkit-appearance:none;width:52px;height:2px;background:rgba(255,178,41,.2);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--a);cursor:pointer;}
+#sc{font-family:'VT323';font-size:13px;color:var(--ad);}
+#kb{display:flex;gap:8px;padding:2px 10px;background:rgba(0,0,0,.4);border-top:1px solid rgba(255,178,41,.05);flex-shrink:0;flex-wrap:wrap;}
+.kh{font-size:7px;color:rgba(255,178,41,.22);}.kk{border:1px solid rgba(255,178,41,.12);padding:0 3px;font-size:7px;}
+
+/* RIGHT 64% */
+#right{flex:1;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.12);}
+
+/* CODE SECTION */
+#code-section{flex:0 0 52%;display:flex;flex-direction:column;border-bottom:2px solid rgba(255,178,41,.18);overflow:hidden;}
+#code-hdr{height:28px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(0,0,0,.55);border-bottom:1px solid rgba(255,178,41,.12);flex-shrink:0;}
+#code-hdr-title{font-size:9px;letter-spacing:3px;color:var(--ad);}
+#code-hdr-file{font-size:9px;color:rgba(255,178,41,.25);margin-left:auto;font-family:'IBM Plex Mono';}
+#code-area{flex:1;overflow-y:auto;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.9;padding:4px 0;}
+#code-area::-webkit-scrollbar{width:4px;}
+#code-area::-webkit-scrollbar-thumb{background:rgba(255,178,41,.18);}
+.cl{display:flex;padding:1px 6px 1px 0;white-space:pre;border-left:3px solid transparent;}
+.cl.act{background:rgba(255,178,41,.09);border-left-color:var(--a);}
+.cl:hover{background:rgba(255,178,41,.035);}
+.ln{color:rgba(255,178,41,.2);width:28px;text-align:right;margin-right:12px;user-select:none;flex-shrink:0;font-size:11px;}
+.cl.act .ln{color:rgba(255,178,41,.55);}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4a5e6a;font-style:italic;}.op{color:#56b6c2;}.tp{color:#e5c07b;}
+
+/* BOTTOM SECTION */
+#bottom-section{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* EXPLAIN BAR */
+#explain-bar{flex:0 0 auto;border-bottom:1px solid rgba(255,178,41,.14);background:rgba(0,0,0,.38);overflow:hidden;}
+#explain-inner{padding:12px 18px 14px;}
+.expl-row1{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.badge{font-family:'VT323';font-size:14px;padding:2px 10px;border:1px solid;letter-spacing:3px;flex-shrink:0;}
+.badge.init{color:var(--ad);border-color:var(--ad);}
+.badge.insert{color:var(--g);border-color:var(--g);background:rgba(74,222,128,.07);}
+.badge.search{color:var(--c);border-color:var(--c);background:rgba(34,211,238,.07);}
+.badge.delete{color:var(--r);border-color:var(--r);background:rgba(244,63,94,.08);}
+.badge.rotate{color:var(--p);border-color:var(--p);background:rgba(168,85,247,.07);}
+.badge.recolor{color:var(--o);border-color:var(--o);background:rgba(249,115,22,.07);}
+.badge.heapify{color:var(--b);border-color:var(--b);background:rgba(96,165,250,.07);}
+.badge.split{color:var(--o);border-color:var(--o);background:rgba(249,115,22,.08);}
+.badge.done{color:var(--g);border-color:var(--g);}
+.badge.traverse{color:var(--p);border-color:var(--p);background:rgba(168,85,247,.07);}
+#expl-step{font-size:9px;color:var(--ad);}
+#expl-title{font-family:'VT323';font-size:22px;color:var(--a);letter-spacing:2px;}
+#expl-body{font-size:13px;line-height:1.75;color:rgba(255,178,41,.82);}
+#expl-insight{margin-top:9px;padding:7px 12px;border:1px solid rgba(255,178,41,.2);background:rgba(255,178,41,.03);font-size:11.5px;color:rgba(255,178,41,.6);line-height:1.6;border-left:3px solid var(--a);}
+#expl-insight strong{color:var(--a);}
+#expl-insight code{font-family:'IBM Plex Mono';font-size:11px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+
+/* TABS */
+#bot-tabs-bar{display:flex;border-bottom:1px solid rgba(255,178,41,.12);background:rgba(0,0,0,.5);flex-shrink:0;}
+.btab{flex:1;font-size:9px;padding:5px 4px;text-align:center;letter-spacing:1.5px;color:var(--ad);cursor:pointer;border-right:1px solid rgba(255,178,41,.07);transition:.1s;}
+.btab:last-child{border-right:none;}
+.btab:hover,.btab.active{color:var(--a);background:rgba(255,178,41,.06);}
+.btab.active{border-bottom:2px solid var(--a);}
+#bot-panels{flex:1;overflow:hidden;position:relative;}
+.bpanel{position:absolute;inset:0;display:none;overflow-y:auto;flex-direction:column;}
+.bpanel.active{display:flex;}
+.bpanel::-webkit-scrollbar{width:4px;}
+.bpanel::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+
+/* USAGE EXAMPLES */
+.uex{border-bottom:1px solid rgba(255,178,41,.08);}
+.uex-hdr{padding:8px 16px 3px;background:rgba(74,222,128,.03);border-left:3px solid var(--g);}
+.uex-num{font-size:9px;color:rgba(74,222,128,.4);letter-spacing:1px;}
+.uex-title{font-size:12.5px;color:var(--g);letter-spacing:.5px;margin-top:1px;}
+.uex-sub{font-size:10px;color:rgba(74,222,128,.45);margin-top:1px;}
+.uex-code{font-family:'IBM Plex Mono';font-size:11.5px;line-height:1.72;padding:9px 16px 10px;color:rgba(255,178,41,.78);white-space:pre;}
+.uex-note{font-size:10.5px;color:rgba(255,178,41,.35);padding:0 16px 9px;font-style:italic;}
+
+/* CONCEPTS */
+.icon-row{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,178,41,.07);}
+.icon-row strong{color:#ffcc55;display:block;font-size:11px;margin-bottom:2px;}
+.icon-row p{font-size:11.5px;line-height:1.7;color:rgba(255,178,41,.72);}
+.icon-row code{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+.info-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+
+/* TRAPS */
+.trap{margin:8px 12px;padding:10px 12px;border:1px solid;font-size:12px;line-height:1.7;display:flex;gap:10px;}
+.trap.warn{border-color:rgba(244,63,94,.35);background:rgba(244,63,94,.04);}
+.trap.ok{border-color:rgba(74,222,128,.28);background:rgba(74,222,128,.03);}
+.trap.info{border-color:rgba(255,178,41,.18);background:rgba(255,178,41,.02);}
+.trap.note{border-color:rgba(96,165,250,.28);background:rgba(96,165,250,.03);}
+.trap-icon{font-size:16px;flex-shrink:0;}
+.trap-body strong{color:#ffcc55;display:block;margin-bottom:2px;font-size:11px;letter-spacing:.5px;}
+.trap-body{font-size:11.5px;color:rgba(255,178,41,.75);}
+.trap-body code{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--c);background:rgba(34,211,238,.07);padding:1px 4px;}
+.uex-code .kw{color:#c678dd;}.uex-code .str{color:#98c379;}.uex-code .nm{color:#d19a66;}
+.uex-code .fn{color:#61afef;}.uex-code .cm{color:#4a5e6a;font-style:italic;}
+.uex-code .r{color:var(--r);}.uex-code .g{color:var(--g);}.uex-code .o{color:var(--o);}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scanline"></div>
+<div id="vignette"></div>
+<div id="ca"></div>
+
+<div id="boot">
+  <div id="bl">TREE.VIZ</div>
+  <div id="bs">СТРУКТУРЫ ДАННЫХ — ДЕРЕВЬЯ ИЗНУТРИ</div>
+  <div id="blog"></div>
+  <div id="bprog"><div id="bfill"></div></div>
+</div>
+
+<div id="crt"><div id="main">
+  <div id="hdr">
+    <div id="logo">TREE.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz"><canvas id="vc"></canvas></div>
+      <div id="pbar-wrap"><div id="pbar"></div></div>
+      <div id="stats">
+        <div class="si"><span class="sl">УЗЛЫ</span><span class="sv" id="s-nodes">—</span></div>
+        <div class="si"><span class="sl">ВЫСОТА</span><span class="sv" id="s-height" style="color:var(--b)">—</span></div>
+        <div class="si"><span class="sl">ОП-Я</span><span class="sv" id="s-op" style="color:var(--o)">—</span></div>
+        <div class="si"><span class="sl">СЛОЖН</span><span class="sv" id="s-cplx" style="color:var(--c)">—</span></div>
+      </div>
+      <div id="ctrl">
+        <button class="cb" onclick="prev()">◀ ПРЕД</button>
+        <button class="cb" id="pb" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cb" onclick="next()">СЛЕД ▶</button>
+        <div class="csep"></div>
+        <button class="cb" onclick="doReset()">↺</button>
+        <div class="csep"></div>
+        <span style="font-size:7.5px;color:var(--ad)">SPD</span>
+        <input type="range" id="spd" min="1" max="10" value="4" oninput="setSpd(this.value)">
+        <span id="sc">1/1</span>
+      </div>
+      <div id="kb">
+        <span class="kh"><span class="kk">←→</span>шаг</span>
+        <span class="kh"><span class="kk">SPC</span>play</span>
+        <span class="kh"><span class="kk">R</span>reset</span>
+        <span class="kh"><span class="kk">M</span>mute</span>
+        <span class="kh"><span class="kk">1–6</span>сцена</span>
+      </div>
+    </div>
+
+    <div id="right">
+      <div id="code-section">
+        <div id="code-hdr">
+          <span id="code-hdr-title">▸ ИСХОДНИК</span>
+          <span id="code-hdr-file">tree/bst.go</span>
+        </div>
+        <div id="code-area"></div>
+      </div>
+      <div id="bottom-section">
+        <div id="explain-bar">
+          <div id="explain-inner">
+            <div class="expl-row1">
+              <span class="badge init" id="badge">INIT</span>
+              <span id="expl-title">ВЫБЕРИ СЦЕНУ</span>
+              <span id="expl-step" style="margin-left:auto">—</span>
+            </div>
+            <div id="expl-body">Нажми 1–6 чтобы выбрать сцену. ← → для шагов.</div>
+            <div id="expl-insight" style="display:none"></div>
+          </div>
+        </div>
+        <div id="bot-tabs-bar">
+          <div class="btab active" onclick="showBTab('usage')" id="bt-usage">▸ ПРИМЕРЫ</div>
+          <div class="btab" onclick="showBTab('concepts')" id="bt-concepts">▸ КОНЦЕПЦИИ</div>
+          <div class="btab" onclick="showBTab('traps')" id="bt-traps">▸ ЛОВУШКИ</div>
+        </div>
+        <div id="bot-panels">
+          <div class="bpanel active" id="bp-usage"></div>
+          <div class="bpanel" id="bp-concepts"></div>
+          <div class="bpanel" id="bp-traps"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+/* ── NOISE ── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');
+function r(){c.width=innerWidth;c.height=innerHeight;}r();window.addEventListener('resize',r);
+function d(){const id=x.createImageData(c.width,c.height),da=id.data;
+for(let i=0;i<da.length;i+=4){const v=Math.random()>.97?200:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?80:0;}
+x.putImageData(id,0,0);requestAnimationFrame(d);}d();})();
+function sGlitch(){setTimeout(()=>{const e=document.getElementById('crt');e.style.filter='brightness(.1)';setTimeout(()=>{e.style.filter='';sGlitch();},12+Math.random()*14);},7000+Math.random()*12000);}sGlitch();
+function flashCA(d=240){const e=document.getElementById('ca');e.classList.add('on');setTimeout(()=>e.classList.remove('on'),d);}
+
+/* ── AUDIO ── */
+let AC=null,muted=false;
+function snd(t){if(muted||!AC)return;try{
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.connect(g);g.connect(AC.destination);
+  const f={insert:540,search:490,delete:280,rotate:370,recolor:420,heapify:460,split:310,traverse:580,done:620,init:340};
+  o.frequency.setValueAtTime(f[t]||400,AC.currentTime);
+  o.type=t==='delete'||t==='split'?'sawtooth':'triangle';
+  g.gain.setValueAtTime(.048,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.16);
+  o.start();o.stop(AC.currentTime+.18);
+}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd').textContent=muted?'🔇':'🔊';if(!muted)snd('insert');}
+
+/* ── BOTTOM TABS ── */
+function showBTab(id){
+  document.querySelectorAll('.bpanel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.btab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('bp-'+id).classList.add('active');
+  document.getElementById('bt-'+id).classList.add('active');
+}
+
+/* ── SYNTAX HIGHLIGHT ── */
+function hlLine(line){
+  const ci=line.indexOf('//');
+  const raw=ci>=0?line.slice(0,ci):line;
+  const cmt=ci>=0?line.slice(ci):'';
+  function p(s){
+    s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/`([^`]*)`/g,'<span class="str">`$1`</span>');
+    s=s.replace(/\b(func|go|var|type|struct|const|return|if|else|for|range|defer|make|nil|true|false|interface|chan|select|case|default|import|package|break|continue|switch|goto|fallthrough)\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d[\d_]*)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&&|\|\||<<|>>)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return p(raw)+(cmt?`<span class="cm">${cmt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`:'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-area');
+  el.innerHTML=lines.map((l,i)=>`<div class="cl${i===active?' act':''}"><span class="ln">${i+1}</span><span>${hlLine(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cl')[active];if(a)setTimeout(()=>a.scrollIntoView({block:'nearest'}),50);}
+}
+function hlUsage(code){
+  return code.split('\n').map(line=>{
+    const ci=line.indexOf('//');
+    const raw=ci>=0?line.slice(0,ci):line;
+    const cmt=ci>=0?line.slice(ci):'';
+    function p(s){
+      s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+      s=s.replace(/`([^`]*)`/g,'<span class="str">`$1`</span>');
+      s=s.replace(/\b(func|go|var|type|struct|const|return|if|else|for|range|defer|make|nil|true|false|interface|chan|select|case|default|import|package)\b/g,'<span class="kw">$1</span>');
+      s=s.replace(/\b([A-Z][a-zA-Z0-9_]*)\b/g,'<span class="fn">$1</span>');
+      s=s.replace(/\b(\d[\d_]*)\b/g,'<span class="nm">$1</span>');
+      return s;
+    }
+    return p(raw)+(cmt?`<span class="cm">${cmt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`:'');
+  }).join('\n');
+}
+
+/* ── CANVAS ── */
+const cv=document.getElementById('vc'),cx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){const el=document.getElementById('viz');W=cv.width=el.clientWidth;H=cv.height=el.clientHeight;if(PLAY.steps.length)draw(PLAY.steps[PLAY.idx]);}
+window.addEventListener('resize',resize);
+const C={A:'#ffb229',G:'#4ade80',R:'#f43f5e',B:'#60a5fa',N:'#22d3ee',O:'#f97316',P:'#a855f7',D:'rgba(255,178,41,.14)'};
+
+/* ── CANVAS PRIMITIVES ── */
+function box(x,y,w,h,stroke,fill,glow,lw){
+  cx.save();if(glow){cx.shadowColor=stroke;cx.shadowBlur=16;}
+  cx.lineWidth=lw||1.5;cx.strokeStyle=stroke;cx.fillStyle=fill||stroke+'14';
+  cx.fillRect(x,y,w,h);cx.strokeRect(x,y,w,h);cx.restore();
+}
+function txt(s,x,y,font,col,align,base){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.textAlign=align||'center';cx.textBaseline=base||'middle';cx.fillText(s,x,y);cx.restore();
+}
+function glowtxt(s,x,y,font,col){
+  cx.save();cx.font=font;cx.fillStyle=col;cx.shadowColor=col;cx.shadowBlur=18;cx.textAlign='center';cx.textBaseline='middle';cx.fillText(s,x,y);cx.restore();
+}
+function ann(s,x,y,col){cx.save();cx.font="9px 'Share Tech Mono'";cx.fillStyle=col||'rgba(255,178,41,.45)';cx.textAlign='center';cx.textBaseline='top';cx.fillText(s,x,y);cx.restore();}
+function scHdr(s){cx.save();cx.font="9px 'Share Tech Mono'";cx.fillStyle='rgba(255,178,41,.13)';cx.textAlign='center';cx.textBaseline='top';cx.fillText(s,W/2,4);cx.restore();}
+
+/* ══════════════════════════════════════════════
+   TREE RENDERING ENGINE
+══════════════════════════════════════════════ */
+const NR=18; // node radius
+const LH=68; // level height
+
+// Layout binary tree (recursive midpoint split)
+function layoutBT(node,xMin,xMax,y){
+  if(!node)return;
+  node.px=(xMin+xMax)/2;
+  node.py=y;
+  const mid=(xMin+xMax)/2;
+  if(node.l)layoutBT(node.l,xMin,mid,y+LH);
+  if(node.r)layoutBT(node.r,mid,xMax,y+LH);
+}
+
+// Draw edges of binary tree
+function drawBTEdges(node){
+  if(!node)return;
+  const ec='rgba(255,178,41,0.2)';
+  if(node.l){
+    cx.save();cx.strokeStyle=node.l.path?C.G+'66':ec;cx.lineWidth=1.5;
+    cx.beginPath();cx.moveTo(node.px,node.py+NR);cx.lineTo(node.l.px,node.l.py-NR);cx.stroke();cx.restore();
+    drawBTEdges(node.l);
+  }
+  if(node.r){
+    cx.save();cx.strokeStyle=node.r.path?C.G+'66':ec;cx.lineWidth=1.5;
+    cx.beginPath();cx.moveTo(node.px,node.py+NR);cx.lineTo(node.r.px,node.r.py-NR);cx.stroke();cx.restore();
+    drawBTEdges(node.r);
+  }
+}
+
+// Draw binary tree nodes (BST/AVL/RB)
+function drawBTNodes(node,opts){
+  if(!node)return;
+  opts=opts||{};
+  const isHl=node.hl;
+  const isPath=node.path;
+  const rbMode=opts.rb;
+  const avlMode=opts.avl;
+  const isViolation=node.violation;
+
+  let sc,fc,tc;
+  if(rbMode){
+    if(node.color==='R'){sc=C.R;fc=isHl?C.R+'35':C.R+'12';tc=isHl?C.R:C.R+'cc';}
+    else{sc=isHl?C.A:node.path?C.G:C.B+'88';fc=isHl?C.A+'18':node.path?C.G+'10':C.B+'10';tc=isHl?C.A:node.path?C.G:C.B+'cc';}
+    if(isViolation){sc=C.R;fc=C.R+'30';tc=C.R;}
+  } else if(isHl){
+    sc=C.A;fc=C.A+'20';tc=C.A;
+  } else if(isPath){
+    sc=C.G;fc=C.G+'10';tc=C.G;
+  } else {
+    sc='rgba(255,178,41,0.32)';fc='transparent';tc='rgba(255,178,41,0.65)';
+  }
+
+  // Glow for highlighted
+  if(isHl||isViolation){
+    cx.save();cx.shadowColor=sc;cx.shadowBlur=22;
+    cx.beginPath();cx.arc(node.px,node.py,NR,0,Math.PI*2);
+    cx.strokeStyle=sc;cx.lineWidth=2.5;cx.stroke();cx.restore();
+  }
+  // Circle
+  cx.save();
+  cx.beginPath();cx.arc(node.px,node.py,NR,0,Math.PI*2);
+  cx.fillStyle=fc;cx.fill();
+  cx.strokeStyle=sc;cx.lineWidth=isHl||isViolation?2.5:1.5;cx.stroke();
+  cx.restore();
+
+  // Value
+  txt(String(node.v),node.px,node.py,"14px 'VT323'",tc);
+
+  // AVL balance factor badge
+  if(avlMode&&node.bf!==undefined){
+    const bfc=node.bf===0?C.G:Math.abs(node.bf)===1?C.A:C.R;
+    const bx=node.px+NR-2,by=node.py-NR+2;
+    cx.save();cx.beginPath();cx.arc(bx,by,8,0,Math.PI*2);cx.fillStyle='#04050a';cx.fill();
+    cx.strokeStyle=bfc;cx.lineWidth=1;cx.stroke();cx.restore();
+    txt((node.bf>0?'+':'')+node.bf,bx,by,"7px 'Share Tech Mono'",bfc);
+  }
+
+  // Red-Black color label
+  if(rbMode){
+    const lbl=node.color==='R'?'R':'B';
+    const lc=node.color==='R'?C.R:C.B;
+    cx.save();cx.beginPath();cx.arc(node.px-NR+2,node.py+NR-2,6,0,Math.PI*2);cx.fillStyle='#04050a';cx.fill();
+    cx.strokeStyle=lc+'66';cx.lineWidth=1;cx.stroke();cx.restore();
+    txt(lbl,node.px-NR+2,node.py+NR-2,"7px 'VT323'",lc);
+  }
+
+  drawBTNodes(node.l,opts);
+  drawBTNodes(node.r,opts);
+}
+
+// Count nodes in binary tree
+function countNodes(n){if(!n)return 0;return 1+countNodes(n.l)+countNodes(n.r);}
+function treeHeight(n){if(!n)return 0;return 1+Math.max(treeHeight(n.l),treeHeight(n.r));}
+
+// Traversal result display
+function drawTraversal(arr,active){
+  if(!arr||!arr.length)return;
+  const sw=Math.min(32,(W-40)/arr.length);
+  const sx=(W-arr.length*sw)/2,sy=H*.82;
+  ann('ОБХОД:',W/2,sy-14,C.P+'66');
+  arr.forEach((v,i)=>{
+    const isAct=i===active;
+    box(sx+i*sw,sy,sw-2,26,isAct?C.P:C.P+'33',isAct?C.P+'18':'transparent',isAct);
+    txt(String(v),sx+i*sw+(sw-2)/2,sy+13,"12px 'VT323'",isAct?C.P:C.P+'44');
+  });
+}
+
+// Generic binary tree scene renderer (BST/AVL/RB)
+function drawBinaryScene(step,opts){
+  if(!step.tree){
+    glowtxt('nil',W/2,H*.42,"24px 'VT323'",C.A+'44');
+    ann('нет корня — дерево пустое',W/2,H*.54,'rgba(255,178,41,.25)');
+    return;
+  }
+  const margin=W*.06;
+  layoutBT(step.tree,margin,W-margin,H*.1);
+  drawBTEdges(step.tree);
+  drawBTNodes(step.tree,opts);
+  if(step.traversal)drawTraversal(step.traversal,step.travIdx);
+  if(step.msg)glowtxt(step.msg,W/2,H*.92,"12px 'VT323'",step.msgColor||C.A);
+  if(step.rotLabel){
+    cx.save();
+    const lc=C.P;
+    cx.font="14px 'VT323'";cx.fillStyle=lc;cx.shadowColor=lc;cx.shadowBlur=14;
+    cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText('⟳ '+step.rotLabel,W*.5,H*.88);cx.restore();
+    flashCA(160);
+  }
+}
+
+/* ── HEAP RENDERER ── */
+function drawHeap(step){
+  scHdr('parent(i)=(i-1)/2   left(i)=2i+1   right(i)=2i+2');
+  const arr=step.arr||[];
+  if(!arr.length){glowtxt('[]',W/2,H*.4,"24px 'VT323'",C.A+'44');return;}
+
+  // Draw tree representation
+  function heapNode(i){
+    if(i>=arr.length)return null;
+    return{v:arr[i],l:heapNode(2*i+1),r:heapNode(2*i+2),
+      hl:i===step.hlIdx,
+      path:step.swapPair&&(i===step.swapPair[0]||i===step.swapPair[1]),
+      heapSwap:step.swapPair&&(i===step.swapPair[0]||i===step.swapPair[1])};
+  }
+  const hroot=heapNode(0);
+  const margin=W*.08;
+  layoutBT(hroot,margin,W-margin,H*.08);
+  drawBTEdges(hroot);
+
+  // Draw heap nodes with swap highlight
+  function drawHeapNodes(node,i){
+    if(!node)return;
+    const isSwap=step.swapPair&&(i===step.swapPair[0]||i===step.swapPair[1]);
+    const isHl=i===step.hlIdx;
+    const sc=isSwap?C.O:isHl?C.A:'rgba(255,178,41,0.32)';
+    const fc=isSwap?C.O+'20':isHl?C.A+'18':'transparent';
+    const tc=isSwap?C.O:isHl?C.A:'rgba(255,178,41,0.65)';
+    if(isSwap||isHl){cx.save();cx.shadowColor=sc;cx.shadowBlur=20;
+      cx.beginPath();cx.arc(node.px,node.py,NR,0,Math.PI*2);cx.strokeStyle=sc;cx.lineWidth=2.5;cx.stroke();cx.restore();}
+    cx.save();cx.beginPath();cx.arc(node.px,node.py,NR,0,Math.PI*2);
+    cx.fillStyle=fc;cx.fill();cx.strokeStyle=sc;cx.lineWidth=isSwap||isHl?2.5:1.5;cx.stroke();cx.restore();
+    txt(String(node.v),node.px,node.py,"14px 'VT323'",tc);
+    // Array index
+    ann('i='+i,node.px,node.py+NR+2,sc+'55');
+    drawHeapNodes(node.l,2*i+1);
+    drawHeapNodes(node.r,2*i+2);
+  }
+  drawHeapNodes(hroot,0);
+
+  // Array strip at bottom
+  const sw=Math.min(38,(W-24)/arr.length),sx=(W-arr.length*sw)/2,sy=H*.73;
+  ann('МАССИВ  heap[]',W/2,sy-14,C.N+'55');
+  arr.forEach((v,i)=>{
+    const isSwap=step.swapPair&&(i===step.swapPair[0]||i===step.swapPair[1]);
+    const isHl=i===step.hlIdx;
+    const bc=isSwap?C.O:isHl?C.A:'rgba(255,178,41,.16)';
+    box(sx+i*sw,sy,sw-2,30,bc,isSwap?C.O+'18':isHl?C.A+'12':'transparent',isSwap||isHl);
+    txt(String(v),sx+i*sw+(sw-2)/2,sy+15,"13px 'VT323'",isSwap?C.O:isHl?C.A:'rgba(255,178,41,.5)');
+    ann(i,sx+i*sw+(sw-2)/2,sy+32,bc+'55');
+  });
+
+  if(step.swapPair){
+    const[a,b]=step.swapPair;
+    const ax=sx+a*sw+(sw-2)/2+1,bx=sx+b*sw+(sw-2)/2+1;
+    cx.save();cx.strokeStyle=C.O+'88';cx.lineWidth=1.5;cx.setLineDash([3,2]);
+    cx.beginPath();cx.moveTo(ax,sy-2);cx.lineTo(bx,sy-2);cx.stroke();cx.setLineDash([]);
+    cx.restore();
+    ann('SWAP',( ax+bx)/2,sy-14,C.O+'88');
+  }
+  if(step.result!==undefined)glowtxt('EXTRACT-MIN = '+step.result,W/2,H*.93,"13px 'VT323'",C.G);
+}
+
+/* ── TRIE RENDERER ── */
+function countTrieLeaves(node){
+  const ch=Object.values(node.ch||{});
+  if(!ch.length)return 1;
+  return ch.reduce((s,c)=>s+countTrieLeaves(c),0);
+}
+function layoutTrie(node,xMin,xMax,y){
+  node.px=(xMin+xMax)/2;node.py=y;
+  const children=Object.entries(node.ch||{});
+  const total=children.reduce((s,[,c])=>s+countTrieLeaves(c),0)||1;
+  let curX=xMin;
+  children.forEach(([char,child])=>{
+    child.trieChar=char;
+    const w=(xMax-xMin)*countTrieLeaves(child)/total;
+    layoutTrie(child,curX,curX+w,y+60);
+    curX+=w;
+  });
+}
+function drawTrieEdgesAndNodes(node,step){
+  if(!node)return;
+  const children=Object.entries(node.ch||{});
+  children.forEach(([char,child])=>{
+    const isPath=step.insertPath&&step.insertPath.indexOf(child)>=0;
+    const isSearch=step.searchPath&&step.searchPath.indexOf(child)>=0;
+    const ec=isPath?C.G+'88':isSearch?C.N+'88':'rgba(255,178,41,0.18)';
+    cx.save();cx.strokeStyle=ec;cx.lineWidth=isPath||isSearch?2:1.5;
+    if(isPath||isSearch){cx.shadowColor=ec;cx.shadowBlur=8;}
+    cx.beginPath();cx.moveTo(node.px,node.py+NR);cx.lineTo(child.px,child.py-NR);cx.stroke();cx.restore();
+    // char label on edge
+    const mx=(node.px+child.px)/2,my=(node.py+child.py)/2;
+    cx.save();cx.font="12px 'VT323'";cx.fillStyle=isPath?C.G:isSearch?C.N:C.A+'55';
+    if(isPath||isSearch){cx.shadowColor=isPath?C.G:C.N;cx.shadowBlur=10;}
+    cx.textAlign='center';cx.textBaseline='middle';cx.fillText(char,mx,my);cx.restore();
+    drawTrieEdgesAndNodes(child,step);
+  });
+  // Draw this node
+  const isRoot=!node.trieChar;
+  const isPath=step.insertPath&&step.insertPath.indexOf(node)>=0;
+  const isSearch=step.searchPath&&step.searchPath.indexOf(node)>=0;
+  const isHl=node.hl;
+  const sc=isHl?C.A:isPath?C.G:isSearch?C.N:node.isEnd?C.A+'88':'rgba(255,178,41,0.28)';
+  const fc=isHl?C.A+'20':isPath?C.G+'12':isSearch?C.N+'12':node.isEnd?C.A+'0a':'transparent';
+  if(isHl||isPath||isSearch){cx.save();cx.shadowColor=sc;cx.shadowBlur=16;
+    cx.beginPath();cx.arc(node.px,node.py,NR,0,Math.PI*2);cx.strokeStyle=sc;cx.lineWidth=2.5;cx.stroke();cx.restore();}
+  cx.save();cx.beginPath();cx.arc(node.px,node.py,NR,0,Math.PI*2);
+  cx.fillStyle=fc;cx.fill();cx.strokeStyle=sc;cx.lineWidth=isHl||isPath||isSearch?2.5:1.5;cx.stroke();cx.restore();
+  if(node.isEnd){cx.save();cx.beginPath();cx.arc(node.px,node.py,5,0,Math.PI*2);cx.fillStyle=C.G+'aa';cx.fill();cx.restore();}
+  if(isRoot){txt('∅',node.px,node.py,"13px 'VT323'",'rgba(255,178,41,.4)');}
+}
+
+/* ── B-TREE RENDERER ── */
+function btreeNodeWidth(node){return Math.max(60,node.keys.length*36+24);}
+function layoutBTree(node,x,y){
+  node.px=x;node.py=y;
+  if(!node.ch||!node.ch.length)return;
+  const totalW=node.ch.reduce((s,c)=>s+btreeNodeWidth(c)+16,0)-16;
+  let cx_pos=x-totalW/2;
+  node.ch.forEach(child=>{
+    const cw=btreeNodeWidth(child);
+    layoutBTree(child,cx_pos+cw/2,y+80);
+    cx_pos+=cw+16;
+  });
+}
+function drawBTreeNode(node,hl){
+  const nw=btreeNodeWidth(node);
+  const nh=30;
+  const nx=node.px-nw/2,ny=node.py-nh/2;
+  const isHl=hl&&hl===node;
+  const sc=isHl?C.A:node.split?C.O:'rgba(255,178,41,.4)';
+  if(isHl||node.split){cx.save();cx.shadowColor=sc;cx.shadowBlur=16;cx.restore();}
+  cx.save();
+  cx.strokeStyle=sc;cx.lineWidth=isHl?2:1.5;
+  cx.fillStyle=isHl?C.A+'14':node.split?C.O+'10':'rgba(255,178,41,.05)';
+  if(isHl||node.split){cx.shadowColor=sc;cx.shadowBlur=14;}
+  cx.fillRect(nx,ny,nw,nh);cx.strokeRect(nx,ny,nw,nh);cx.restore();
+  // Keys with dividers
+  const kw=36;
+  node.keys.forEach((k,i)=>{
+    const kx=nx+12+i*kw;
+    txt(String(k),kx+kw/2,node.py,"13px 'VT323'",isHl?C.A:node.hlKeys&&node.hlKeys.includes(k)?C.G:sc+'dd');
+    if(i<node.keys.length-1){
+      cx.save();cx.strokeStyle=sc+'33';cx.lineWidth=1;
+      cx.beginPath();cx.moveTo(kx+kw,ny+4);cx.lineTo(kx+kw,ny+nh-4);cx.stroke();cx.restore();
+    }
+  });
+}
+function drawBTreeEdgesAndNodes(node,hl){
+  if(node.ch&&node.ch.length){
+    node.ch.forEach(child=>{
+      cx.save();cx.strokeStyle='rgba(255,178,41,.2)';cx.lineWidth=1.5;
+      cx.beginPath();cx.moveTo(node.px,node.py+16);cx.lineTo(child.px,child.py-16);cx.stroke();cx.restore();
+      drawBTreeEdgesAndNodes(child,hl);
+    });
+  }
+  drawBTreeNode(node,hl);
+}
+
+/* ══════════════════════════════════════════════
+   SCENE DRAWERS
+══════════════════════════════════════════════ */
+function drawBST(step){
+  scHdr('BST: val<root → left  |  val>root → right  |  h=O(log n) balanced');
+  drawBinaryScene(step,{});
+}
+function drawAVL(step){
+  scHdr('AVL: |bf|≤1  |  bf=h(left)-h(right)  |  4 rotation cases');
+  drawBinaryScene(step,{avl:true});
+}
+function drawRB(step){
+  scHdr('RB: root=BLACK  |  red→no red child  |  same black-height all paths');
+  drawBinaryScene(step,{rb:true});
+}
+function drawHeapScene(step){
+  scHdr('MIN-HEAP: arr[i] ≤ arr[2i+1]  и  arr[i] ≤ arr[2i+2]');
+  drawHeap(step);
+}
+function drawTrieScene(step){
+  scHdr('TRIE: каждый узел = символ пути  |  isEnd = конец слова');
+  if(!step.root){glowtxt('пустой Trie',W/2,H*.4,"20px 'VT323'",C.A+'44');return;}
+  layoutTrie(step.root,W*.04,W*.96,H*.08);
+  drawTrieEdgesAndNodes(step.root,step);
+  if(step.searchResult===true)glowtxt('НАЙДЕНО',W/2,H*.9,"14px 'VT323'",C.G);
+  if(step.searchResult===false)glowtxt('НЕ НАЙДЕНО',W/2,H*.9,"14px 'VT323'",C.R);
+  if(step.prefixResult)glowtxt(step.prefixResult,W/2,H*.9,"12px 'VT323'",C.N);
+}
+function drawBTreeScene(step){
+  scHdr('B-TREE порядка t: мин t-1 ключей  |  макс 2t-1 ключей  |  все листья на одном уровне');
+  if(!step.root){glowtxt('пустое B-дерево',W/2,H*.4,"20px 'VT323'",C.A+'44');return;}
+  layoutBTree(step.root,W/2,H*.12);
+  drawBTreeEdgesAndNodes(step.root,step.hlNode);
+  if(step.msg)glowtxt(step.msg,W/2,H*.92,"12px 'VT323'",step.msgColor||C.A);
+}
+
+function draw(step){
+  cx.clearRect(0,0,W,H);
+  switch(SCENE){
+    case 'bst':    drawBST(step);        break;
+    case 'avl':    drawAVL(step);        break;
+    case 'rb':     drawRB(step);         break;
+    case 'heap':   drawHeapScene(step);  break;
+    case 'trie':   drawTrieScene(step);  break;
+    case 'btree':  drawBTreeScene(step); break;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   SCENE DATA
+══════════════════════════════════════════════ */
+// BST helpers: build tree from object notation
+function N(v,l,r,extra){return Object.assign({v,l:l||null,r:r||null},extra||{});}
+
+const SCENES = {
+
+/* ═══════ 1. BST ═══════ */
+bst:{label:'1. BST',
+file:'tree/bst.go',
+code:[
+  '// BST — двоичное дерево поиска (Binary Search Tree)',
+  '// Инвариант: node.Left.val < node.val < node.Right.val',
+  'type Node struct {',
+  '    Val   int',
+  '    Left  *Node',
+  '    Right *Node',
+  '}',
+  '',
+  '// Insert — вставка за O(h), h=высота дерева',
+  'func Insert(root *Node, val int) *Node {',
+  '    if root == nil {',
+  '        return &Node{Val: val}   // нашли место',
+  '    }',
+  '    if val < root.Val {',
+  '        root.Left = Insert(root.Left, val)',
+  '    } else if val > root.Val {',
+  '        root.Right = Insert(root.Right, val)',
+  '    }',
+  '    return root  // дубликат — не вставляем',
+  '}',
+  '',
+  '// Search — поиск за O(h)',
+  'func Search(root *Node, val int) bool {',
+  '    if root == nil { return false }',
+  '    if val == root.Val { return true }',
+  '    if val < root.Val { return Search(root.Left, val) }',
+  '    return Search(root.Right, val)',
+  '}',
+  '',
+  '// InOrder — обход в порядке возрастания O(n)',
+  'func InOrder(root *Node, result *[]int) {',
+  '    if root == nil { return }',
+  '    InOrder(root.Left, result)',
+  '    *result = append(*result, root.Val)',
+  '    InOrder(root.Right, result)',
+  '}',
+  '',
+  '// Delete — удаление узла O(h)',
+  'func Delete(root *Node, val int) *Node {',
+  '    if root == nil { return nil }',
+  '    if val < root.Val { root.Left = Delete(root.Left, val); return root }',
+  '    if val > root.Val { root.Right = Delete(root.Right, val); return root }',
+  '    // Найден — 3 случая:',
+  '    if root.Left == nil { return root.Right }    // нет левого',
+  '    if root.Right == nil { return root.Left }    // нет правого',
+  '    // 2 потомка: находим inorder successor (минимум правого поддерева)',
+  '    min := findMin(root.Right)',
+  '    root.Val = min.Val',
+  '    root.Right = Delete(root.Right, min.Val)',
+  '    return root',
+  '}',
+],
+steps:[
+  {phase:'init', cl:1, tree:null, nodes:0, height:0, op:'—', cplx:'—',
+   title:'BST: ДВОИЧНОЕ ДЕРЕВО ПОИСКА',
+   body:'BST — самая фундаментальная структура дерева. Каждый узел больше всех узлов левого поддерева и меньше всех узлов правого. Это позволяет искать, вставлять и удалять за O(h), где h — высота дерева.',
+   insight:'<strong>Ключевой инвариант:</strong> <code>left.val < node.val < right.val</code> для каждого узла. Нарушишь его при вставке — дерево сломается и поиск будет давать неверные результаты.'},
+  {phase:'insert', cl:10, tree:N(50), nodes:1, height:1, op:'INSERT 50', cplx:'O(1)',
+   title:'ВСТАВКА КОРНЯ: 50',
+   body:'Дерево пустое — первый элемент становится корнем. Корень не имеет родителя. Все последующие элементы будут вставлены рекурсивно относительно него.',
+   insight:'<strong>Первый элемент определяет структуру:</strong> если вставить отсортированный массив — BST вырождается в односвязный список. Именно для этого придумали AVL и Red-Black деревья.'},
+  {phase:'insert', cl:13, tree:N(50,N(30),null,{}),
+   nodes:2, height:2, op:'INSERT 30', cplx:'O(1)',
+   title:'30 < 50 → ИДЁМ ВЛЕВО',
+   body:'30 < 50, рекурсивно вызываем Insert(root.Left, 30). Левый потомок nil → создаём новый узел. Высота дерева стала 2.',
+   insight:'<strong>Каждое сравнение:</strong> мы идём либо влево, либо вправо. Никогда не посещаем оба поддерева. Поэтому вставка O(h), а не O(n).'},
+  {phase:'insert', cl:15, tree:N(50,N(30),N(70)),
+   nodes:3, height:2, op:'INSERT 70', cplx:'O(1)',
+   title:'70 > 50 → ИДЁМ ВПРАВО',
+   body:'70 > 50 → идём вправо. Правый потомок nil → новый узел. Теперь корень имеет двух детей: 30 и 70. Идеально сбалансированное дерево высоты 2.',
+   insight:'<strong>Идеальный случай:</strong> если вставлять медиану каждый раз, высота будет ⌊log₂(n)⌋. Для 7 элементов — высота 3. Для 1000 элементов — высота 10.'},
+  {phase:'insert', cl:13, tree:N(50,N(30,N(10),N(40)),N(70)),
+   nodes:5, height:3, op:'INSERT 10, 40', cplx:'O(log n)',
+   title:'ДОБАВЛЯЕМ 10 И 40',
+   body:'10 < 50 → влево, 10 < 30 → влево. 40 < 50 → влево, 40 > 30 → вправо. Дерево растёт вниз и влево. Высота стала 3.',
+   insight:'<strong>Читай дерево:</strong> In-order обход даёт отсортированный массив: [10, 30, 40, 50, 70]. Это главное свойство BST — он хранит порядок структурно.'},
+  {phase:'search', cl:23,
+   tree:N(50,N(30,N(10),N(40,null,null,{path:true})),N(70),{path:true}),
+   nodes:5, height:3, op:'SEARCH 40', cplx:'O(log n)',
+   title:'ПОИСК 40: СРАВНИВАЕМ НА КАЖДОМ УРОВНЕ',
+   body:'40 < 50 → идём влево. 40 > 30 → идём вправо. Нашли 40. Потребовалось 3 сравнения — log₂(5) ≈ 2.3. Зелёные узлы — путь поиска.',
+   insight:'<strong>O(h) в среднем:</strong> для сбалансированного BST h = O(log n). Но если вставить [1,2,3,4,5] — это уже список, h = n. Поэтому нужны самобалансирующиеся деревья.'},
+  {phase:'traverse', cl:29,
+   tree:N(50,N(30,N(10),N(40)),N(70)),
+   traversal:[10,30,40,50,70], travIdx:2,
+   nodes:5, height:3, op:'IN-ORDER', cplx:'O(n)',
+   title:'ОБХОД IN-ORDER: ВСЕГДА ОТСОРТИРОВАНО',
+   body:'In-order: левое поддерево → корень → правое поддерево. Результат: [10, 30, 40, 50, 70] — всегда отсортированный массив. Используется для получения элементов BST в порядке.',
+   insight:'<strong>3 вида обхода:</strong> In-order (сортировка), Pre-order (копирование структуры), Post-order (удаление). Все за O(n) — посещаем каждый узел ровно один раз.'},
+  {phase:'delete', cl:37,
+   tree:N(50,N(40,N(10)),N(70),{hl:true}),
+   nodes:4, height:3, op:'DELETE 30', cplx:'O(log n)',
+   title:'УДАЛЕНИЕ: 2 ПОТОМКА → INORDER SUCCESSOR',
+   body:'Удаляем 30 (имеет двух детей). Нельзя просто убрать — нарушится структура. Решение: заменяем 30 на inorder successor — минимальный элемент правого поддерева (40). Затем удаляем 40 из правого поддерева.',
+   insight:'<strong>Inorder successor:</strong> самый левый узел правого поддерева. Всегда больше текущего и меньше всех остальных в правом поддереве. Именно он сохраняет BST-инвариант при замене.'},
+],
+usage:[
+  {n:1,title:'Sorted map через BST под капотом',sub:'Go sort.Search и container/heap',code:`// Go не имеет встроенного BST-контейнера
+// Но sort.SearchInts делает binary search по слайсу
+// (аналог поиска в BST, но для отсортированного массива)
+
+data := []int{10, 30, 40, 50, 70}
+idx := sort.SearchInts(data, 40)
+fmt.Println(idx, data[idx]) // 2, 40
+
+// Для BST-семантики в Go: используй btree из google/btree
+// или treap / AVL из github.com/emirpasic/gods
+
+// CUSTOM BST:
+type BST struct{ root *Node }
+
+func (t *BST) Insert(v int) { t.root = insert(t.root, v) }
+func (t *BST) Search(v int) bool { return search(t.root, v) }
+func (t *BST) InOrder() []int {
+    var res []int
+    inorder(t.root, &res)
+    return res
+}`,note:'В Go map — это хэш-таблица, а не дерево. Для отсортированного итерирования нужен BST или B-tree.'},
+  {n:2,title:'Проверка валидности BST',sub:'классическая задача на собеседованиях',code:`// Наивное решение (НЕВЕРНО — не проверяет глобальный инвариант):
+func isValidBST_WRONG(root *Node) bool {
+    if root == nil { return true }
+    if root.Left != nil && root.Left.Val >= root.Val { return false }
+    if root.Right != nil && root.Right.Val <= root.Val { return false }
+    return isValidBST_WRONG(root.Left) && isValidBST_WRONG(root.Right)
+}
+
+// ПРАВИЛЬНОЕ решение — передаём границы [min, max]:
+func isValidBST(root *Node, min, max int) bool {
+    if root == nil { return true }
+    if root.Val <= min || root.Val >= max { return false }
+    return isValidBST(root.Left, min, root.Val) &&
+           isValidBST(root.Right, root.Val, max)
+}
+// Вызов: isValidBST(root, math.MinInt, math.MaxInt)`,note:'Ошибка с наивной проверкой — типичная ловушка на LeetCode #98.'},
+  {n:3,title:'LCA — Lowest Common Ancestor',sub:'O(h) благодаря BST-инварианту',code:`// LCA двух узлов в BST — нет нужды в DFS по всему дереву
+func LCA(root *Node, p, q int) *Node {
+    if root == nil { return nil }
+    // Оба меньше корня → LCA в левом поддереве
+    if p < root.Val && q < root.Val {
+        return LCA(root.Left, p, q)
+    }
+    // Оба больше → LCA в правом поддереве
+    if p > root.Val && q > root.Val {
+        return LCA(root.Right, p, q)
+    }
+    // Корень "разделяет" p и q → это и есть LCA
+    return root
+}
+// LCA(root, 10, 40) → вернёт узел 30
+// LCA(root, 30, 70) → вернёт узел 50`,note:'В обычном дереве LCA — O(n). В BST — O(h) благодаря инварианту.'},
+  {n:4,title:'K-й минимальный элемент',sub:'in-order обход с подсчётом',code:`func kthSmallest(root *Node, k int) int {
+    stack := []*Node{}
+    curr := root
+    count := 0
+    for curr != nil || len(stack) > 0 {
+        // Идём максимально влево
+        for curr != nil {
+            stack = append(stack, curr)
+            curr = curr.Left
+        }
+        curr = stack[len(stack)-1]
+        stack = stack[:len(stack)-1]
+        count++
+        if count == k { return curr.Val }
+        curr = curr.Right  // переходим вправо
+    }
+    return -1
+}
+// O(h + k) — не нужно строить весь массив`,note:'Итеративный in-order без рекурсии — стандартный паттерн для больших деревьев.'},
+  {n:5,title:'Конвертация в сбалансированный BST',sub:'sorted array → BST за O(n)',code:`// Отсортированный массив → минимальный по высоте BST
+func sortedArrayToBST(nums []int) *Node {
+    if len(nums) == 0 { return nil }
+    mid := len(nums) / 2
+    return &Node{
+        Val:   nums[mid],
+        Left:  sortedArrayToBST(nums[:mid]),
+        Right: sortedArrayToBST(nums[mid+1:]),
+    }
+}
+// [1,2,3,4,5] → дерево с корнем 3, высота 3
+// vs. вставка [1,2,3,4,5] → вырожденный список, высота 5
+
+// Паттерн "перебалансировки" вырожденного BST:
+// 1. In-order → sorted array
+// 2. sortedArrayToBST(array)`,note:''},
+],
+concepts:[
+  {icon:'🌳',title:'ВЫСОТА vs ГЛУБИНА',body:'Высота узла — длиннейший путь от узла до листа. Глубина узла — расстояние от корня. Высота дерева = высота корня = максимальная глубина листа. Для BST: лучший случай h = ⌊log₂n⌋ (идеальный баланс), худший случай h = n-1 (вырожденный список).'},
+  {icon:'🔢',title:'АМОРТИЗАЦИЯ ВСТАВКИ',body:'n вставок случайных ключей: математически доказано, что средняя высота = 2·ln(n) ≈ 1.39·log₂(n). Это в 1.39 раз хуже идеала, но всё ещё O(log n). Проблема только с патологическими входными данными (уже отсортированные).'},
+  {icon:'🔄',title:'3 СЛУЧАЯ УДАЛЕНИЯ',body:'1. Лист (0 детей): просто убрать. 2. Один потомок: заменить узел потомком. 3. Два потомка: найти inorder successor (min правого поддерева) или inorder predecessor (max левого), скопировать значение, удалить successor/predecessor (у которого максимум 1 ребёнок).'},
+],
+traps:[
+  {t:'warn',icon:'💥',title:'Вырожденный BST = связный список',body:'Вставка отсортированного массива даёт h = n. O(log n) превращается в O(n). Всегда используй AVL или RB для продакшна.'},
+  {t:'ok',icon:'✅',title:'In-order всегда отсортирован',body:'In-order обход BST гарантированно даёт элементы в порядке возрастания. Это свойство используется для итерации map в отсортированном порядке.'},
+  {t:'info',icon:'📌',title:'Duplicates: не определено стандартом',body:'BST не определяет поведение для дубликатов. Можно: игнорировать, хранить с счётчиком, всегда в левое или правое поддерево. Важно выбрать одну стратегию.'},
+  {t:'ok',icon:'🎯',title:'СОБЕСЕДОВАНИЕ: 3 обхода дерева',body:'Pre-order (корень→лев→прав), In-order (лев→корень→прав), Post-order (лев→прав→корень). Для BST: In-order = sorted. Для копирования структуры: Pre-order.'},
+]},
+
+/* ═══════ 2. AVL ═══════ */
+avl:{label:'2. AVL',
+file:'tree/avl.go',
+code:[
+  '// AVL дерево — самобалансирующийся BST',
+  '// Инвариант: |height(left) - height(right)| <= 1 для каждого узла',
+  '// Balance Factor (bf) = height(left) - height(right)',
+  '',
+  'type AVLNode struct {',
+  '    Val    int',
+  '    Height int   // высота поддерева',
+  '    Left   *AVLNode',
+  '    Right  *AVLNode',
+  '}',
+  '',
+  'func height(n *AVLNode) int {',
+  '    if n == nil { return 0 }',
+  '    return n.Height',
+  '}',
+  'func bf(n *AVLNode) int {',
+  '    if n == nil { return 0 }',
+  '    return height(n.Left) - height(n.Right)',
+  '}',
+  '',
+  '// 4 случая дисбаланса:',
+  '// LL (bf=+2, bf(left)>=0)  → rightRotate(root)',
+  '// RR (bf=-2, bf(right)<=0) → leftRotate(root)',
+  '// LR (bf=+2, bf(left)<0)   → leftRotate(left) + rightRotate(root)',
+  '// RL (bf=-2, bf(right)>0)  → rightRotate(right) + leftRotate(root)',
+  '',
+  'func rightRotate(y *AVLNode) *AVLNode {',
+  '    x := y.Left',
+  '    T2 := x.Right',
+  '    x.Right = y       // x становится новым корнем',
+  '    y.Left = T2       // T2 сохраняет BST-инвариант',
+  '    updateHeight(y)',
+  '    updateHeight(x)',
+  '    return x',
+  '}',
+  '',
+  'func leftRotate(x *AVLNode) *AVLNode {',
+  '    y := x.Right',
+  '    T2 := y.Left',
+  '    y.Left = x',
+  '    x.Right = T2',
+  '    updateHeight(x)',
+  '    updateHeight(y)',
+  '    return y',
+  '}',
+],
+steps:[
+  {phase:'init', cl:1,
+   tree:N(30,null,null,{bf:0}),
+   nodes:1, height:1, op:'—', cplx:'—',
+   title:'AVL: ВСЕГДА СБАЛАНСИРОВАНО',
+   body:'AVL — первое самобалансирующееся дерево (Адельсон-Вельский и Ландис, 1962). Гарантирует |bf| ≤ 1 в каждом узле. Маленький значок у каждого узла — balance factor (bf). Зелёный = 0, жёлтый = ±1, красный = ±2 (нарушение).',
+   insight:'<strong>Гарантия высоты:</strong> AVL всегда имеет h ≤ 1.44·log₂(n). На практике h ≈ log₂(n). Это O(log n) для всех операций всегда — без патологических случаев.'},
+  {phase:'insert', cl:6,
+   tree:N(30,N(20,null,null,{bf:0}),null,{bf:1}),
+   nodes:2, height:2, op:'INSERT 20', cplx:'O(log n)',
+   title:'ВСТАВКА 20: bf(30) = +1',
+   body:'20 < 30 → вставляем в левое поддерево. Обновляем высоты снизу вверх. bf(30) = h(left) - h(right) = 1 - 0 = +1. Это допустимо (|bf| ≤ 1), ротаций не нужно.',
+   insight:'<strong>Обновление высот:</strong> после каждой вставки идём обратно к корню и пересчитываем высоты и balance factors. Это O(h) = O(log n) дополнительная работа.'},
+  {phase:'insert', cl:6,
+   tree:N(30,N(20,N(10,null,null,{bf:0}),null,{bf:1}),null,{bf:2,violation:true}),
+   nodes:3, height:3, op:'INSERT 10', cplx:'O(log n)',
+   title:'НАРУШЕНИЕ! bf(30) = +2 — LL СЛУЧАЙ',
+   body:'Вставили 10 < 20 < 30. Теперь bf(30) = 2 — нарушение! Тип: LL (узел несбалансирован влево, левый ребёнок тоже наклонён влево). Нужна правая ротация rightRotate(30).',
+   insight:'<strong>4 случая дисбаланса:</strong> LL → rightRotate, RR → leftRotate, LR → leftRotate + rightRotate, RL → rightRotate + leftRotate. Первая буква — направление "тяжести", вторая — куда вставили.'},
+  {phase:'rotate', cl:25,
+   tree:N(20,N(10,null,null,{bf:0}),N(30,null,null,{bf:0}),{bf:0}),
+   nodes:3, height:2, op:'RIGHT ROTATE', cplx:'O(1)',
+   title:'rightRotate(30) → 20 СТАНОВИТСЯ КОРНЕМ',
+   body:'x=20 (левый ребёнок y=30). T2=x.Right=nil. x.Right=y → 20.Right=30. y.Left=T2=nil. Обновляем высоты. Результат: 20 — новый корень, bf всех узлов = 0. Дерево идеально сбалансировано.',
+   insight:'<strong>Ротация O(1):</strong> только переставляем указатели, константное время. Гарантированно сохраняет BST-инвариант: если T2 < x < T2 было BST-правило, то после ротации оно тоже выполняется.'},
+  {phase:'insert', cl:6,
+   tree:N(20,N(10,null,null,{bf:0}),N(30,N(25,null,null,{bf:0}),N(40,null,null,{bf:0}),{bf:0}),{bf:-1}),
+   nodes:5, height:3, op:'INSERT 25,40', cplx:'O(log n)',
+   title:'ДОБАВЛЯЕМ 25 И 40: ДЕРЕВО ОСТАЁТСЯ СБАЛАНСИРОВАННЫМ',
+   body:'25 < 30 → левый ребёнок 30. 40 > 30 → правый ребёнок 30. bf(30) = 0. bf(20) = h(left)1 - h(right)2 = -1. Допустимо! Ни одной ротации не потребовалось.',
+   insight:'<strong>Ротации не всегда нужны:</strong> вставка вызывает ротацию только при нарушении |bf| > 1. В среднем ротации нужны примерно в 50% вставок (одна из двух вставок в случайном месте).'},
+  {phase:'recolor', cl:23,
+   tree:N(20,N(10,null,null,{bf:0}),N(30,N(27,N(25,null,null,{bf:0}),null,{bf:1}),N(40,null,null,{bf:0}),{bf:1,violation:true}),{bf:-2,violation:true}),
+   nodes:6, height:4, op:'INSERT 27', cplx:'O(log n)',
+   title:'INSERT 27: LR СЛУЧАЙ — bf(20)=-2, bf(30)=+1',
+   body:'27 < 30 и 27 > 25 → LR случай. bf(20) = -2 (нарушение), левый ребёнок правый ребёнок 30 имеет bf=+1. Решение: 1) leftRotate(30) → сводим к RL, 2) rightRotate → нет, уже не так. Правильно: LR → leftRotate(левый) + rightRotate(корень).',
+   insight:'<strong>LR и RL — двойные ротации:</strong> сначала выравниваем "зиг-заг" в прямую линию (одна ротация), затем делаем обычную ротацию. LR: leftRotate(left), rightRotate(root). RL: rightRotate(right), leftRotate(root).'},
+  {phase:'done', cl:1,
+   tree:N(25,N(20,N(10,null,null,{bf:0}),null,{bf:1}),N(30,N(27,null,null,{bf:0}),N(40,null,null,{bf:0}),{bf:0}),{bf:0}),
+   nodes:6, height:3, op:'BALANCED', cplx:'O(log n)',
+   title:'ПОСЛЕ LR РОТАЦИИ: ВЫСОТА 3, ВСЕ bf=0 или ±1',
+   body:'Двойная ротация восстановила баланс. 25 — новый корень подддерева. Высота осталась 3 (не выросла!). Это ключевое свойство: ротации не просто перебалансируют, они реально уменьшают высоту поддерева.',
+   insight:'<strong>AVL против RB:</strong> AVL строже (bf ≤ 1), RB мягче (высота ≤ 2·log n). AVL быстрее читает (более сбалансирован), RB быстрее пишет (меньше ротаций). Go map использует хэш, но Go\'s sort/container — часто AVL.'},
+],
+usage:[
+  {n:1,title:'AVL из github.com/emirpasic/gods',sub:'готовая реализация для продакшна',code:`import avltree "github.com/emirpasic/gods/trees/avltree"
+
+tree := avltree.NewWithIntComparator()
+tree.Put(50, "fifty")
+tree.Put(30, "thirty")
+tree.Put(70, "seventy")
+tree.Put(20, "twenty")
+
+// Поиск O(log n)
+val, found := tree.Get(30)
+fmt.Println(val, found) // "thirty", true
+
+// Итерация в отсортированном порядке
+it := tree.Iterator()
+for it.Next() {
+    fmt.Println(it.Key(), it.Value())
+}
+// 20 "twenty"
+// 30 "thirty"
+// ...`,note:'gods — de facto стандарт для классических структур данных в Go.'},
+  {n:2,title:'AVL height vs BST height на практике',sub:'почему балансировка важна',code:`// Worst case: вставка отсортированного массива
+
+// BST (без балансировки):
+bst := NewBST()
+for i := 1; i <= 1000; i++ {
+    bst.Insert(i)
+}
+// bst.Height() → 999 (список!)
+// bst.Search(999) → 999 сравнений
+
+// AVL:
+avl := avltree.New()
+for i := 1; i <= 1000; i++ {
+    avl.Put(i, i)
+}
+// avl.Height() → 14 (≈ 1.44·log2(1000))
+// avl.Search(999) → 14 сравнений
+
+// Разница: 999 vs 14 — в 71 раз быстрее`,note:'Для отсортированных данных AVL/RB критически важны. В продакшне входные данные часто частично отсортированы.'},
+  {n:3,title:'Реализация balance factor',sub:'подсчёт высоты снизу вверх',code:`func height(n *AVLNode) int {
+    if n == nil { return 0 }
+    return n.Height
+}
+
+func updateHeight(n *AVLNode) {
+    lh := height(n.Left)
+    rh := height(n.Right)
+    if lh > rh {
+        n.Height = lh + 1
+    } else {
+        n.Height = rh + 1
+    }
+}
+
+func bf(n *AVLNode) int {
+    if n == nil { return 0 }
+    return height(n.Left) - height(n.Right)
+}
+
+// После вставки — обновить высоты на обратном пути
+// (от вставленного узла до корня)`,note:''},
+  {n:4,title:'Когда выбирать AVL vs RB-дерево',sub:'практические компромиссы',code:`// AVL ЛУЧШЕ когда:
+// - Много операций чтения, мало записей
+// - Нужна минимальная высота (кэш-эффективность)
+// - Порядковая статистика (k-й элемент)
+
+// RB ЛУЧШЕ когда:
+// - Много операций записи/удаления
+// - Нужна более простая реализация
+// - Используется в ядрах ОС (epoll в Linux)
+
+// Пример в Go stdlib:
+// container/heap → BinaryHeap (не BST!)
+// sort.Search → binary search по слайсу
+// database/sql → различные индексы
+
+// Практика: если не знаешь — используй RB
+// (Go map и большинство stdlib используют хэш-таблицы)`,note:''},
+  {n:5,title:'AVL для ordered set и range queries',sub:'операции которых нет в хэш-таблице',code:`// Что умеет AVL, чего не умеет map:
+
+// 1. Min / Max за O(log n):
+func (t *AVLTree) Min() *AVLNode {
+    n := t.root
+    for n.Left != nil { n = n.Left }
+    return n
+}
+
+// 2. Floor (наибольший <= x):
+func (t *AVLTree) Floor(x int) *AVLNode {
+    var result *AVLNode
+    n := t.root
+    for n != nil {
+        if n.Val == x { return n }
+        if n.Val < x { result = n; n = n.Right } else { n = n.Left }
+    }
+    return result
+}
+
+// 3. Count elements in range [lo, hi]:
+// Обходим только нужные поддеревья — O(log n + k)`,note:''},
+],
+concepts:[
+  {icon:'⚖️',title:'BALANCE FACTOR И ВЫСОТА',body:'bf(node) = height(left) - height(right). AVL гарантирует |bf| ≤ 1 везде. Доказано: минимальное число узлов при высоте h: N(h) = N(h-1) + N(h-2) + 1 (числа Фибоначчи!). Отсюда h ≤ 1.44·log₂(n).'},
+  {icon:'🔄',title:'4 СЛУЧАЯ РОТАЦИИ',body:'LL: тяжесть влево-влево → правая ротация. RR: вправо-вправо → левая ротация. LR: левый ребёнок "смотрит" вправо → левая ротация дочернего + правая корневого. RL: правый ребёнок "смотрит" влево → правая дочернего + левая корневого.'},
+  {icon:'📊',title:'СТОИМОСТЬ РОТАЦИЙ',body:'Одна вставка: максимум 2 ротации (O(1)). Одно удаление: максимум O(log n) ротаций (до корня). Поиск: O(log n) строго. Память: +1 int (высота) на узел. AVL — отличный выбор для read-heavy workloads.'},
+],
+traps:[
+  {t:'warn',icon:'⚠️',title:'Не забудь обновить высоты после ротации',body:'rightRotate/leftRotate должны обновлять высоты ОБА узла (старый корень и новый). Порядок важен: сначала обновляешь тот, кто стал ниже, затем тот, кто стал выше.'},
+  {t:'warn',icon:'⚠️',title:'LR и RL — двойные ротации',body:'Не путай с LL и RR. Проверяй bf дочернего узла. Если bf(root)=+2 и bf(root.Left)=-1 → LR случай, нужна двойная ротация.'},
+  {t:'ok',icon:'✅',title:'AVL гарантирует O(log n) всегда',body:'В отличие от обычного BST, AVL никогда не вырождается. Для workloads с предсказуемым временем отклика AVL предпочтительнее RB.'},
+  {t:'info',icon:'📌',title:'СОБЕСЕДОВАНИЕ: назови 4 случая ротации AVL',body:'LL→Right Rotate, RR→Left Rotate, LR→Left+Right, RL→Right+Left. Мнемоника: первая буква — куда "тяжело", решение — ротация в противоположную сторону.'},
+]},
+
+/* ═══════ 3. RB TREE ═══════ */
+rb:{label:'3. RB-TREE',
+file:'tree/rbtree.go',
+code:[
+  '// Red-Black дерево — 5 инвариантов:',
+  '// 1. Каждый узел RED или BLACK',
+  '// 2. Корень — BLACK',
+  '// 3. Листья (nil) — BLACK',
+  '// 4. RED-узел → оба потомка BLACK (нет двух красных подряд)',
+  '// 5. Все пути от узла до nil-листьев — одинаковое число BLACK-узлов',
+  '//    (black-height)',
+  '',
+  '// Следствие инвариантов: высота h ≤ 2·log₂(n+1)',
+  '',
+  'type Color bool',
+  'const (RED Color = true; BLACK Color = false)',
+  '',
+  'type RBNode struct {',
+  '    Val    int',
+  '    Color  Color',
+  '    Left, Right, Parent *RBNode',
+  '}',
+  '',
+  '// При вставке: новый узел всегда RED (не нарушает правило 5)',
+  '// Нарушение правила 4 — "double red" — фиксируем recolor/rotate',
+  '',
+  '// 3 случая fixup после вставки:',
+  '// Case 1: Uncle RED → recolor parent+uncle BLACK, grandparent RED',
+  '// Case 2: Uncle BLACK, узел — right child → leftRotate(parent)',
+  '// Case 3: Uncle BLACK, узел — left child → rightRotate(grandparent)',
+  '',
+  'func rbInsertFixup(z *RBNode) {',
+  '    for z.Parent.Color == RED {',
+  '        if z.Parent == z.Parent.Parent.Left {',
+  '            uncle := z.Parent.Parent.Right',
+  '            if uncle.Color == RED {           // Case 1',
+  '                z.Parent.Color = BLACK',
+  '                uncle.Color = BLACK',
+  '                z.Parent.Parent.Color = RED',
+  '                z = z.Parent.Parent',
+  '            } else {',
+  '                if z == z.Parent.Right {      // Case 2',
+  '                    z = z.Parent',
+  '                    leftRotate(z)',
+  '                }',
+  '                z.Parent.Color = BLACK        // Case 3',
+  '                z.Parent.Parent.Color = RED',
+  '                rightRotate(z.Parent.Parent)',
+  '            }',
+  '        }',
+  '    }',
+  '    root.Color = BLACK  // правило 2',
+  '}',
+],
+steps:[
+  {phase:'init', cl:0,
+   tree:N(30,null,null,{color:'B',bf:undefined}),
+   nodes:1, height:1, op:'—', cplx:'—',
+   title:'RB-ДЕРЕВО: 5 ИНВАРИАНТОВ',
+   body:'Red-Black дерево — самобалансирующийся BST с цветами. Корень — BLACK. Буква B/R у каждого узла — цвет. 5 инвариантов гарантируют: длиннейший путь ≤ 2 × кратчайший путь, поэтому h = O(log n).',
+   insight:'<strong>Почему RB популярнее AVL?</strong> Удаление в RB требует максимум 3 ротации (AVL — O(log n)). Поэтому RB используют в ядре Linux (epoll, планировщик), Java TreeMap, C++ std::map, Go\'s sync.Map internals.'},
+  {phase:'insert', cl:22,
+   tree:N(30,N(20,null,null,{color:'R'}),null,{color:'B'}),
+   nodes:2, height:2, op:'INSERT 20 (RED)', cplx:'O(log n)',
+   title:'НОВЫЙ УЗЕЛ ВСЕГДА RED',
+   body:'Новый узел всегда вставляется RED. Почему? RED не нарушает правило 5 (black-height). Проверяем правило 4: parent=30 (BLACK) → не нарушено. Готово, fixup не нужен.',
+   insight:'<strong>Умный дефолт:</strong> вставка RED сохраняет black-height автоматически. Если бы вставляли BLACK — black-height менялась бы и нужен был сложный fixup на каждой вставке.'},
+  {phase:'insert', cl:22,
+   tree:N(30,N(20,N(10,null,null,{color:'R',violation:true}),null,{color:'R',violation:true}),null,{color:'B'}),
+   nodes:3, height:3, op:'INSERT 10 (RED)', cplx:'O(log n)',
+   title:'DOUBLE RED! НАРУШЕНИЕ ПРАВИЛА 4',
+   body:'10 вставлен RED, его родитель 20 тоже RED — нарушение! Uncle(дядя) = правый ребёнок корня 30 = nil = BLACK. Это Case 3 (Uncle BLACK, узел — left child). Применяем rightRotate(30).',
+   insight:'<strong>Case 1 vs Case 2/3:</strong> если дядя RED → recolor (дядю и родителя в BLACK, дедушку в RED). Если дядя BLACK → ротация. Case 1 дешевле (только перекрашивание), но может "поднять" проблему выше.'},
+  {phase:'rotate', cl:38,
+   tree:N(20,N(10,null,null,{color:'B'}),N(30,null,null,{color:'B'}),{color:'B'}),
+   nodes:3, height:2, op:'FIXUP CASE 3', cplx:'O(1)',
+   rotLabel:'rightRotate + recolor',
+   title:'Case 3: rightRotate(30) + RECOLOR',
+   body:'20 становится новым корнем. 20→BLACK, 30→RED. Затем 30 тоже красим в BLACK (т.к. стал потомком корня). Все 5 инвариантов выполнены: корень BLACK, нет двух красных подряд, black-height одинакова.',
+   insight:'<strong>Recolor после ротации:</strong> цвета меняем так: новый корень поддерева берёт цвет старого корня, дети красятся в BLACK. Это сохраняет black-height для всего остального дерева.'},
+  {phase:'insert', cl:29,
+   tree:N(20,N(10,null,N(15,null,null,{color:'R'}),{color:'B'}),N(30,null,null,{color:'B'}),{color:'B'}),
+   nodes:4, height:3, op:'INSERT 15', cplx:'O(log n)',
+   title:'INSERT 15: UNCLE BLACK, RIGHT CHILD → CASE 2',
+   body:'15 > 10 → правый ребёнок 10 (RED). Parent=10 (BLACK)... нет, parent=10 BLACK. Нарушения нет! Узел корректно вставлен. Дерево остаётся валидным.',
+   insight:'<strong>RB-дерево не всегда нужен fixup:</strong> если parent BLACK → никаких ротаций. Вставка завершена. Это делает RB быстрее AVL при частых вставках в случайном порядке.'},
+  {phase:'recolor', cl:29,
+   tree:N(20,N(10,null,N(15,null,null,{color:'R'}),{color:'B'}),N(30,N(25,null,null,{color:'R',violation:true}),N(40,null,null,{color:'R',violation:true}),{color:'R',violation:true}),{color:'B'}),
+   nodes:6, height:3, op:'INSERT 25,40', cplx:'O(log n)',
+   title:'CASE 1: UNCLE RED → ТОЛЬКО RECOLOR',
+   body:'30 стал RED (с прошлого шага). Добавляем 25 и 40 — дети 30 (RED). Дядя 10 — BLACK. Для 25: parent=30 (RED), uncle=10 (BLACK) → Case 1 impossible (uncle должен быть RED для Case 1). Здесь 30 надо было оставить BLACK.',
+   insight:'<strong>Ключевой паттерн fixup:</strong> всегда проверяй дядю. Uncle RED → recolor, подними z на 2 уровня вверх. Uncle BLACK → ротация (1 или 2 шага), завершает fixup за O(1).'},
+  {phase:'done', cl:1,
+   tree:N(20,N(10,null,N(15,null,null,{color:'R'}),{color:'B'}),N(30,N(25,null,null,{color:'B'}),N(40,null,null,{color:'B'}),{color:'R'}),{color:'B'}),
+   nodes:6, height:3, op:'VALID', cplx:'O(log n)',
+   title:'ФИНАЛЬНОЕ RB-ДЕРЕВО: ВСЕ 5 ПРАВИЛ ВЫПОЛНЕНЫ',
+   body:'Корень 20 — BLACK. Нет двух красных подряд. Каждый путь от корня до nil проходит через одинаковое число BLACK-узлов (black-height = 2). Высота дерева = 3 при 6 узлах = log₂(6) ≈ 2.6.',
+   insight:'<strong>Почему RB используется в ядре Linux?</strong> Операция удаления требует максимум 3 ротации (доказано). AVL требует O(log n). Для ОС предсказуемость времени критична.'},
+],
+usage:[
+  {n:1,title:'Go: sort.Map через RB-дерево?',sub:'что реально использует Go stdlib',code:`// Go НЕ имеет RB-дерева в stdlib!
+// Для отсортированного хранения в Go:
+
+// 1. Ручная сортировка слайса:
+data := []int{30, 20, 40, 10}
+sort.Ints(data)  // O(n log n)
+
+// 2. Сторонние библиотеки:
+import rbtree "github.com/emirpasic/gods/trees/redblacktree"
+tree := rbtree.NewWithIntComparator()
+tree.Put(30, nil); tree.Put(20, nil)
+
+// 3. btree (Google):
+import "github.com/google/btree"
+t := btree.New(32)
+t.ReplaceOrInsert(btree.Int(30))
+
+// Java TreeMap, C++ std::map — это RB-деревья
+// Python SortedList — B-tree under the hood`,note:'RB-дерево — стандарт в других языках. В Go предпочитают хэш-таблицы + сортировку.'},
+  {n:2,title:'Linux epoll — RB-дерево для файловых дескрипторов',sub:'реальное применение в ОС',code:`// Ядро Linux использует RB-дерево в:
+// - epoll: отслеживание fd (файловых дескрипторов)
+// - Планировщик CFS (Completely Fair Scheduler)
+// - Memory management: vm_area_struct
+// - Ext3/4 filesystem
+
+// В Go: каждый вызов syscall.EpollCtl добавляет
+// fd в RB-дерево ядра:
+
+fd, _ := syscall.EpollCreate1(0)
+event := &syscall.EpollEvent{Events: syscall.EPOLLIN, Fd: int32(connFd)}
+syscall.EpollCtl(fd, syscall.EPOLL_CTL_ADD, connFd, event)
+// Внутри ядра: rb_insert(epoll_rb_tree, connFd)
+
+// Поиск O(log n), вставка O(log n)
+// 1000 соединений → 10 сравнений вместо 1000`,note:''},
+  {n:3,title:'Black-height и доказательство высоты',sub:'почему h ≤ 2·log₂(n+1)',code:`// Доказательство границы высоты:
+// Минимальное поддерево с black-height k:
+// - Все пути имеют k BLACK-узлов
+// - Минимум — если нет RED узлов: идеальное BLACK дерево
+//   Узлов: 2^k - 1
+
+// Максимальное поддерево с black-height k:
+// - Чередуем RED-BLACK-RED-BLACK...
+// - Высота = 2k, узлов: 2^(2k) - 1
+
+// Следовательно:
+// n >= 2^(h/2) - 1
+// h <= 2·log₂(n+1)  ← гарантия
+
+// AVL: h <= 1.44·log₂(n)  ← строже
+// RB:  h <= 2·log₂(n)     ← мягче, но достаточно для O(log n)`,note:''},
+  {n:4,title:'Удаление из RB-дерева',sub:'сложнее вставки, но максимум 3 ротации',code:`// Удаление в RB — 6 случаев (DB = double black):
+// После удаления BLACK-узла — нарушение black-height
+// "Двойной BLACK" — узел несёт 2 единицы черноты
+
+// DB-fixup случаи:
+// Case 1: Брат RED → leftRotate(parent), recolor
+// Case 2: Брат BLACK, дети брата BLACK → recolor брата RED
+// Case 3: Брат BLACK, дальний ребёнок BLACK → правая ротация брата
+// Case 4: Брат BLACK, дальний ребёнок RED → rotate, recolor
+
+// Ключевой факт: максимум 3 ротации (O(1)!)
+// В AVL удаление может требовать O(log n) ротаций
+
+// Именно это делает RB лучше для write-heavy workloads`,note:'Полная реализация удаления — ~100 строк кода. Используй готовую библиотеку.'},
+  {n:5,title:'Производительность: RB vs AVL vs Skip List',sub:'бенчмарки реальных реализаций',code:`// Benchmark: 1M операций, случайные ключи, Go
+
+// INSERT:
+// AVL:       ~180 ns/op   (больше ротаций)
+// RB:        ~145 ns/op   (меньше ротаций при вставке)
+// Skip List: ~210 ns/op   (вероятностная структура)
+
+// SEARCH:
+// AVL:       ~95  ns/op   (ниже высота)
+// RB:        ~110 ns/op   (чуть выше высота)
+// Skip List: ~140 ns/op
+
+// DELETE:
+// AVL:       ~220 ns/op   (O(log n) ротаций!)
+// RB:        ~155 ns/op   (макс 3 ротации)
+// Skip List: ~190 ns/op
+
+// Вывод: RB лучше для смешанных workloads (CRUD)
+// AVL лучше для read-heavy (search >> insert/delete)`,note:''},
+],
+concepts:[
+  {icon:'🔴',title:'BLACK HEIGHT',body:'Black-height(x) = число BLACK-узлов на пути от x до любого nil-листа (не считая x). Правило 5 гарантирует одинаковую black-height. Следствие: longest path ≤ 2 × shortest path. Поэтому h = O(log n).'},
+  {icon:'🔄',title:'FIXUP: 3 СЛУЧАЯ',body:'Case 1 (Uncle RED): перекрась parent+uncle в BLACK, grandparent в RED, поднимись на 2 уровня — O(log n) итераций, но без ротаций. Case 2 (Uncle BLACK, узел right child): leftRotate(parent) → переходим к Case 3. Case 3 (Uncle BLACK, узел left child): rightRotate(grandparent) + recolor — завершает fixup.'},
+  {icon:'🔬',title:'RB vs AVL: когда что',body:'RB: delete требует max 3 ротации (O(1)), вставка max 2. AVL: delete требует O(log n) ротаций. Поэтому: databases (много изменений) → RB. Read-heavy caches → AVL. Go stdlib: map = hash, sort = quicksort, никаких BST в stdlib.'},
+],
+traps:[
+  {t:'warn',icon:'⚠️',title:'Корень ВСЕГДА должен быть BLACK',body:'После любого fixup проверяй root.Color = BLACK. Правило 2 нарушается когда Case 1 поднимает "проблему" до корня и корень становится RED.'},
+  {t:'warn',icon:'💥',title:'nil листья — это тоже BLACK-узлы',body:'Правило 3: nil = BLACK. При подсчёте black-height считаем nil. Не учитывая nil, можно неверно диагностировать нарушение правила 5.'},
+  {t:'ok',icon:'✅',title:'Новый узел всегда RED',body:'Вставка RED сохраняет правило 5 автоматически. Только правило 4 (no double red) может нарушиться. Fixup работает только с правилом 4.'},
+  {t:'info',icon:'🎯',title:'СОБЕСЕДОВАНИЕ: 5 правил RB-дерева',body:'1. Узел: RED или BLACK. 2. Корень: BLACK. 3. nil-листья: BLACK. 4. RED → два BLACK потомка. 5. Все пути до nil имеют одинаковую black-height.'},
+]},
+
+/* ═══════ 4. HEAP ═══════ */
+heap:{label:'4. HEAP',
+file:'container/heap.go',
+code:[
+  '// Min-heap: родитель всегда меньше или равен детям',
+  '// Хранится как массив — идеальный бинарный граф',
+  '// parent(i) = (i-1)/2',
+  '// left(i)   = 2*i + 1',
+  '// right(i)  = 2*i + 2',
+  '',
+  '// Go: container/heap — интерфейс для heap.Push/Pop',
+  'type MinHeap []int',
+  'func (h MinHeap) Len() int           { return len(h) }',
+  'func (h MinHeap) Less(i, j int) bool { return h[i] < h[j] }',
+  'func (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }',
+  '',
+  'func (h *MinHeap) Push(x interface{}) {',
+  '    *h = append(*h, x.(int))',
+  '}',
+  'func (h *MinHeap) Pop() interface{} {',
+  '    old := *h',
+  '    n := len(old)',
+  '    x := old[n-1]',
+  '    *h = old[0 : n-1]',
+  '    return x',
+  '}',
+  '',
+  '// heap.Push — O(log n):',
+  '// 1. Добавляем в конец массива',
+  '// 2. sift-up: пока элемент < родителя — меняем местами',
+  '',
+  '// heap.Pop — O(log n) — extract minimum:',
+  '// 1. Запоминаем arr[0] (минимум)',
+  '// 2. arr[0] = arr[len-1], уменьшаем len',
+  '// 3. sift-down: пока элемент > меньшего ребёнка — меняем',
+  '',
+  '// heap.Init — O(n) — Build-Heap:',
+  '// Применяем sift-down ко всем внутренним узлам',
+  '// снизу вверх: i от n/2-1 до 0',
+  '',
+  '// Heapsort: Build-Heap O(n) + n×Pop O(log n) = O(n log n)',
+],
+steps:[
+  {phase:'init', cl:0, arr:[], nodes:0, height:0, op:'—', cplx:'—',
+   title:'MIN-HEAP: ПОЛНЫЙ БИНАРНЫЙ КУЧ',
+   body:'Heap — специализированное бинарное дерево с heap-свойством: каждый родитель ≤ обоих детей (min-heap). Хранится компактно как массив — не нужны указатели! Индексы вычисляются формулами. Главная операция: O(1) поиск минимума.',
+   insight:'<strong>Array representation:</strong> бинарное дерево без указателей. Для n элементов — ровно n ячеек массива. Кэш-эффективно! Последовательный доступ к памяти, а не прыжки по указателям.'},
+  {phase:'heapify', cl:13, arr:[5], hlIdx:0, nodes:1, height:1, op:'PUSH 5', cplx:'O(1)',
+   title:'ВСТАВКА 5: ПЕРВЫЙ ЭЛЕМЕНТ',
+   body:'Push: добавляем 5 в конец массива (индекс 0). Sift-up: parent((0-1)/2) = parent(-1/2) = индекс отрицательный → мы корень. Готово. i=0 в массиве = корень дерева.',
+   insight:'<strong>Sift-up (bubble-up):</strong> сравниваем с родителем, если меньше — меняем местами, поднимаемся. Останавливаемся когда >= родителя или достигли корня. Максимум h сравнений = O(log n).'},
+  {phase:'heapify', cl:13, arr:[3,5], hlIdx:0, swapPair:[0,1], nodes:2, height:2, op:'PUSH 3', cplx:'O(log n)',
+   title:'PUSH 3: SIFT-UP — SWAP С РОДИТЕЛЕМ',
+   body:'Push: добавляем 3 в конец (индекс 1). Sift-up: parent(1) = (1-1)/2 = 0 → arr[0]=5. 3 < 5 → swap! arr=[3,5]. Теперь 3 — корень. Heap-свойство восстановлено.',
+   insight:'<strong>Каждый swap поднимает на уровень:</strong> высота heap = ⌊log₂n⌋, поэтому максимум ⌊log₂n⌋ swap. Для 1000 элементов — 10 операций. Для миллиона — 20.'},
+  {phase:'heapify', cl:13, arr:[3,5,8,7,9], hlIdx:null, nodes:5, height:3, op:'PUSH 8,7,9', cplx:'O(log n)',
+   title:'ДОБАВЛЯЕМ 8, 7, 9: HEAP РАСТЁТ',
+   body:'Push 8: arr=[3,5,8]. 8>5 → уже на месте. Push 7: arr=[3,5,8,7]. parent(3)=1, arr[1]=5. 7>5 → на месте. Push 9: arr=[3,5,8,7,9]. parent(4)=1, arr[1]=5. 9>5 → на месте. Дерево правильное!',
+   insight:'<strong>Heap не BST:</strong> нет порядка между братьями или двоюродными. Только parent ≤ children. Не используй heap для поиска по значению — это O(n). Heap для min/max, BST — для поиска.'},
+  {phase:'heapify', cl:28, arr:[3,5,8,7,9], swapPair:[0,4], hlIdx:0, nodes:5, height:3, op:'POP MIN', cplx:'O(log n)',
+   title:'POP: ИЗВЛЕКАЕМ МИНИМУМ 3',
+   body:'Extract-min: 1) Запоминаем arr[0]=3. 2) arr[0]=arr[4]=9 (последний элемент). 3) len--. arr=[9,5,8,7]. 4) Sift-down: 9 > min(5,8)=5 → swap(0,1). arr=[5,9,8,7]. 9 > min(9\'s children)... нет детей. Готово!',
+   insight:'<strong>Почему не удалять просто корень?</strong> Убрать корень — дыра в массиве. Ставим последний элемент на место корня (O(1)), затем sift-down восстанавливает heap-свойство. Heap остаётся компактным массивом.'},
+  {phase:'heapify', cl:31, arr:[1,2,4,3,5,8,7,9,6], hlIdx:null, nodes:9, height:4, op:'BUILD HEAP O(n)', cplx:'O(n)',
+   title:'BUILD-HEAP: ИЗ ПРОИЗВОЛЬНОГО МАССИВА ЗА O(n)',
+   body:'heap.Init — не n раз Push (O(n log n))! Применяем sift-down к внутренним узлам снизу вверх: от индекса n/2-1 до 0. Математически доказано: суммарная работа = O(n), не O(n log n). Это нелинейно!',
+   insight:'<strong>Парадокс Build-Heap:</strong> большинство узлов — листья (n/2 штук), они не требуют sift-down. Следующий уровень: n/4 узлов, sift-down = 1 шаг. Уровень выше: n/8 узлов, sift-down = 2 шага. Сумма геометрической прогрессии = O(n).'},
+  {phase:'done', cl:36, arr:[1,2,4,3,5,8,7,9,6], result:1, nodes:9, height:4, op:'POP = 1', cplx:'O(log n)',
+   title:'HEAPSORT: BUILD O(n) + N×POP O(log n) = O(n log n)',
+   body:'Heapsort: 1) Build-Heap O(n). 2) N раз Extract-min O(log n) → каждый раз получаем следующий минимум. Итого: O(n log n). In-place: можно хранить "извлечённые" элементы в конце того же массива.',
+   insight:'<strong>Почему Heapsort не используют на практике?</strong> O(n log n) в худшем случае — хорошо. Но кэш-производительность хуже quicksort (случайные прыжки по массиву vs последовательный доступ). Go\'s sort использует pdqsort.'},
+],
+usage:[
+  {n:1,title:'Priority Queue через container/heap в Go',sub:'стандартный паттерн из stdlib',code:`import "container/heap"
+
+// Очередь задач по приоритету
+type Task struct {
+    Name     string
+    Priority int
+}
+type TaskQueue []Task
+
+func (tq TaskQueue) Len() int { return len(tq) }
+func (tq TaskQueue) Less(i, j int) bool {
+    return tq[i].Priority < tq[j].Priority // min-heap по приоритету
+}
+func (tq TaskQueue) Swap(i, j int) { tq[i], tq[j] = tq[j], tq[i] }
+func (tq *TaskQueue) Push(x interface{}) {
+    *tq = append(*tq, x.(Task))
+}
+func (tq *TaskQueue) Pop() interface{} {
+    old := *tq; n := len(old)
+    x := old[n-1]; *tq = old[:n-1]; return x
+}
+
+h := &TaskQueue{}
+heap.Init(h)
+heap.Push(h, Task{"urgent", 1})
+heap.Push(h, Task{"low",    5})
+task := heap.Pop(h).(Task) // Task{urgent, 1}`,note:'container/heap — самый эффективный приоритет в Go stdlib. О(log n) Push/Pop.'},
+  {n:2,title:'K наибольших элементов за O(n log k)',sub:'классика собеседований',code:`// Найти k наибольших из n элементов
+// Наивно: sort O(n log n), взять k первых
+// Умно: min-heap размера k → O(n log k)
+
+func topKElements(nums []int, k int) []int {
+    h := &MinHeap{}
+    heap.Init(h)
+
+    for _, num := range nums {
+        heap.Push(h, num)
+        if h.Len() > k {
+            heap.Pop(h) // удаляем минимум кучи
+            // остаётся k наибольших элементов
+        }
+    }
+    // h теперь содержит k наибольших
+    result := make([]int, k)
+    for i := k-1; i >= 0; i-- {
+        result[i] = heap.Pop(h).(int)
+    }
+    return result
+}
+// topKElements([3,1,4,1,5,9,2,6], 3) → [5,6,9]`,note:'Паттерн "heap размера k" — один из самых частых на LeetCode.'},
+  {n:3,title:'Merge K sorted lists — O(n log k)',sub:'реальная задача из интервью FAANG',code:`// Слить k отсортированных слайсов в один
+// Ключевой инсайт: всегда берём минимум среди
+// "текущих голов" всех k слайсов
+
+type HeapItem struct {
+    Val, ListIdx, ElemIdx int
+}
+type MergeHeap []HeapItem
+
+// (реализация Less, Len, Swap, Push, Pop)
+
+func mergeKSorted(lists [][]int) []int {
+    h := &MergeHeap{}
+    heap.Init(h)
+    // Добавляем первые элементы всех списков
+    for i, l := range lists {
+        if len(l) > 0 {
+            heap.Push(h, HeapItem{l[0], i, 0})
+        }
+    }
+    var result []int
+    for h.Len() > 0 {
+        item := heap.Pop(h).(HeapItem)
+        result = append(result, item.Val)
+        if item.ElemIdx+1 < len(lists[item.ListIdx]) {
+            next := lists[item.ListIdx][item.ElemIdx+1]
+            heap.Push(h, HeapItem{next, item.ListIdx, item.ElemIdx+1})
+        }
+    }
+    return result
+}`,note:'O(n log k) где n=всего элементов, k=число списков. Классическая задача LeetCode #23.'},
+  {n:4,title:'Median of data stream',sub:'два heap — стандартный трюк',code:`// Медиана потока данных за O(log n)
+// Идея: левая половина в max-heap, правая в min-heap
+type MedianFinder struct {
+    lower *MaxHeap // левая половина (перевёрнутый min-heap)
+    upper *MinHeap // правая половина
+}
+
+func (mf *MedianFinder) AddNum(num int) {
+    heap.Push(mf.lower, num)     // в левую
+    // Перемещаем max левой в правую (балансируем)
+    heap.Push(mf.upper, heap.Pop(mf.lower))
+    // Выравниваем размеры
+    if mf.upper.Len() > mf.lower.Len() {
+        heap.Push(mf.lower, heap.Pop(mf.upper))
+    }
+}
+
+func (mf *MedianFinder) FindMedian() float64 {
+    if mf.lower.Len() > mf.upper.Len() {
+        return float64((*mf.lower)[0])
+    }
+    return float64((*mf.lower)[0]+(*mf.upper)[0]) / 2.0
+}`,note:'LeetCode #295. Два heap — паттерн для задач типа "найди медиану/k-й элемент онлайн".'},
+  {n:5,title:'Dijkstra с priority queue',sub:'O((V+E) log V) вместо O(V²)',code:`import "container/heap"
+
+type Edge struct{ To, Weight int }
+type Graph [][]Edge
+
+func Dijkstra(g Graph, start int) []int {
+    dist := make([]int, len(g))
+    for i := range dist { dist[i] = 1<<31 - 1 }
+    dist[start] = 0
+
+    pq := &MinHeap{}
+    heap.Push(pq, [2]int{0, start}) // [distance, node]
+
+    for pq.Len() > 0 {
+        item := heap.Pop(pq).([2]int)
+        d, u := item[0], item[1]
+        if d > dist[u] { continue } // устаревшая запись
+        for _, e := range g[u] {
+            if dist[u]+e.Weight < dist[e.To] {
+                dist[e.To] = dist[u] + e.Weight
+                heap.Push(pq, [2]int{dist[e.To], e.To})
+            }
+        }
+    }
+    return dist
+}`,note:'Dijkstra без heap: O(V²). С heap: O((V+E) log V). Для разреженных графов (E ≈ V) разница огромная.'},
+],
+concepts:[
+  {icon:'📦',title:'ARRAY REPRESENTATION',body:'Полное бинарное дерево = массив без указателей. parent(i) = (i-1)/2. left(i) = 2i+1. right(i) = 2i+2. n/2 элементов — листья (нет детей). Это означает: build-heap нужно применять только к n/2 узлам.'},
+  {icon:'⬆️',title:'SIFT-UP vs SIFT-DOWN',body:'Sift-up: двигаем элемент наверх пока он меньше родителя. Используется в Push. O(log n). Sift-down: двигаем элемент вниз пока он больше меньшего ребёнка. Используется в Pop и Build-Heap. O(log n).'},
+  {icon:'🏗️',title:'BUILD-HEAP O(n)',body:'Ключевое: начинаем с индекса n/2-1 (последний внутренний узел) и идём к 0. Листья (n/2 штук) не нужно обрабатывать. Суммарная работа: Σk·n/2^(k+1) = n (геометрическая прогрессия). Это в 2 раза быстрее n раз Push!'},
+],
+traps:[
+  {t:'warn',icon:'⚠️',title:'container/heap — не потокобезопасен',body:'heap.Push/Pop не защищены мьютексом. Для конкурентного использования оберни в sync.Mutex.'},
+  {t:'info',icon:'📌',title:'Heap не для поиска!',body:'Найти элемент в heap — O(n) (нет порядка среди братьев). Heap только для min/max операций. Для поиска — BST или хэш-таблица.'},
+  {t:'ok',icon:'✅',title:'Pop в container/heap — нужен heap.Pop()',body:'Нельзя просто h[0] = h[len-1]; h = h[:len-1]. Нужно вызвать heap.Pop(h) — он вызывает sift-down и h.Pop(). Иначе нарушишь heap-свойство.'},
+  {t:'ok',icon:'🎯',title:'СОБЕСЕДОВАНИЕ: parent, left, right формулы',body:'parent(i) = (i-1)/2. left(i) = 2i+1. right(i) = 2i+2. Листья: индексы ≥ n/2. Корень: индекс 0. Наизусть!'},
+]},
+
+/* ═══════ 5. TRIE ═══════ */
+trie:{label:'5. TRIE',
+file:'tree/trie.go',
+code:[
+  '// Trie (Prefix Tree / Digital Tree)',
+  '// Каждый путь от корня = строка',
+  '// isEnd = последний символ слова',
+  '',
+  'type TrieNode struct {',
+  '    Children [26]*TrieNode  // для ASCII a-z',
+  '    IsEnd    bool',
+  '    // Опционально: count int  // кол-во слов с этим префиксом',
+  '}',
+  '',
+  'type Trie struct { Root *TrieNode }',
+  '',
+  '// Insert — O(m) где m = длина слова',
+  'func (t *Trie) Insert(word string) {',
+  '    node := t.Root',
+  '    for _, ch := range word {',
+  '        idx := ch - \'a\'',
+  '        if node.Children[idx] == nil {',
+  '            node.Children[idx] = &TrieNode{}',
+  '        }',
+  '        node = node.Children[idx]',
+  '    }',
+  '    node.IsEnd = true',
+  '}',
+  '',
+  '// Search — O(m)',
+  'func (t *Trie) Search(word string) bool {',
+  '    node := t.Root',
+  '    for _, ch := range word {',
+  '        idx := ch - \'a\'',
+  '        if node.Children[idx] == nil { return false }',
+  '        node = node.Children[idx]',
+  '    }',
+  '    return node.IsEnd',
+  '}',
+  '',
+  '// StartsWith (prefix search) — O(m)',
+  'func (t *Trie) StartsWith(prefix string) bool {',
+  '    node := t.Root',
+  '    for _, ch := range prefix {',
+  '        if node.Children[ch-\'a\'] == nil { return false }',
+  '        node = node.Children[ch-\'a\']',
+  '    }',
+  '    return true  // нашли prefix (не обязательно слово)',
+  '}',
+],
+steps:[
+  {phase:'init', cl:0,
+   root:{v:'∅',ch:{},isEnd:false,px:0,py:0},
+   nodes:1, height:1, op:'—', cplx:'—',
+   title:'TRIE: ДЕРЕВО ПРЕФИКСОВ',
+   body:'Trie хранит строки так, что общие префиксы разделяются. Корень = пустая строка. Каждое ребро = один символ. Зелёная точка внутри узла = isEnd (конец слова). Поиск/вставка за O(m) — не зависит от числа слов!',
+   insight:'<strong>Vs хэш-таблица для строк:</strong> хэш O(m) в среднем, но не поддерживает prefix search. Trie O(m) всегда + поиск по префиксу O(m). Для автодополнения и IP-маршрутизации — Trie.'},
+  {phase:'insert', cl:12,
+   root:{v:'∅',ch:{c:{v:'c',ch:{a:{v:'a',ch:{t:{v:'t',ch:{},isEnd:true}},isEnd:false}},isEnd:false}},isEnd:false},
+   insertPath:null,
+   nodes:4, height:4, op:'INSERT "cat"', cplx:'O(3)',
+   title:'INSERT "cat": 3 УЗЛА ЗА 3 ШАГА',
+   body:'c→a→t. Каждый символ — один узел. isEnd["t"]=true. Путь от корня: ∅→c→a→t. Если бы уже был "car", узел "c" и "a" были бы общими! Именно в этом сила Trie.',
+   insight:'<strong>Сжатие памяти через общие префиксы:</strong> 1000 слов "cat*" делят "c-a-t". Без Trie: 1000 строк × 3+ байт = 3000+ байт. С Trie: 3 узла для общего префикса + 1 узел на уникальный суффикс.'},
+  {phase:'insert', cl:12,
+   root:{v:'∅',ch:{
+     c:{v:'c',ch:{
+       a:{v:'a',ch:{
+         t:{v:'t',ch:{},isEnd:true},
+         r:{v:'r',ch:{},isEnd:true}
+       },isEnd:false}
+     },isEnd:false}
+   },isEnd:false},
+   nodes:5, height:4, op:'INSERT "car"', cplx:'O(3)',
+   title:'INSERT "car": ОБЩИЙ ПРЕФИКС "ca"',
+   body:'"car": ∅→c→a→r. Узлы c и a уже существуют — просто идём по ним. Создаётся только узел r. isEnd["r"]=true. Теперь 5 узлов хранят 2 слова. BST потребовал бы 2 отдельных узла для "cat" и "car".',
+   insight:'<strong>Ветвление на "ca":</strong> после "a" есть два потомка: "t" (конец "cat") и "r" (конец "car"). Trie автоматически кластеризует слова по алфавиту. Это база для автодополнения в IDE.'},
+  {phase:'insert', cl:12,
+   root:{v:'∅',ch:{
+     c:{v:'c',ch:{
+       a:{v:'a',ch:{
+         t:{v:'t',ch:{},isEnd:true},
+         r:{v:'r',ch:{},isEnd:true}
+       },isEnd:false}
+     },isEnd:false},
+     d:{v:'d',ch:{
+       o:{v:'o',ch:{
+         g:{v:'g',ch:{},isEnd:true}
+       },isEnd:false}
+     },isEnd:false}
+   },isEnd:false},
+   nodes:8, height:4, op:'INSERT "dog"', cplx:'O(3)',
+   title:'INSERT "dog": НОВАЯ ВЕТКА',
+   body:'"dog" начинается с "d" — новое ребро от корня. d→o→g. isEnd["g"]=true. Теперь корень имеет двух потомков: c и d. Trie растёт в ширину по первому символу.',
+   insight:'<strong>Память Trie:</strong> каждый узел хранит массив 26 указателей (для a-z) = 26×8 = 208 байт. Это дорого для разреженного алфавита! Оптимизация: HashMap<char, *Node> вместо [26]*Node.'},
+  {phase:'search', cl:22,
+   root:{v:'∅',ch:{
+     c:{v:'c',ch:{
+       a:{v:'a',ch:{
+         t:{v:'t',ch:{},isEnd:true},
+         r:{v:'r',ch:{},isEnd:true}
+       },isEnd:false}
+     },isEnd:false},
+     d:{v:'d',ch:{o:{v:'o',ch:{g:{v:'g',ch:{},isEnd:true}},isEnd:false}},isEnd:false}
+   },isEnd:false},
+   searchPath:null,
+   searchResult:true,
+   nodes:8, height:4, op:'SEARCH "cat"', cplx:'O(3)',
+   title:'SEARCH "cat": НАШЛИ!',
+   body:'c→a→t. Каждый символ существует. node.isEnd=true → слово найдено. O(m) = O(3). Не зависит от числа слов в Trie! 1000 слов или 1 — одинаково 3 сравнения.',
+   insight:'<strong>Search vs StartsWith:</strong> Search проверяет isEnd (слово целиком). StartsWith проверяет только наличие пути (префикс). StartsWith("ca") → true (есть "cat" и "car"). Search("ca") → false (нет слова "ca").'},
+  {phase:'search', cl:33,
+   root:{v:'∅',ch:{
+     c:{v:'c',ch:{
+       a:{v:'a',ch:{
+         t:{v:'t',ch:{},isEnd:true},
+         r:{v:'r',ch:{},isEnd:true}
+       },isEnd:false}
+     },isEnd:false},
+     d:{v:'d',ch:{o:{v:'o',ch:{g:{v:'g',ch:{},isEnd:true}},isEnd:false}},isEnd:false}
+   },isEnd:false},
+   prefixResult:'PREFIX "ca" → "cat", "car"',
+   nodes:8, height:4, op:'STARTSWITH "ca"', cplx:'O(2)',
+   title:'STARTSWITH "ca": АВТОДОПОЛНЕНИЕ',
+   body:'c→a. Путь существует! StartsWith("ca")=true. Все слова за "a" — это и есть автодополнение. Рекурсивный обход поддерева даст ["car","cat"]. Именно так работает автодополнение в IDE и поисковиках.',
+   insight:'<strong>IP маршрутизация:</strong> IP-адрес = строка битов. Маршрутизаторы используют Patricia Trie (сжатый Trie) для longest prefix match. 4 млрд IPv4 адресов → Trie ~32 уровней. O(32) = O(1) на практике!'},
+],
+usage:[
+  {n:1,title:'Autocomplete система',sub:'Trie + DFS для нахождения всех вариантов',code:`func (t *Trie) Autocomplete(prefix string) []string {
+    node := t.Root
+    for _, ch := range prefix {
+        idx := ch - 'a'
+        if node.Children[idx] == nil { return nil }
+        node = node.Children[idx]
+    }
+    // DFS от найденного узла
+    var results []string
+    var dfs func(*TrieNode, string)
+    dfs = func(n *TrieNode, current string) {
+        if n.IsEnd { results = append(results, current) }
+        for i, child := range n.Children {
+            if child != nil {
+                dfs(child, current+string(rune('a'+i)))
+            }
+        }
+    }
+    dfs(node, prefix)
+    return results
+}
+// Autocomplete("ca") → ["car", "cat"]
+// Autocomplete("do") → ["dog"]`,note:'Ограничь результаты первыми k словами для production (heap + DFS).'},
+  {n:2,title:'Wildcard поиск: замена BFS/DFS',sub:'" . " — любой символ',code:`// Поиск с wildcards: "c.t" матчит "cat", "cot", "cut"
+func (t *Trie) SearchWildcard(word string) bool {
+    return searchHelper(t.Root, word, 0)
+}
+
+func searchHelper(node *TrieNode, word string, i int) bool {
+    if node == nil { return false }
+    if i == len(word) { return node.IsEnd }
+
+    ch := rune(word[i])
+    if ch == '.' {
+        // Пробуем все 26 вариантов
+        for _, child := range node.Children {
+            if searchHelper(child, word, i+1) { return true }
+        }
+        return false
+    }
+    return searchHelper(node.Children[ch-'a'], word, i+1)
+}
+// SearchWildcard("c.t") → true (есть "cat")
+// SearchWildcard("..g") → true (есть "dog")`,note:'Регулярные выражения над Trie. LeetCode #211.'},
+  {n:3,title:'Максимальный XOR двух чисел',sub:'Binary Trie за O(n×32)',code:`// Bit Trie: каждый узел = бит (0 или 1)
+// Для каждого числа — 32 уровня (биты от старшего к младшему)
+type BitTrieNode struct {
+    Children [2]*BitTrieNode
+}
+
+func maxXOR(nums []int) int {
+    root := &BitTrieNode{}
+    // Строим Trie из всех чисел
+    for _, n := range nums {
+        node := root
+        for i := 31; i >= 0; i-- {
+            bit := (n >> i) & 1
+            if node.Children[bit] == nil {
+                node.Children[bit] = &BitTrieNode{}
+            }
+            node = node.Children[bit]
+        }
+    }
+    // Для каждого числа ищем максимальный XOR
+    maxXor := 0
+    for _, n := range nums {
+        node, xor := root, 0
+        for i := 31; i >= 0; i-- {
+            bit := (n >> i) & 1
+            want := 1 - bit // хотим противоположный бит для max XOR
+            if node.Children[want] != nil {
+                xor = xor | (1 << i); node = node.Children[want]
+            } else { node = node.Children[bit] }
+        }
+        if xor > maxXor { maxXor = xor }
+    }
+    return maxXor
+}`,note:'LeetCode #421. Binary Trie для битовых операций — мощная техника.'},
+  {n:4,title:'Сжатый Trie (Patricia Trie / Radix Tree)',sub:'Linux использует для IP routing',code:`// Обычный Trie: каждый символ = узел
+// Patricia Trie: цепочки без ветвления = одно ребро
+// "interview" = i-n-t-e-r-v-i-e-w (9 узлов)
+// Если только одно слово с "inter" — сожми в один узел!
+
+// Структура Patricia Trie:
+type RadixNode struct {
+    Prefix   string       // общий префикс ребра
+    Children map[byte]*RadixNode
+    IsEnd    bool
+}
+
+// insert "interview":  root → ["interview"] (1 узел, не 9!)
+// insert "internal":   root → ["inter"] → ["view", "nal"]
+// insert "internet":   root → ["inter"] → ["view", "na" → ["l", "et"]]
+
+// Память: O(k×σ) где k=число слов, σ=размер алфавита
+// vs обычный Trie: O(total_chars × σ)`,note:'Linux ip route использует Patricia Trie. Go net/http.Router — обычно Radix Tree.'},
+  {n:5,title:'Word frequency counter через Trie',sub:'подсчёт вхождений строк',code:`type CountTrieNode struct {
+    Children [26]*CountTrieNode
+    Count    int    // сколько слов прошло через этот узел
+    EndCount int    // сколько слов заканчивается здесь
+}
+
+func (t *CountTrie) Insert(word string) {
+    node := t.Root
+    for _, ch := range word {
+        idx := ch - 'a'
+        if node.Children[idx] == nil {
+            node.Children[idx] = &CountTrieNode{}
+        }
+        node = node.Children[idx]
+        node.Count++  // считаем прохождения
+    }
+    node.EndCount++   // считаем завершения
+}
+
+// CountWordsWithPrefix("ca") → node.Count после "a"
+// = количество слов начинающихся на "ca"
+// O(m) для любого запроса!`,note:''},
+],
+concepts:[
+  {icon:'🌲',title:'TRIE vs HASH vs BST',body:'Hash: O(m) insert/search, нет prefix search. BST: O(m·log n) (сравнение строк стоит O(m)), есть range queries. Trie: O(m) insert/search/prefix. Наилучший для: автодополнение, IP routing, spell check, word games.'},
+  {icon:'💾',title:'ПАМЯТЬ TRIE',body:'Каждый узел: [26]*Node = 26×8 = 208 байт (64-бит). Для 100k слов → ~200k узлов → ~41 MB. Оптимизации: 1. HashMap вместо [26]*Node (разреженный алфавит). 2. Patricia Trie (сжатие цепочек). 3. DAFSA (directed acyclic word graph).'},
+  {icon:'🗺️',title:'РЕАЛЬНЫЕ ПРИМЕНЕНИЯ',body:'1. IDE автодополнение (VS Code, IntelliJ). 2. DNS lookup (domain → IP). 3. IP маршрутизация (Patricia Trie в Linux kernel). 4. T9/предиктивный ввод. 5. Поисковики (индексация). 6. Spell checker (Levenshtein + Trie).'},
+],
+traps:[
+  {t:'warn',icon:'⚠️',title:'Память [26]*Node — дорого для большого алфавита',body:'Unicode: 1 114 112 символов. [1114112]*Node = 8 MB на узел! Используй map[rune]*TrieNode для Unicode Trie.'},
+  {t:'warn',icon:'⚠️',title:'Delete сложнее чем кажется',body:'Удалить слово: сбросить isEnd=true. Но если нет других слов с этим префиксом — узлы можно освободить. Нужен обратный обход или счётчик refcount.'},
+  {t:'ok',icon:'✅',title:'StartsWith != Search',body:'StartsWith проверяет путь (префикс). Search проверяет isEnd (целое слово). "cat" в Trie → Search("ca")=false, StartsWith("ca")=true.'},
+  {t:'info',icon:'🎯',title:'СОБЕСЕДОВАНИЕ: когда Trie лучше HashMap',body:'Когда нужен prefix search, autocomplete, или хранение слов с общими префиксами. HashMap не поддерживает "найди все слова начинающиеся с X".'},
+]},
+
+/* ═══════ 6. B-TREE ═══════ */
+btree:{label:'6. B-TREE',
+file:'database/btree.go',
+code:[
+  '// B-Tree порядка t (минимальная степень):',
+  '// - Каждый узел: min t-1, max 2t-1 ключей (кроме корня)',
+  '// - Корень: min 1 ключ (если дерево не пустое)',
+  '// - Внутренний узел с k ключами: ровно k+1 потомков',
+  '// - Все листья на одной глубине',
+  '// - Ключи в узле отсортированы',
+  '',
+  '// B-Tree t=2 (2-3-4 дерево): 1–3 ключа, 2–4 потомка',
+  '// B-Tree t=512: используется в PostgreSQL для страниц 8KB',
+  '',
+  'type BTreeNode struct {',
+  '    Keys     []int',
+  '    Children []*BTreeNode',
+  '    IsLeaf   bool',
+  '}',
+  '',
+  '// Search — O(t·log_t(n)):',
+  '// На каждом уровне: линейный/бинарный поиск среди t-1..2t-1 ключей',
+  '// Уровней: log_t(n)',
+  '',
+  '// Insert — O(t·log_t(n)):',
+  '// Если узел переполнен (2t ключей) — split:',
+  '// Медиана поднимается к родителю',
+  '// Узел делится на 2 узла по t-1 ключей',
+  '',
+  '// Ключевое свойство для баз данных:',
+  '// Высота дерева = число disk I/O операций',
+  '// B-Tree с t=512, n=1M: h = log_512(1M) ≈ 2 уровня!',
+  '// vs BST: h = log_2(1M) = 20 уровней = 20 disk reads',
+  '',
+  '// Split узла при вставке (проактивно, сверху вниз):',
+  'func splitChild(parent *BTreeNode, i int, child *BTreeNode, t int) {',
+  '    newNode := &BTreeNode{IsLeaf: child.IsLeaf}',
+  '    // Медиана поднимается к родителю:',
+  '    medianKey := child.Keys[t-1]',
+  '    // Правая половина уходит в newNode:',
+  '    newNode.Keys = append(newNode.Keys, child.Keys[t:]...)',
+  '    child.Keys = child.Keys[:t-1]',
+  '    // Вставляем в родителя:',
+  '    parent.Keys = insertAt(parent.Keys, i, medianKey)',
+  '    parent.Children = insertChildAt(parent.Children, i+1, newNode)',
+  '}',
+],
+steps:[
+  {phase:'init', cl:0,
+   root:{keys:[20],ch:[],hlKeys:[]},
+   nodes:1, height:1, op:'—', cplx:'—',
+   title:'B-TREE: БАЗА ДАННЫХ И ФАЙЛОВЫЕ СИСТЕМЫ',
+   body:'B-Tree — основа реляционных БД и файловых систем (PostgreSQL, MySQL InnoDB, ext4, NTFS, macOS HFS+). В отличие от BST, B-Tree может хранить много ключей в одном узле — оптимизировано под disk I/O. Размер узла = размер страницы диска (обычно 4–16 KB).',
+   insight:'<strong>Почему B-Tree, а не RB-Tree?</strong> RAM → каждый узел = одно обращение к памяти, ценим маленькую высоту. Disk → каждый уровень = один дисковый I/O. Страница 8KB хранит ~200 ключей. B-Tree h=2 vs BST h=20 → в 10 раз меньше disk reads.'},
+  {phase:'insert', cl:18,
+   root:{keys:[10,20,30],ch:[]},
+   nodes:1, height:1, op:'INSERT 10,30', cplx:'O(1)',
+   title:'ВСТАВКА В ОДИН УЗЕЛ: НЕТ СПЛИТА',
+   body:'B-Tree с t=2: максимум 2t-1=3 ключа на узел. Корень: [20]. Добавляем 10 → [10,20]. Добавляем 30 → [10,20,30]. Ключи всегда отсортированы. Узел ещё не переполнен (3 ≤ 2t-1=3).',
+   insight:'<strong>Ключи отсортированы внутри узла:</strong> это позволяет использовать бинарный поиск. Для страницы 8KB с ключами по 8B: 1000 ключей → 10 сравнений внутри узла. Одно disk I/O даёт нам 1000-way ветвление!'},
+  {phase:'split', cl:28,
+   root:{keys:[20],ch:[{keys:[10],ch:[]},{keys:[30,40],ch:[]}]},
+   nodes:3, height:2, op:'INSERT 40 + SPLIT', cplx:'O(log n)',
+   title:'УЗЕЛ ПЕРЕПОЛНЕН: SPLIT',
+   body:'Добавляем ещё 40 → [10,20,30,40] = 4 ключа > 2t-1=3. Split! Медиана (20) поднимается к родителю. Левая половина [10], правая [30,40]. Высота дерева выросла до 2.',
+   insight:'<strong>Split — O(t):</strong> перемещаем t-1 ключей и t указателей. Для t=512 (PostgreSQL) — это 511 ключей за одну операцию. Но split происходит редко! В среднем 1 раз на каждые t вставок.'},
+  {phase:'insert', cl:18,
+   root:{keys:[20,50],ch:[{keys:[10,15],ch:[]},{keys:[30,40,45],ch:[]},{keys:[60,70],ch:[]}]},
+   nodes:4, height:2, op:'INSERT MANY', cplx:'O(log n)',
+   title:'B-TREE РАСТЁТ: МНОЖЕСТВО КЛЮЧЕЙ В УЗЛЕ',
+   body:'После нескольких вставок: корень имеет 2 ключа [20,50], три потомка. Ключи разделяют диапазоны: [∞,20), [20,50), [50,∞). Каждый внутренний узел с k ключами имеет ровно k+1 потомков.',
+   insight:'<strong>Fanout фактор:</strong> B-Tree с t=512 → до 1023 ключей на узел → 1024 потомка. 3 уровня → 1024³ = 1 миллиард записей! PostgreSQL: страница 8KB, ключ 8B → ~500 ключей/страницу, 3 уровня → 125 млрд записей.'},
+  {phase:'search', cl:15,
+   root:{keys:[20,50],ch:[{keys:[10,15],ch:[]},{keys:[30,40,45],ch:[]},{keys:[60,70],ch:[]}],hlKeys:[50]},
+   nodes:4, height:2, op:'SEARCH 40', cplx:'O(log_t n)',
+   title:'ПОИСК 40: O(h) = O(log_t n) DISK READS',
+   body:'В корне [20,50]: 40 > 20 и 40 < 50 → идём в средний потомок. В [30,40,45]: бинарный поиск → нашли 40. 2 disk I/O для 7 ключей. Для 1 млрд ключей с t=512: 3 disk I/O!',
+   insight:'<strong>Сравнение с BST:</strong> 1 млрд ключей → BST: log₂(10⁹) ≈ 30 disk reads. B-Tree t=512: log₅₁₂(10⁹) ≈ 3 disk reads. Разница в 10x. Для HDD (~10ms/read): 30×10ms=300ms vs 3×10ms=30ms.'},
+  {phase:'split', cl:28,
+   root:{keys:[20,30,50],ch:[{keys:[10,15],ch:[]},{keys:[25],ch:[]},{keys:[40,45],ch:[]},{keys:[60,70],ch:[]}],split:false},
+   nodes:5, height:2, op:'GROW', cplx:'O(log n)',
+   title:'B-TREE ВСЕГДА ИДЕАЛЬНО СБАЛАНСИРОВАН',
+   body:'Ключевое свойство: все листья на одной глубине ВСЕГДА. B-Tree растёт не вниз, а вверх (через split корня). Это гарантирует, что каждый поиск проходит ровно h уровней — нет патологических случаев.',
+   insight:'<strong>B+Tree в базах данных:</strong> PostgreSQL и MySQL используют B+Tree (вариант B-Tree). Разница: внутренние узлы хранят только ключи (без значений), все значения в листьях. Листья связаны в список → range queries за O(log n + k).'},
+],
+usage:[
+  {n:1,title:'PostgreSQL B-Tree индекс — как это работает',sub:'каждый CREATE INDEX = B-Tree',code:`-- PostgreSQL: каждый индекс = B-Tree по умолчанию
+CREATE INDEX idx_users_email ON users(email);
+
+-- Внутри: B-Tree с t≈100 (страница 8KB)
+-- Высота для 1M строк: log_100(1M) ≈ 3 уровня
+-- 3 disk I/O вместо full scan (10000+ I/O)
+
+-- Go: работаем с индексом автоматически:
+db.QueryRow("SELECT * FROM users WHERE email = $1", email)
+-- PostgreSQL: B-Tree lookup → O(log n) ≈ 3 reads
+
+-- Составной индекс = B-Tree по (a, b):
+CREATE INDEX idx_orders ON orders(user_id, created_at);
+-- Эффективен для: WHERE user_id = X AND created_at > Y
+-- Неэффективен для: WHERE created_at > Y (нет leftmost prefix)`,note:'Leftmost prefix rule: составной индекс (a,b,c) работает для WHERE a=X, WHERE a=X AND b=Y, но не для WHERE b=Y alone.'},
+  {n:2,title:'Go: google/btree библиотека',sub:'in-memory B-Tree для Go',code:`import "github.com/google/btree"
+
+// B-Tree порядка 32 (хорошо для кэша L1/L2)
+t := btree.New(32)
+
+// Item interface: Less(than Item) bool
+type MyItem struct{ Key int; Value string }
+func (a MyItem) Less(b btree.Item) bool {
+    return a.Key < b.(MyItem).Key
+}
+
+t.ReplaceOrInsert(MyItem{30, "thirty"})
+t.ReplaceOrInsert(MyItem{10, "ten"})
+t.ReplaceOrInsert(MyItem{50, "fifty"})
+
+// Range query — O(log n + k):
+t.AscendRange(MyItem{Key: 20}, MyItem{Key: 60}, func(i btree.Item) bool {
+    fmt.Println(i.(MyItem))  // 30, 50
+    return true
+})`,note:'google/btree используется в Kubernetes (etcd), CockroachDB и многих Go сервисах.'},
+  {n:3,title:'B+Tree для range queries в базах данных',sub:'листья связаны в double-linked list',code:`// B+Tree (используется PostgreSQL, MySQL InnoDB):
+// Отличие от B-Tree:
+// 1. Только листья хранят значения (внутренние — только ключи)
+// 2. Листья связаны в двусвязный список
+// 3. Позволяет эффективные range scans
+
+// SQL range query:
+// SELECT * FROM orders WHERE amount BETWEEN 100 AND 500
+
+// B+Tree: 
+// 1. Find leaf with amount=100: O(log n) = 3 I/O
+// 2. Scan linked list until amount>500: O(k) где k=результаты
+// Итого: O(log n + k) — оптимально!
+
+// Без индекса: O(n) = full table scan
+// С B-Tree (не B+Tree): O(log n + k × log n) — каждое значение отдельный поиск
+// С B+Tree: O(log n + k) — один scan`,note:''},
+  {n:4,title:'LSM Tree vs B-Tree: write-heavy workloads',sub:'почему Cassandra не использует B-Tree',code:`// B-Tree: read-optimized
+// - O(log n) для чтения: отлично
+// - O(log n) для записи: но random disk I/O (expensive!)
+// - Подходит для OLTP с балансом read/write
+
+// LSM Tree (Log-Structured Merge):
+// - Запись в memory buffer (WAL) → O(1) sequential write
+// - Периодически flush на диск → sorted runs (SSTables)
+// - Чтение: проверить все уровни → O(log² n) (хуже B-Tree)
+// - Подходит для write-heavy: Cassandra, RocksDB, LevelDB
+
+// Go RocksDB bindings:
+import "github.com/linxGnu/grocksdb"
+db, _ := grocksdb.OpenDb(opts, "/data")
+db.Put(wo, []byte("key"), []byte("value"))  // WAL + MemTable`,note:'Cassandra, InfluxDB, TiKV используют LSM. PostgreSQL, MySQL — B-Tree. Выбор зависит от write/read ratio.'},
+  {n:5,title:'Файловые системы на основе B-Tree',sub:'ext4, NTFS, HFS+, APFS',code:`// Практически все современные FS используют B-Tree вариации:
+
+// ext4 (Linux): HTree — хэш-индекс для directory entries
+// NTFS (Windows): B-Tree для $MFT (Master File Table)  
+// HFS+/APFS (macOS): B-Tree для catalog file и extents
+
+// Пример: создание файла в ext4
+// 1. Найти inode в B-Tree по имени: O(log n) disk I/O
+// 2. Аллоцировать блоки через extent tree (B-Tree): O(log n)
+// 3. Записать данные
+
+// ZFS (OpenZFS): Copy-on-Write B-Tree (все изменения атомарны)
+// Записи никогда не перезаписывают данные — только добавляют новые блоки
+// Это база для MVCC в базах данных
+
+// В Go: os.Open/os.Create → syscall → FS → B-Tree lookup`,note:'Понимание B-Tree объясняет почему ls в большом каталоге медленнее чем в маленьком.'},
+],
+concepts:[
+  {icon:'💿',title:'ПОЧЕМУ B-TREE ДЛЯ ДИСКА',body:'Disk I/O: чтение одного байта = чтение целой страницы (4–16 KB). B-Tree страница = disk page → одно I/O читает 100–1000 ключей. Каждый уровень B-Tree = один disk I/O. Высота log_t(n) с большим t → минимальное число I/O.'},
+  {icon:'✂️',title:'SPLIT И MERGE',body:'Split: узел с 2t ключами делится на 2 узла по t-1 ключей, медиана поднимается к родителю. Merge (при удалении): если узел упал ниже t-1 ключей — объединить с братом или перераспределить. Все операции O(t×log_t n).'},
+  {icon:'🔗',title:'B+TREE vs B-TREE',body:'B-Tree: значения в любом узле. B+Tree: только в листьях, листья связаны в список. B+Tree лучше для: range scans (сканируем листовой список), меньше I/O на search (внутренние узлы только ключи → больше ключей/страницу). PostgreSQL использует B+Tree.'},
+],
+traps:[
+  {t:'warn',icon:'⚠️',title:'B-Tree vs B+Tree: не путай',body:'В базах данных "B-Tree индекс" обычно означает B+Tree. Реальный B-Tree хуже для range queries. Уточняй у собеседника что именно имеется в виду.'},
+  {t:'info',icon:'📌',title:'Порядок t влияет на производительность',body:'Маленький t (2-4): больше уровней, хуже для диска. Большой t (512+): огромные узлы, хуже для оперативной памяти. Оптимум: t подобран под cache line / disk page size.'},
+  {t:'ok',icon:'✅',title:'Все листья на одной глубине',body:'B-Tree всегда идеально сбалансирован по высоте. Нет патологических случаев как в BST. Любой поиск — ровно h = ⌈log_t n⌉ I/O операций.'},
+  {t:'ok',icon:'🎯',title:'СОБЕСЕДОВАНИЕ: почему БД использует B-Tree а не BST',body:'BST h=O(log₂n)=20-30 disk reads для 1M строк. B-Tree h=O(log_t n)=2-3 reads (t=512). Каждый узел = одна disk page → минимизируем disk I/O. Ключевая операция — disk I/O, а не CPU.'},
+]},
+
+}; /* end SCENES */
+
+/* ══════════════════════════════════════════════
+   PLAYBACK ENGINE
+══════════════════════════════════════════════ */
+let SCENE='bst';
+const PLAY={steps:[],idx:0,timer:null,speed:4};
+
+function setScene(id){
+  SCENE=id;
+  const sc=SCENES[id];
+  PLAY.steps=sc.steps;PLAY.idx=0;
+  if(PLAY.timer){clearInterval(PLAY.timer);PLAY.timer=null;}
+  document.getElementById('pb').textContent='▶ PLAY';
+  document.getElementById('pb').classList.remove('pl');
+  document.getElementById('code-hdr-file').textContent=sc.file;
+  // update tabs
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const atab=document.querySelector(`.tab[data-id="${id}"]`);
+  if(atab)atab.classList.add('active');
+  renderBottomPanels(sc);
+  showBTab('usage');
+  updateStep();
+  flashCA(80);
+  snd('init');
+  resize();
+}
+
+function updateStep(){
+  const sc=SCENES[SCENE];
+  const step=PLAY.steps[PLAY.idx];
+  if(!step)return;
+  // code
+  renderCode(sc.code,step.cl!=null?step.cl:-1);
+  // stats
+  document.getElementById('s-nodes').textContent=step.nodes!==undefined?step.nodes:'—';
+  document.getElementById('s-height').textContent=step.height!==undefined?step.height:'—';
+  document.getElementById('s-op').textContent=step.op||'—';
+  document.getElementById('s-cplx').textContent=step.cplx||'—';
+  // pbar
+  document.getElementById('pbar').style.width=((PLAY.idx+1)/PLAY.steps.length*100)+'%';
+  document.getElementById('sc').textContent=(PLAY.idx+1)+'/'+PLAY.steps.length;
+  // explain bar
+  const badge=document.getElementById('badge');
+  badge.textContent=step.phase?step.phase.toUpperCase():'INIT';
+  badge.className='badge '+(step.phase||'init');
+  document.getElementById('expl-title').textContent=step.title||'';
+  document.getElementById('expl-body').textContent=step.body||'';
+  const ins=document.getElementById('expl-insight');
+  if(step.insight){ins.style.display='block';ins.innerHTML=step.insight;}else{ins.style.display='none';}
+  document.getElementById('expl-step').textContent='ШАГ '+(PLAY.idx+1)+' / '+PLAY.steps.length;
+  draw(step);
+  snd(step.phase||'init');
+}
+
+function next(){if(PLAY.idx<PLAY.steps.length-1){PLAY.idx++;updateStep();}}
+function prev(){if(PLAY.idx>0){PLAY.idx--;updateStep();}}
+function doReset(){PLAY.idx=0;updateStep();if(PLAY.timer){clearInterval(PLAY.timer);PLAY.timer=null;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}}
+function setSpd(v){PLAY.speed=parseInt(v);if(PLAY.timer){clearInterval(PLAY.timer);startPlay();}}
+function startPlay(){PLAY.timer=setInterval(()=>{if(PLAY.idx<PLAY.steps.length-1){PLAY.idx++;updateStep();}else{clearInterval(PLAY.timer);PLAY.timer=null;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}},Math.round(2200/(PLAY.speed+1)));}
+function togglePlay(){
+  if(PLAY.timer){clearInterval(PLAY.timer);PLAY.timer=null;document.getElementById('pb').textContent='▶ PLAY';document.getElementById('pb').classList.remove('pl');}
+  else{if(PLAY.idx>=PLAY.steps.length-1)PLAY.idx=0;startPlay();document.getElementById('pb').textContent='⏸ STOP';document.getElementById('pb').classList.add('pl');}
+}
+
+/* ── BOTTOM PANELS ── */
+function renderBottomPanels(sc){
+  // Usage
+  const up=document.getElementById('bp-usage');
+  up.innerHTML=sc.usage.map(u=>`<div class="uex">
+    <div class="uex-hdr"><div class="uex-num">ПРИМЕР ${u.n}</div><div class="uex-title">${u.title}</div><div class="uex-sub">${u.sub}</div></div>
+    <div class="uex-code">${hlUsage(u.code)}</div>
+    ${u.note?`<div class="uex-note">${u.note}</div>`:''}
+  </div>`).join('');
+  // Concepts
+  const cp=document.getElementById('bp-concepts');
+  cp.innerHTML=sc.concepts.map(c=>`<div class="icon-row">
+    <div class="info-icon">${c.icon}</div>
+    <div><strong>${c.title}</strong><p>${c.body}</p></div>
+  </div>`).join('');
+  // Traps
+  const tp=document.getElementById('bp-traps');
+  tp.innerHTML=sc.traps.map(t=>`<div class="trap ${t.t}">
+    <div class="trap-icon">${t.icon}</div>
+    <div class="trap-body"><strong>${t.title}</strong>${t.body}</div>
+  </div>`).join('');
+}
+
+/* ── TABS ── */
+function buildTabs(){
+  const container=document.getElementById('tabs');
+  Object.entries(SCENES).forEach(([id,sc])=>{
+    const t=document.createElement('div');
+    t.className='tab';t.textContent=sc.label;t.dataset.id=id;
+    t.onclick=()=>setScene(id);
+    container.appendChild(t);
+  });
+}
+
+/* ── KEYBOARD ── */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  const k=e.key;
+  if(k==='ArrowRight')next();
+  else if(k==='ArrowLeft')prev();
+  else if(k===' '){e.preventDefault();togglePlay();}
+  else if(k==='r'||k==='R')doReset();
+  else if(k==='m'||k==='M')toggleMute();
+  else if(k==='1')setScene('bst');
+  else if(k==='2')setScene('avl');
+  else if(k==='3')setScene('rb');
+  else if(k==='4')setScene('heap');
+  else if(k==='5')setScene('trie');
+  else if(k==='6')setScene('btree');
+});
+
+/* ═════════════════════
+   BOOT SEQUENCE
+═════════════════════ */
+const bootLines=[
+  ['ИНИЦИАЛИЗАЦИЯ TREE.VIZ...','OK'],
+  ['ЗАГРУЗКА: BST / AVL / RB-TREE...','OK'],
+  ['ЗАГРУЗКА: HEAP / TRIE / B-TREE...','OK'],
+  ['WEB AUDIO API...','OK'],
+  ['CRT РЕНДЕРЕР...','OK'],
+  ['CANVAS 2D ENGINE...','OK'],
+  ['ДАННЫЕ СЦЕН: 6 СТРУКТУР ДАННЫХ...','OK'],
+  ['СИНТАКСИЧЕСКИЙ ПОДСВЕТЧИК GO...','OK'],
+  ['ЗВУКОВЫЕ ЭФФЕКТЫ...','OK'],
+  ['ЗАПУСК СИСТЕМЫ...','OK'],
+];
+const blog=document.getElementById('blog');
+const bfill=document.getElementById('bfill');
+let bi=0;
+function bootStep(){
+  if(bi>=bootLines.length){
+    bfill.style.width='100%';
+    setTimeout(()=>{
+      AC=new AudioContext();
+      const boot=document.getElementById('boot');
+      boot.style.opacity='0';boot.style.transition='opacity .5s';
+      setTimeout(()=>{boot.style.display='none';
+        const main=document.getElementById('main');main.classList.add('show');
+        buildTabs();setScene('bst');resize();
+      },500);
+    },300);
+    return;
+  }
+  const[msg,status]=bootLines[bi];
+  const div=document.createElement('div');div.className='bline';
+  div.innerHTML=`<span>${msg}</span><span class="bok">[${status}]</span>`;
+  blog.appendChild(div);
+  setTimeout(()=>{div.classList.add('v');},20);
+  bfill.style.width=((bi+1)/bootLines.length*100)+'%';
+  bi++;
+  setTimeout(bootStep,80+Math.random()*60);
+}
+setTimeout(bootStep,500);
+</script>
+</body>
+</html>

@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SYNC.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share Tech Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.52) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1) contrast(1.03);}95%{filter:brightness(.82);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .3s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -4px 0 0 rgba(255,30,30,.35),inset 4px 0 0 rgba(30,80,255,.35);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:88px;color:var(--amber);text-shadow:0 0 44px var(--amber),0 0 88px rgba(255,178,41,.22);letter-spacing:10px;margin-bottom:4px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:700px;max-width:92vw;font-size:13px;line-height:2.1;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:700px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.25);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.1);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:5px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.12);background:rgba(0,0,0,.35);min-height:36px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.lock{color:var(--orange);border-color:var(--orange);background:rgba(249,115,22,.09);}
+.pbadge.unlock{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+.pbadge.rlock{color:var(--blue);border-color:var(--blue);background:rgba(96,165,250,.08);}
+.pbadge.wlock{color:var(--orange);border-color:var(--orange);}
+.pbadge.block{color:var(--red);border-color:var(--red);background:rgba(244,63,94,.12);}
+.pbadge.store{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.07);}
+.pbadge.load{color:var(--blue);border-color:var(--blue);}
+.pbadge.cas{color:var(--purple);border-color:var(--purple);background:rgba(168,85,247,.08);}
+.pbadge.once{color:var(--amber);border-color:var(--amber);}
+.pbadge.warn{color:var(--orange);border-color:var(--orange);}
+.pbadge.done{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+#step-txt{font-size:11px;color:rgba(255,178,41,.78);flex:1;line-height:1.45;}
+#stats{display:flex;gap:14px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:var(--red);border-color:var(--red);}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:430px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.22);border-left:1px solid rgba(255,178,41,.15);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.14);margin-bottom:1px;}
+.phdr{font-family:'VT323',monospace;font-size:15px;letter-spacing:4px;color:var(--amber);padding:6px 12px 6px 14px;background:rgba(0,0,0,.42);border-bottom:1px solid rgba(255,178,41,.18);border-left:3px solid rgba(255,178,41,.55);}
+#code-scroll{overflow-y:auto;max-height:250px;padding:4px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.7;padding:1px 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.1);border-left:2px solid var(--amber);}
+.ln{color:rgba(255,178,41,.28);width:22px;text-align:right;margin-right:9px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#6a7f8f;font-style:italic;}.op{color:#56b6c2;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:10px 14px;font-size:11.5px;line-height:1.85;color:rgba(255,178,41,.72);}
+.info-block strong{color:#ffcc55;font-weight:500;}
+.tag{display:inline-block;background:rgba(255,178,41,.09);border:1px solid rgba(255,178,41,.28);padding:2px 7px;font-size:10px;margin:2px 2px;}
+.warn-tag{display:inline-block;background:rgba(244,63,94,.09);border:1px solid rgba(244,63,94,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#f43f5e;}
+.ok-tag{display:inline-block;background:rgba(74,222,128,.09);border:1px solid rgba(74,222,128,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#4ade80;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">SYNC.VIZ</div>
+  <div id="boot-tagline">GO SYNC PRIMITIVES — MUTEX RWMUTEX POOL ONCE ATOMIC</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X CONCURRENCY SYSTEMS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">SYNC.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a scenario (keys 1–6).</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">LOCKED</span><span class="sv" id="st-l" style="color:var(--orange)">—</span></div>
+        <div class="si"><span class="sl">READERS</span><span class="sv" id="st-r" style="color:var(--blue)">0</span></div>
+        <div class="si"><span class="sl">WRITERS</span><span class="sv" id="st-w" style="color:var(--red)">0</span></div>
+        <div class="si"><span class="sl">BLOCKED</span><span class="sv" id="st-b" style="color:var(--red)">0</span></div>
+        <div class="si"><span class="sl">VALUE</span><span class="sv" id="st-v" style="color:var(--cyan)">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="4" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">←→</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–6</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ KEY RULES</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ GOTCHAS + INTERVIEW</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ── NOISE ── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{const el=document.getElementById('crt-wrap');el.style.filter='brightness(.2)';setTimeout(()=>{el.style.filter='';sGlitch();},18+Math.random()*16);},3800+Math.random()*6200);}sGlitch();
+
+/* ── AUDIO ── */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);const f={lock:260,unlock:520,rlock:400,wlock:200,block:160,store:540,load:460,cas:620,once:480,warn:220,done:500,init:300};o.frequency.setValueAtTime(f[type]||380,AC.currentTime);o.type=type==='block'||type==='warn'?'sawtooth':'triangle';g.gain.setValueAtTime(.08,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.14);o.start(AC.currentTime);o.stop(AC.currentTime+.17);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('unlock');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ── HIGHLIGHT ── */
+function hlGo(l){
+  const e=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ci=e.indexOf('//');const code=ci>=0?e.slice(0,ci):e;const cmt=ci>=0?e.slice(ci):'';
+  function hl(s){
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/\b(func|go|var|type|struct|return|if|else|for|range|defer|int|int32|int64|uint32|uint64|string|bool|any|make|nil|sync|atomic)\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&lt;=|&gt;=|&lt;-|->)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return hl(code)+(cmt?'<span class="cm">'+cmt+'</span>':'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span>${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ═══════════════════════════════════════
+   SCENARIOS
+═══════════════════════════════════════ */
+const SC={
+  mutex:{label:'MUTEX',
+    code:[
+      'type SafeCounter struct {',
+      '    mu sync.Mutex',
+      '    value int',
+      '}',
+      '',
+      'func (c *SafeCounter) Inc() {',
+      '    c.mu.Lock()            // acquire: blocks if locked',
+      '    defer c.mu.Unlock()    // release on return',
+      '    c.value++              // critical section',
+      '}',
+      '',
+      'func (c *SafeCounter) Get() int {',
+      '    c.mu.Lock()',
+      '    defer c.mu.Unlock()',
+      '    return c.value',
+      '}',
+      '',
+      '// TryLock (Go 1.18+):',
+      'if c.mu.TryLock() {',
+      '    defer c.mu.Unlock()',
+      '    // non-blocking attempt',
+      '}',
+      '',
+      '// TRAP: do NOT copy Mutex after first use',
+      '// TRAP: do NOT lock a mutex from same goroutine twice (deadlock)',
+    ],
+    cx:`<strong>sync.Mutex:</strong> mutual exclusion — only one goroutine holds the lock at a time<br><strong>Lock():</strong> acquire; blocks if already locked until released<br><strong>Unlock():</strong> release; must be called by the goroutine that called Lock<br><strong>defer mu.Unlock():</strong> idiomatic — ensures unlock even on panic/early return<br><strong>Not reentrant:</strong> locking twice from the same goroutine = deadlock`,
+    how:`A Mutex serializes access to a critical section. When Lock() is called and the mutex is free, the goroutine acquires it and proceeds. If it's already held, the goroutine blocks until Unlock() is called.<br><br>Go's Mutex uses a state machine: initially 0 (unlocked). Lock() atomically sets the locked bit. If it was already set, the goroutine is parked by the runtime scheduler until the mutex becomes free.<br><br>Unlock() releases the mutex and unparks one waiting goroutine if any. The order is not strictly FIFO — the scheduler decides which waiter proceeds.`,
+    facts:`<span class="warn-tag">TRAP</span> Mutex is NOT reentrant — same goroutine locking twice = deadlock<br><span class="warn-tag">TRAP</span> never copy a Mutex after first use (vet warns: go vet detects this)<br><span class="ok-tag">IDIOM</span> always defer mu.Unlock() immediately after Lock() — prevents forgetting<br><span class="tag">TryLock</span> Go 1.18+ — non-blocking attempt, returns bool<br><span class="ok-tag">RULE</span> only the goroutine that called Lock() should call Unlock()<br><span class="tag">Zero value</span> var mu sync.Mutex is immediately usable — no initialization needed`,
+  },
+  rwmutex:{label:'RWMUTEX',
+    code:[
+      'type Cache struct {',
+      '    mu   sync.RWMutex',
+      '    data map[string]string',
+      '}',
+      '',
+      'func (c *Cache) Get(key string) (string, bool) {',
+      '    c.mu.RLock()          // multiple readers OK',
+      '    defer c.mu.RUnlock()',
+      '    v, ok := c.data[key]',
+      '    return v, ok',
+      '}',
+      '',
+      'func (c *Cache) Set(key, val string) {',
+      '    c.mu.Lock()           // exclusive: blocks all',
+      '    defer c.mu.Unlock()',
+      '    c.data[key] = val',
+      '}',
+      '',
+      '// RWMutex state machine:',
+      '// Unlocked → RLocked by N readers (no writers)',
+      '// RLocked  → RLocked by N+1 (more readers)',
+      '// RLocked  → writer WAITS (blocks new readers too)',
+      '// Unlocked → Write-Locked (exclusive)',
+    ],
+    cx:`<strong>sync.RWMutex:</strong> multiple concurrent readers OR one exclusive writer<br><strong>RLock()/RUnlock():</strong> shared read lock — many goroutines can hold simultaneously<br><strong>Lock()/Unlock():</strong> exclusive write lock — blocks all readers and writers<br><strong>Writer starvation prevention:</strong> pending writer blocks new readers<br><strong>When to use:</strong> reads >> writes — cache, config, read-heavy data structures`,
+    how:`RWMutex implements the readers-writers problem. Multiple goroutines can hold the read lock simultaneously — they don't block each other. But a write lock is exclusive: it waits for all readers to finish and blocks any new readers or writers.<br><br>To prevent writer starvation, once a writer is waiting, new read locks are blocked until the writer gets and releases its lock.<br><br>State internally: a signed 32-bit counter. Positive = N active readers. Negative = write-locked (or writer waiting). RLock increments, RUnlock decrements. Lock() sets to a large negative, waits for all readers to drain.`,
+    facts:`<span class="ok-tag">PERFORMANCE</span> read-heavy workload: RWMutex is faster than Mutex (parallel reads)<br><span class="warn-tag">TRAP</span> write-heavy workload: RWMutex overhead makes Mutex faster<br><span class="tag">Writer priority</span> pending writer blocks new readers — prevents writer starvation<br><span class="warn-tag">TRAP</span> don't upgrade RLock to Lock — call RUnlock() then Lock() separately<br><span class="ok-tag">RULE</span> cannot call RUnlock() without matching RLock() — panic on underflow<br><span class="tag">Benchmark</span> rule of thumb: use RWMutex only if reads are ≥10x more frequent than writes`,
+  },
+  sync_map:{label:'SYNC.MAP',
+    code:[
+      '// sync.Map: optimized for specific use cases',
+      '// Best when: keys written once, read many times',
+      '// OR: separate goroutines use disjoint key sets',
+      '',
+      'var m sync.Map',
+      '',
+      '// Store: set key-value',
+      'm.Store("key1", "value1")',
+      'm.Store("key2", 42)',
+      '',
+      '// Load: get value',
+      'v, ok := m.Load("key1")   // ok=true, v="value1"',
+      'v2, ok := m.Load("none")  // ok=false, v2=nil',
+      '',
+      '// LoadOrStore: atomic get-or-set',
+      'actual, loaded := m.LoadOrStore("key1", "new")',
+      '// loaded=true: key existed, actual="value1"',
+      '',
+      '// Delete: remove key',
+      'm.Delete("key1")',
+      '',
+      '// Range: iterate (snapshot-like)',
+      'm.Range(func(k, v any) bool {',
+      '    fmt.Println(k, v)',
+      '    return true  // return false to stop',
+      '})',
+    ],
+    cx:`<strong>sync.Map:</strong> concurrent-safe map, no external locking needed<br><strong>NOT a general replacement</strong> for map+RWMutex — has specific use cases<br><strong>Best for:</strong> write-once/read-many OR disjoint key sets per goroutine<br><strong>LoadOrStore:</strong> atomic — either loads existing value or stores new one<br><strong>Range:</strong> snapshots the map for iteration — modifications during Range may or may not be seen`,
+    how:`sync.Map uses two internal maps: a "read" map (atomic pointer, read-lock-free) and a "dirty" map (mutex-protected). Reads hit the read map first — fast, no lock. On miss, they fall through to the dirty map under mutex.<br><br>When the dirty map accumulates enough misses, it's promoted to become the new read map (atomic pointer swap). This amortizes the cost of writes.<br><br>The design optimizes for stable key sets — once a key is in the read map, reads are extremely fast. Frequent writes force many dirty-map accesses, degrading to worse-than-RWMutex performance.`,
+    facts:`<span class="warn-tag">TRAP</span> sync.Map is NOT always faster than map+RWMutex — benchmark your case<br><span class="ok-tag">BEST CASE</span> keys written once, read many times — read map hit avoids all locks<br><span class="warn-tag">TRAP</span> Range does not provide a consistent snapshot — use map+RWMutex for that<br><span class="tag">LoadOrStore</span> atomic: returns (existingValue, true) or (storedValue, false)<br><span class="ok-tag">INTERVIEW</span> "when would you use sync.Map vs map+RWMutex?" → stable keys, disjoint writes<br><span class="warn-tag">TRAP</span> values are any — no compile-time type safety`,
+  },
+  sync_pool:{label:'SYNC.POOL',
+    code:[
+      '// sync.Pool: reuse temporary objects to reduce GC pressure',
+      '',
+      'var bufPool = sync.Pool{',
+      '    New: func() any {',
+      '        return make([]byte, 0, 4096)',
+      '    },',
+      '}',
+      '',
+      'func process(data []byte) {',
+      '    // Get: retrieve from pool (or New() if empty)',
+      '    buf := bufPool.Get().([]byte)',
+      '    buf = buf[:0]  // reset, keep capacity',
+      '',
+      '    buf = append(buf, data...)',
+      '    // ... use buf ...',
+      '',
+      '    // Put: return to pool for reuse',
+      '    bufPool.Put(buf)',
+      '}',
+      '',
+      '// TRAP: GC may clear pool at any time',
+      '// TRAP: never store pointers to pooled objects',
+      '// TRAP: pool items may be shared between goroutines — always reset',
+      '',
+      '// Use case: bytes.Buffer, *json.Encoder, large scratch buffers',
+    ],
+    cx:`<strong>sync.Pool:</strong> cache reusable objects to reduce allocation pressure<br><strong>Get():</strong> retrieve from pool if available, or call New() to create fresh<br><strong>Put():</strong> return object to pool for future reuse<br><strong>GC:</strong> pool contents may be cleared at any GC cycle — no persistence guarantee<br><strong>Thread-safe:</strong> Get/Put are safe from multiple goroutines concurrently`,
+    how:`sync.Pool maintains a per-P (processor) local pool and a shared pool. Get() checks the local pool first (no lock needed), then the shared pool (with lock), then calls New().<br><br>This per-P design eliminates most lock contention — each processor has its own pool, so concurrent goroutines rarely contend.<br><br>On GC, pools are cleared. This is intentional — pooled objects shouldn't hold resources across GC cycles. Objects should be safe to discard at any time. Always reset pooled objects before use (buf[:0]) since they may contain data from a previous use.`,
+    facts:`<span class="warn-tag">TRAP</span> GC clears pools — don't use for objects that must persist<br><span class="warn-tag">TRAP</span> always reset/zero the object before use — it may have leftover state<br><span class="ok-tag">USE CASE</span> bytes.Buffer, JSON encoders, scratch buffers — high-frequency, short-lived<br><span class="tag">Per-P design</span> local pool per processor → most Get/Put are lock-free<br><span class="ok-tag">INTERVIEW</span> "why use sync.Pool?" → reduce GC pressure, avoid repeated allocations<br><span class="warn-tag">TRAP</span> never store the result of Get() in a long-lived variable — breaks pool semantics`,
+  },
+  sync_once:{label:'SYNC.ONCE',
+    code:[
+      '// sync.Once: guaranteed single execution',
+      '',
+      'var (', 
+      '    instance *Config',
+      '    once     sync.Once',
+      ')',
+      '',
+      'func GetConfig() *Config {',
+      '    once.Do(func() {',
+      '        // Runs EXACTLY ONCE across all goroutines',
+      '        instance = &Config{',
+      '            DB:  loadDBConfig(),',
+      '            API: loadAPIConfig(),',
+      '        }',
+      '    })',
+      '    return instance',
+      '}',
+      '',
+      '// All goroutines calling GetConfig() will:',
+      '// - If first: execute the init func, then return',
+      '// - If concurrent: BLOCK until init completes',
+      '// - If after: return immediately (done=1)',
+      '',
+      '// TRAP: panic inside Do() marks once as done',
+      '// TRAP: Do() blocks callers until f() returns — no timeout',
+    ],
+    cx:`<strong>sync.Once:</strong> executes a function exactly once, regardless of goroutine count<br><strong>Do(f):</strong> if first call — run f() and block all others until done; if not first — return immediately<br><strong>After f() completes:</strong> all subsequent Do() calls are instant (no lock, just atomic check)<br><strong>Panic in f():</strong> once is still marked done — subsequent calls do NOT retry<br><strong>Use case:</strong> lazy initialization, singleton, load-once config`,
+    how:`sync.Once uses an atomic uint32 (done) and a Mutex internally. The fast path: if done==1, return immediately — no lock. The slow path: acquire mutex, check done again (double-check locking), if still 0 execute f() and set done=1.<br><br>This double-check pattern ensures safety without a lock on every call after initialization. The atomic load uses acquire semantics — all goroutines that see done==1 are guaranteed to see all writes made by f().<br><br>If f() panics, once.done is still set to 1. The reasoning: a panicking init likely left shared state in an inconsistent state — retrying would be dangerous.`,
+    facts:`<span class="warn-tag">TRAP</span> panic in Do(f) marks once as done — f() will NOT run again<br><span class="warn-tag">TRAP</span> deadlock if Do(f) calls Do() on the same Once — f is still running<br><span class="ok-tag">FAST PATH</span> after first call: atomic load only, no lock — essentially free<br><span class="tag">Memory model</span> Do() completion happens-before any subsequent Do() call returns<br><span class="ok-tag">USE CASE</span> singleton initialization, lazy loading, one-time setup<br><span class="ok-tag">INTERVIEW</span> "how is sync.Once implemented?" → atomic + mutex + double-check`,
+  },
+  atomic:{label:'ATOMIC',
+    code:[
+      'import "sync/atomic"',
+      '',
+      '// Atomic operations on shared variables',
+      'var counter int64',
+      '',
+      '// Load and Store: atomic read/write',
+      'atomic.StoreInt64(&counter, 0)',
+      'val := atomic.LoadInt64(&counter)  // val=0',
+      '',
+      '// AddInt64: atomic increment',
+      'atomic.AddInt64(&counter, 1)  // counter=1',
+      'atomic.AddInt64(&counter, 1)  // counter=2',
+      '',
+      '// CompareAndSwap (CAS): the foundation of lock-free algos',
+      'old := atomic.LoadInt64(&counter)           // read current',
+      'swapped := atomic.CompareAndSwapInt64(      // atomic:',
+      '    &counter, old, old+1)                   //  if *p==old, set to new',
+      '// swapped=true if counter was still `old`',
+      '// swapped=false if another goroutine changed it first',
+      '',
+      '// atomic.Value: store/load any type atomically',
+      'var cfg atomic.Value',
+      'cfg.Store(Config{MaxConn: 10})',
+      'current := cfg.Load().(Config)',
+    ],
+    cx:`<strong>atomic operations:</strong> indivisible read-modify-write — no intermediate state visible<br><strong>AddInt64:</strong> atomic add, returns new value — safe increment from multiple goroutines<br><strong>CompareAndSwap (CAS):</strong> if *ptr == old, set *ptr = new — foundation of lock-free algorithms<br><strong>atomic.Value:</strong> atomically stores/loads any consistent value (pointer-sized swap)<br><strong>Memory ordering:</strong> all sync/atomic ops use sequential consistency (strongest guarantee)`,
+    how:`Atomic operations map to CPU instructions (e.g., LOCK XADD, CMPXCHG on x86) that the hardware executes indivisibly. No other goroutine can observe an intermediate state.<br><br>CompareAndSwap is the building block of lock-free data structures. The CAS loop pattern: read current value, compute new value, attempt CAS; if CAS fails (another goroutine changed the value), retry from the read step. This is an optimistic concurrency approach.<br><br>atomic.Value is useful for publishing configuration updates — Store/Load are atomic, ensuring readers never see a partially-written value.`,
+    facts:`<span class="ok-tag">PERFORMANCE</span> atomic ops faster than mutex for single variables<br><span class="warn-tag">TRAP</span> CAS loop under contention can spin — degrades to O(N²) with N goroutines<br><span class="tag">atomic.Value</span> Store/Load — all types stored must be same type, or panic<br><span class="ok-tag">PATTERN</span> read-mostly atomic: Load is fast, Store is rare — no lock needed<br><span class="warn-tag">TRAP</span> atomic on non-aligned addresses on 32-bit = undefined behavior<br><span class="ok-tag">INTERVIEW</span> "CAS semantics": if *p == old { *p = new; return true } else { return false }`,
+  },
+};
+
+/* ═══════════════════════════════════════
+   STEPS
+═══════════════════════════════════════ */
+function buildSteps(key){
+  const S=[];
+  const snap=(phase,desc,cl,st)=>S.push({phase,desc,cl,...st});
+
+  if(key==='mutex'){
+    snap('init','sync.Mutex state = 0 (unlocked). No goroutine holds it. 3 goroutines ready.',
+      0,{locked:false,lockedBy:null,goroutines:[{id:0,state:'ready'},{id:1,state:'ready'},{id:2,state:'ready'}],value:0,readers:0,writers:0,blocked:0,stval:'0'});
+    snap('lock','G0 calls mu.Lock(). Mutex free → G0 acquires. State = locked. Enters critical section.',
+      6,{locked:true,lockedBy:0,goroutines:[{id:0,state:'locked'},{id:1,state:'ready'},{id:2,state:'ready'}],value:0,readers:0,writers:1,blocked:0,stval:'0'});
+    snap('lock','G1 calls mu.Lock(). Mutex held by G0 → G1 BLOCKS (parked by scheduler).',
+      6,{locked:true,lockedBy:0,goroutines:[{id:0,state:'locked'},{id:1,state:'blocked'},{id:2,state:'ready'}],value:0,readers:0,writers:1,blocked:1,stval:'0'});
+    snap('lock','G2 calls mu.Lock(). Also blocked. Two goroutines waiting in queue.',
+      6,{locked:true,lockedBy:0,goroutines:[{id:0,state:'locked'},{id:1,state:'blocked'},{id:2,state:'blocked'}],value:0,readers:0,writers:1,blocked:2,stval:'0'});
+    snap('wlock','G0 executes c.value++ in critical section. Only G0 has access. value=1.',
+      8,{locked:true,lockedBy:0,goroutines:[{id:0,state:'running'},{id:1,state:'blocked'},{id:2,state:'blocked'}],value:1,readers:0,writers:1,blocked:2,stval:'1'});
+    snap('unlock','G0 calls defer mu.Unlock(). Mutex released. G1 unblocked (scheduler picks one waiter).',
+      7,{locked:true,lockedBy:1,goroutines:[{id:0,state:'done'},{id:1,state:'locked'},{id:2,state:'blocked'}],value:1,readers:0,writers:1,blocked:1,stval:'1'});
+    snap('wlock','G1 in critical section. value++. value=2. G2 still waiting.',
+      8,{locked:true,lockedBy:1,goroutines:[{id:0,state:'done'},{id:1,state:'running'},{id:2,state:'blocked'}],value:2,readers:0,writers:1,blocked:1,stval:'2'});
+    snap('done','G1 unlocks. G2 runs. G2 unlocks. value=3. All goroutines serialized correctly.',
+      7,{locked:false,lockedBy:null,goroutines:[{id:0,state:'done'},{id:1,state:'done'},{id:2,state:'done'}],value:3,readers:0,writers:0,blocked:0,stval:'3'});
+  }
+
+  else if(key==='rwmutex'){
+    snap('init','sync.RWMutex unlocked. 3 readers and 1 writer ready. Readers can be concurrent.',
+      0,{rstate:'free',readers:[],writer:null,pendingWriter:false,goroutines:[{id:0,t:'R'},{id:1,t:'R'},{id:2,t:'R'},{id:3,t:'W'}],readers2:0,writers:0,blocked:0,stval:'—'});
+    snap('rlock','R0 calls RLock(). No writer: read lock granted. Counter = 1.',
+      6,{rstate:'reading',readers:[0],writer:null,pendingWriter:false,goroutines:[{id:0,t:'R',state:'reading'},{id:1,t:'R'},{id:2,t:'R'},{id:3,t:'W'}],readers2:1,writers:0,blocked:0,stval:'—'});
+    snap('rlock','R1 and R2 call RLock(). Multiple readers allowed simultaneously. Counter = 3.',
+      6,{rstate:'reading',readers:[0,1,2],writer:null,pendingWriter:false,goroutines:[{id:0,t:'R',state:'reading'},{id:1,t:'R',state:'reading'},{id:2,t:'R',state:'reading'},{id:3,t:'W'}],readers2:3,writers:0,blocked:0,stval:'—'});
+    snap('wlock','W3 calls Lock(). Writer arrives: blocks new readers AND waits for current readers to finish.',
+      13,{rstate:'reading',readers:[0,1,2],writer:null,pendingWriter:true,goroutines:[{id:0,t:'R',state:'reading'},{id:1,t:'R',state:'reading'},{id:2,t:'R',state:'reading'},{id:3,t:'W',state:'waiting'}],readers2:3,writers:1,blocked:1,stval:'—'});
+    snap('unlock','R0, R1, R2 call RUnlock(). Counter drains to 0. Writer unblocked.',
+      7,{rstate:'writing',readers:[],writer:3,pendingWriter:false,goroutines:[{id:0,t:'R',state:'done'},{id:1,t:'R',state:'done'},{id:2,t:'R',state:'done'},{id:3,t:'W',state:'writing'}],readers2:0,writers:1,blocked:0,stval:'—'});
+    snap('wlock','W3 holds exclusive lock. No readers possible. Writes safely. value="updated".',
+      14,{rstate:'writing',readers:[],writer:3,pendingWriter:false,goroutines:[{id:0,t:'R',state:'done'},{id:1,t:'R',state:'done'},{id:2,t:'R',state:'done'},{id:3,t:'W',state:'writing'}],readers2:0,writers:1,blocked:0,stval:'"updated"'});
+    snap('done','W3 calls Unlock(). Mutex free. New readers and writers can proceed.',
+      15,{rstate:'free',readers:[],writer:null,pendingWriter:false,goroutines:[{id:0,t:'R'},{id:1,t:'R'},{id:2,t:'R'},{id:3,t:'W',state:'done'}],readers2:0,writers:0,blocked:0,stval:'"updated"'});
+  }
+
+  else if(key==='sync_map'){
+    snap('init','var m sync.Map. Internal: read map (atomic) + dirty map (mutex). Both empty.',
+      4,{entries:[],readMap:[],dirtyMap:[],pendingOp:null,readers2:0,writers:0,blocked:0,stval:'—'});
+    snap('store','m.Store("key1","value1"). Writes to dirty map. Read map not yet updated.',
+      7,{entries:[{k:'key1',v:'value1',loc:'dirty'}],readMap:[],dirtyMap:['key1'],pendingOp:null,readers2:0,writers:0,blocked:0,stval:'—'});
+    snap('store','m.Store("key2",42). Also to dirty map.',
+      8,{entries:[{k:'key1',v:'value1',loc:'dirty'},{k:'key2',v:'42',loc:'dirty'}],readMap:[],dirtyMap:['key1','key2'],pendingOp:null,readers2:0,writers:0,blocked:0,stval:'—'});
+    snap('load','m.Load("key1"). Miss in read map → fall to dirty map (mutex). ok=true, v="value1".',
+      11,{entries:[{k:'key1',v:'value1',loc:'dirty'},{k:'key2',v:'42',loc:'dirty'}],readMap:[],dirtyMap:['key1','key2'],pendingOp:{op:'Load',key:'key1',result:'value1'},readers2:1,writers:0,blocked:0,stval:'"value1"'});
+    snap('store','Miss count hits threshold. Dirty map promoted to read map (atomic pointer swap).',
+      11,{entries:[{k:'key1',v:'value1',loc:'read'},{k:'key2',v:'42',loc:'read'}],readMap:['key1','key2'],dirtyMap:[],pendingOp:null,readers2:0,writers:0,blocked:0,stval:'—'});
+    snap('load','m.Load("key1"). HIT in read map — no lock, no mutex. Very fast path.',
+      11,{entries:[{k:'key1',v:'value1',loc:'read'},{k:'key2',v:'42',loc:'read'}],readMap:['key1','key2'],dirtyMap:[],pendingOp:{op:'Load',key:'key1',result:'hit!',fast:true},readers2:1,writers:0,blocked:0,stval:'"value1"'});
+    snap('done','m.Range() iterates. m.Delete("key1"). LoadOrStore: atomic get-or-set.',
+      20,{entries:[{k:'key2',v:'42',loc:'read'}],readMap:['key2'],dirtyMap:[],pendingOp:null,readers2:0,writers:0,blocked:0,stval:'42'});
+  }
+
+  else if(key==='sync_pool'){
+    snap('init','sync.Pool with New=func(){make([]byte,0,4096)}. Pool empty initially.',
+      1,{pool:[],inUse:[],gcHit:false,readers2:0,writers:0,blocked:0,stval:'0 bufs'});
+    snap('load','G0: bufPool.Get(). Pool empty → calls New(). Allocates buf[0] (cap=4096).',
+      10,{pool:[],inUse:[{id:0,label:'buf[0]',user:'G0'}],gcHit:false,readers2:1,writers:0,blocked:0,stval:'1 alloc'});
+    snap('load','G1: bufPool.Get(). Pool empty → New(). Allocates buf[1].',
+      10,{pool:[],inUse:[{id:0,label:'buf[0]',user:'G0'},{id:1,label:'buf[1]',user:'G1'}],gcHit:false,readers2:2,writers:0,blocked:0,stval:'2 alloc'});
+    snap('store','G0 done. bufPool.Put(buf[0]). buf[0] returns to pool. Not GC\'d yet.',
+      16,{pool:[{id:0,label:'buf[0]'}],inUse:[{id:1,label:'buf[1]',user:'G1'}],gcHit:false,readers2:1,writers:0,blocked:0,stval:'1 pooled'});
+    snap('load','G2: bufPool.Get(). Pool NOT empty → returns buf[0]. No allocation!',
+      10,{pool:[],inUse:[{id:0,label:'buf[0]',user:'G2'},{id:1,label:'buf[1]',user:'G1'}],gcHit:false,readers2:2,writers:0,blocked:0,stval:'0 alloc'});
+    snap('warn','GC RUNS. Pool cleared. Both buffers were in pool → GC\'d. Next Get() will allocate.',
+      19,{pool:[],inUse:[],gcHit:true,readers2:0,writers:0,blocked:0,stval:'cleared'});
+    snap('done','After GC: new Get() calls New() again. Pool amortizes allocations between GC cycles.',
+      10,{pool:[{id:2,label:'buf[2]'}],inUse:[],gcHit:false,readers2:0,writers:0,blocked:0,stval:'1 pooled'});
+  }
+
+  else if(key==='sync_once'){
+    snap('init','sync.Once: done=0, mu=unlocked. GetConfig() called from G0, G1, G2 simultaneously.',
+      2,{done:false,goroutines:[{id:0,state:'calling'},{id:1,state:'calling'},{id:2,state:'calling'}],initRunning:false,readers2:0,writers:0,blocked:0,stval:'done=0'});
+    snap('once','G0 sees done=0. Acquires mutex. Checks done again (double-check). Still 0. Runs f().',
+      8,{done:false,goroutines:[{id:0,state:'running'},{id:1,state:'waiting'},{id:2,state:'waiting'}],initRunning:true,readers2:0,writers:1,blocked:2,stval:'running'});
+    snap('lock','G1 and G2 see done=0 (not yet 1). Try mutex → BLOCK. Waiting for G0 to finish.',
+      8,{done:false,goroutines:[{id:0,state:'running'},{id:1,state:'blocked'},{id:2,state:'blocked'}],initRunning:true,readers2:0,writers:1,blocked:2,stval:'init…'});
+    snap('once','G0: f() completes. instance initialized. done=1 (atomic store). Unlock.',
+      8,{done:true,goroutines:[{id:0,state:'done'},{id:1,state:'blocked'},{id:2,state:'blocked'}],initRunning:false,readers2:0,writers:0,blocked:2,stval:'done=1'});
+    snap('unlock','G1 acquires mutex. Checks done: already 1! Returns immediately without running f().',
+      8,{done:true,goroutines:[{id:0,state:'done'},{id:1,state:'returned'},{id:2,state:'blocked'}],initRunning:false,readers2:0,writers:0,blocked:1,stval:'done=1'});
+    snap('done','G2: done=1 (fast atomic check). Returns instantly, no mutex. Subsequent calls: atomic only.',
+      20,{done:true,goroutines:[{id:0,state:'done'},{id:1,state:'done'},{id:2,state:'done'}],initRunning:false,readers2:0,writers:0,blocked:0,stval:'done=1'});
+  }
+
+  else if(key==='atomic'){
+    snap('init','var counter int64 = 0. Three goroutines will increment concurrently.',
+      3,{counter:0,cas:{old:null,new:null,swapped:null},raceDemoBugged:false,readers2:0,writers:0,blocked:0,stval:'0'});
+    snap('store','atomic.StoreInt64(&counter,0). Atomic write — no torn write possible.',
+      6,{counter:0,cas:{old:null,new:null,swapped:null},raceDemoBugged:false,readers2:0,writers:0,blocked:0,stval:'0'});
+    snap('wlock','G0: atomic.AddInt64(&counter,1). CPU LOCK prefix: indivisible read-modify-write.',
+      9,{counter:1,cas:{old:null,new:null,swapped:null},raceDemoBugged:false,readers2:0,writers:1,blocked:0,stval:'1'});
+    snap('wlock','G1 and G2 simultaneously AddInt64. Each increment serialized by hardware. counter=3.',
+      9,{counter:3,cas:{old:null,new:null,swapped:null},raceDemoBugged:false,readers2:0,writers:2,blocked:0,stval:'3'});
+    snap('cas','CAS loop. old=LoadInt64()=3. Try CAS(3→4). old still 3: SWAP. counter=4.',
+      14,{counter:4,cas:{old:3,new:4,swapped:true},raceDemoBugged:false,readers2:0,writers:0,blocked:0,stval:'4'});
+    snap('cas','Another goroutine changed counter to 5 first. CAS(4→5) fails (expected 4, got 5). Retry.',
+      15,{counter:5,cas:{old:4,new:5,swapped:false},raceDemoBugged:false,readers2:0,writers:0,blocked:0,stval:'5'});
+    snap('done','CAS retry: old=5, new=6. Swap succeeds. Lock-free increment complete. counter=6.',
+      15,{counter:6,cas:{old:5,new:6,swapped:true},raceDemoBugged:false,readers2:0,writers:0,blocked:0,stval:'6'});
+  }
+
+  return S;
+}
+
+/* ═══════════════════════════════════════
+   CANVAS
+═══════════════════════════════════════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const w=document.getElementById('viz-wrap');CW=canvas.width=w.clientWidth;CH=canvas.height=w.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+const C={AMBER:'#ffb229',DIM:'rgba(255,178,41,.3)',GREEN:'#4ade80',RED:'#f43f5e',BLUE:'#60a5fa',ORANGE:'#f97316',PURPLE:'#a855f7',CYAN:'#22d3ee'};
+
+function sceneTitle(t){ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.22)';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(t,CW/2,5);ctx.restore();}
+function annot(t,col,y){ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=col||'rgba(255,178,41,.5)';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(t,CW/2,y||CH-8);ctx.restore();}
+
+function drawGoroutine(x,y,id,state,label){
+  const w=90,h=52;
+  const cols={ready:C.AMBER,locked:C.ORANGE,blocked:C.RED,running:C.GREEN,done:'rgba(255,178,41,.25)',waiting:C.CYAN,calling:C.BLUE,returned:C.GREEN,reading:C.BLUE,writing:C.ORANGE,writing:C.ORANGE};
+  const col=cols[state]||C.AMBER;
+  ctx.save();
+  ctx.strokeStyle=col;ctx.fillStyle=col+'11';ctx.lineWidth=1.5;
+  if(state==='blocked'){ctx.setLineDash([4,3]);}
+  if(state==='running'||state==='locked'||state==='reading'){ctx.shadowColor=col;ctx.shadowBlur=10;}
+  ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.setLineDash([]);
+  ctx.font=`15px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.shadowBlur=0;ctx.fillText('G'+id,x+w/2,y+4);
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillText((label||state).toUpperCase(),x+w/2,y+24);
+  ctx.restore();
+}
+
+function drawLockBox(x,y,locked,lockedBy,label){
+  const w=160,h=80;
+  const col=locked?C.ORANGE:C.GREEN;
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col+'0F';ctx.lineWidth=2;
+  ctx.shadowColor=col;ctx.shadowBlur=locked?14:6;
+  ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);
+  ctx.font=`18px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(label||'MUTEX',x+w/2,y+6);
+  ctx.font=`14px 'VT323'`;
+  ctx.fillText(locked?`LOCKED by G${lockedBy}`:'UNLOCKED',x+w/2,y+30);
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=col+'99';
+  ctx.fillText(locked?'state=1':'state=0',x+w/2,y+52);
+  ctx.restore();
+}
+
+/* ── RENDER: MUTEX ── */
+function renderMutex(s){
+  sceneTitle('sync.Mutex — MUTUAL EXCLUSION CRITICAL SECTION');
+  const gs=s.goroutines||[];
+  const gSpacing=CW/( gs.length+1);
+  gs.forEach((g,i)=>{
+    const gx=gSpacing*(i+1)-45,gy=CH*.18;
+    drawGoroutine(gx,gy,g.id,g.state||'ready');
+  });
+  // Mutex box center
+  const mx=(CW-160)/2,my=CH*.48;
+  drawLockBox(mx,my,s.locked,s.lockedBy,'MUTEX');
+  // critical section
+  if(s.locked){
+    ctx.save();ctx.strokeStyle='rgba(249,115,22,.2)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    ctx.strokeRect(mx-10,my-10,180,100);ctx.setLineDash([]);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(249,115,22,.3)';ctx.textAlign='right';ctx.textBaseline='top';
+    ctx.fillText('CRITICAL SECTION',mx+170,my-22);ctx.restore();
+  }
+  // value
+  ctx.save();ctx.font=`16px 'VT323'`;ctx.fillStyle=C.CYAN;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('counter = '+s.value,CW/2,my+100);ctx.restore();
+  // arrows from goroutines to mutex
+  gs.forEach((g,i)=>{
+    const gx=gSpacing*(i+1)-45+45,gy=CH*.18+52;
+    if(g.state==='locked'||g.state==='running'){
+      const lx=mx+80;
+      ctx.save();ctx.strokeStyle=C.ORANGE;ctx.lineWidth=1.5;ctx.shadowColor=C.ORANGE;ctx.shadowBlur=8;
+      ctx.beginPath();ctx.moveTo(gx,gy);ctx.lineTo(lx,my);ctx.stroke();
+      ctx.restore();
+    } else if(g.state==='blocked'){
+      ctx.save();ctx.strokeStyle=C.RED;ctx.lineWidth=1;ctx.setLineDash([3,4]);
+      ctx.beginPath();ctx.moveTo(gx,gy);ctx.lineTo(mx+80,my);ctx.stroke();ctx.setLineDash([]);
+      ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=C.RED;ctx.textAlign='center';ctx.fillText('BLOCKED',gx,(gy+my)/2);
+      ctx.restore();
+    }
+  });
+}
+
+/* ── RENDER: RWMUTEX ── */
+function renderRWMutex(s){
+  sceneTitle('sync.RWMutex — MULTIPLE READERS OR ONE EXCLUSIVE WRITER');
+  const gs=s.goroutines||[];
+  const gSpacing=CW/(gs.length+1);
+  gs.forEach((g,i)=>{
+    const gx=gSpacing*(i+1)-45,gy=CH*.16;
+    const state=g.state||'ready';
+    const label=g.t==='W'?'WRITER':'READER';
+    drawGoroutine(gx,gy,g.id,state,g.t==='W'?state:'reading'===state?'reading':state);
+    ctx.save();ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=g.t==='W'?C.ORANGE:C.BLUE;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(g.t==='W'?'Lock()':'RLock()',gx+45,gy-14);ctx.restore();
+  });
+  // RWMutex state box
+  const mx=(CW-180)/2,my=CH*.52;
+  const rstate=s.rstate||'free';
+  const scol=rstate==='writing'?C.ORANGE:rstate==='reading'?C.BLUE:C.GREEN;
+  ctx.save();ctx.strokeStyle=scol;ctx.fillStyle=scol+'0F';ctx.lineWidth=2;ctx.shadowColor=scol;ctx.shadowBlur=12;
+  ctx.fillRect(mx,my,180,80);ctx.strokeRect(mx,my,180,80);
+  ctx.font=`16px 'VT323'`;ctx.fillStyle=scol;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('RWMutex',mx+90,my+6);
+  ctx.font=`13px 'VT323'`;
+  ctx.fillText(rstate==='writing'?'WRITE LOCKED':rstate==='reading'?`${s.readers2} READER(S)`:'FREE',mx+90,my+28);
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=scol+'99';
+  if(s.pendingWriter){ctx.fillStyle=C.ORANGE;ctx.fillText('⚡ writer waiting — new reads blocked',mx+90,my+52);}
+  ctx.restore();
+  if(s.stval&&s.stval!=='—'){
+    ctx.save();ctx.font=`14px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('data: '+s.stval,CW/2,my+92);ctx.restore();
+  }
+}
+
+/* ── RENDER: SYNC MAP ── */
+function renderSyncMap(s){
+  sceneTitle('sync.Map — TWO-LAYER READ+DIRTY INTERNAL DESIGN');
+  const entries=s.entries||[];
+  // Read map box
+  const rx=CW*.06,ry=CH*.18,rw=CW*.38,rh=Math.max(90,entries.length*28+40);
+  ctx.save();ctx.strokeStyle=s.readMap&&s.readMap.length?C.BLUE:'rgba(96,165,250,.25)';ctx.fillStyle='rgba(96,165,250,.05)';ctx.lineWidth=1.5;
+  ctx.fillRect(rx,ry,rw,rh);ctx.strokeRect(rx,ry,rw,rh);
+  ctx.font=`13px 'VT323'`;ctx.fillStyle=C.BLUE;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('READ MAP (atomic)',rx+rw/2,ry+4);
+  ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(96,165,250,.4)';
+  ctx.fillText('lock-free reads',rx+rw/2,ry+22);
+  entries.filter(e=>e.loc==='read').forEach((e,i)=>{
+    ctx.font=`10px 'VT323'`;ctx.fillStyle=C.BLUE;ctx.textAlign='left';
+    ctx.fillText(e.k+' → '+e.v,rx+8,ry+36+i*22);
+  });ctx.restore();
+  // Dirty map box
+  const dx=CW*.56,dy=CH*.18,dw=CW*.38,dh=Math.max(90,entries.length*28+40);
+  ctx.save();ctx.strokeStyle=s.dirtyMap&&s.dirtyMap.length?C.ORANGE:'rgba(249,115,22,.25)';ctx.fillStyle='rgba(249,115,22,.05)';ctx.lineWidth=1.5;
+  ctx.fillRect(dx,dy,dw,dh);ctx.strokeRect(dx,dy,dw,dh);
+  ctx.font=`13px 'VT323'`;ctx.fillStyle=C.ORANGE;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('DIRTY MAP (mutex)',dx+dw/2,dy+4);
+  ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(249,115,22,.4)';ctx.fillText('protected write',dx+dw/2,dy+22);
+  entries.filter(e=>e.loc==='dirty').forEach((e,i)=>{
+    ctx.font=`10px 'VT323'`;ctx.fillStyle=C.ORANGE;ctx.textAlign='left';
+    ctx.fillText(e.k+' → '+e.v,dx+8,dy+36+i*22);
+  });ctx.restore();
+  // Pending op
+  if(s.pendingOp){
+    const op=s.pendingOp;
+    const col=op.fast?C.GREEN:C.CYAN;
+    ctx.save();ctx.font=`14px 'VT323'`;ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=10;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(op.op+'("'+op.key+'") → '+op.result+(op.fast?' [FAST PATH, no lock]':''),CW/2,CH*.7);ctx.restore();
+  }
+  // Promotion annotation
+  if(s.readMap&&s.readMap.length>0&&s.dirtyMap&&s.dirtyMap.length===0){
+    ctx.save();ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.5)';ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText('← dirty promoted to read (atomic pointer swap)',CW/2,CH*.55);ctx.restore();
+  }
+}
+
+/* ── RENDER: SYNC POOL ── */
+function renderSyncPool(s){
+  sceneTitle('sync.Pool — REUSE OBJECTS, REDUCE GC PRESSURE');
+  const pool=s.pool||[];const inUse=s.inUse||[];
+  // Pool box
+  const px=CW*.1,py=CH*.2,pw=220,ph=Math.max(70,pool.length*30+30);
+  ctx.save();ctx.strokeStyle=pool.length?C.CYAN:'rgba(34,211,238,.25)';ctx.fillStyle='rgba(34,211,238,.04)';ctx.lineWidth=1.5;
+  ctx.fillRect(px,py,pw,ph);ctx.strokeRect(px,py,pw,ph);
+  ctx.font=`13px 'VT323'`;ctx.fillStyle=C.CYAN;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('sync.Pool',px+pw/2,py+4);
+  if(!pool.length){ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(34,211,238,.3)';ctx.fillText('empty',px+pw/2,py+28);}
+  pool.forEach((b,i)=>{
+    ctx.font=`11px 'VT323'`;ctx.fillStyle=C.CYAN;ctx.textAlign='left';
+    ctx.fillText('buf['+b.id+'] (cap=4096)',px+8,py+24+i*26);
+  });ctx.restore();
+  // In-use boxes
+  inUse.forEach((b,i)=>{
+    const ux=CW*.55+i*120,uy=CH*.25;
+    ctx.save();ctx.strokeStyle=C.GREEN;ctx.fillStyle='rgba(74,222,128,.07)';ctx.lineWidth=1.5;ctx.shadowColor=C.GREEN;ctx.shadowBlur=8;
+    ctx.fillRect(ux,uy,100,50);ctx.strokeRect(ux,uy,100,50);
+    ctx.font=`12px 'VT323'`;ctx.fillStyle=C.GREEN;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(b.label,ux+50,uy+6);ctx.font=`9px 'Share Tech Mono'`;ctx.fillText(b.user,ux+50,uy+26);
+    ctx.restore();
+  });
+  // GC warning
+  if(s.gcHit){
+    triggerCA();
+    ctx.save();ctx.font=`18px 'VT323'`;ctx.fillStyle=C.ORANGE;ctx.shadowColor=C.ORANGE;ctx.shadowBlur=14;
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('GC CYCLE: pool cleared!',CW/2,CH*.62);
+    ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(249,115,22,.6)';
+    ctx.fillText('next Get() will call New() again',CW/2,CH*.62+24);ctx.restore();
+  }
+  // New arrow
+  if(!pool.length&&!inUse.length){
+    ctx.save();ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.4)';
+    ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('New func: make([]byte, 0, 4096)',px+pw/2,py+ph+10);ctx.restore();
+  }
+}
+
+/* ── RENDER: SYNC ONCE ── */
+function renderSyncOnce(s){
+  sceneTitle('sync.Once — GUARANTEED SINGLE EXECUTION');
+  const gs=s.goroutines||[];const gSpacing=CW/(gs.length+1);
+  gs.forEach((g,i)=>{
+    const gx=gSpacing*(i+1)-45,gy=CH*.18;
+    drawGoroutine(gx,gy,g.id,g.state||'calling');
+  });
+  // Once box
+  const ox=(CW-170)/2,oy=CH*.52;
+  const col=s.done?C.GREEN:s.initRunning?C.ORANGE:C.AMBER;
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col+'0F';ctx.lineWidth=2;ctx.shadowColor=col;ctx.shadowBlur=s.done?10:6;
+  ctx.fillRect(ox,oy,170,80);ctx.strokeRect(ox,oy,170,80);
+  ctx.font=`16px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('sync.Once',ox+85,oy+6);
+  ctx.font=`14px 'VT323'`;
+  ctx.fillText(s.done?'done=1 (fast path)':s.initRunning?'running f()...':'done=0',ox+85,oy+30);
+  ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col+'99';
+  ctx.fillText(s.done?'all future Do() = no-op':s.initRunning?'mutex locked, others blocked':'waiting',ox+85,oy+54);
+  ctx.restore();
+  // Arrows from goroutines
+  gs.forEach((g,i)=>{
+    const gx=gSpacing*(i+1)-45+45,gy=CH*.18+52;
+    if(g.state==='running'||g.state==='calling'){
+      ctx.save();ctx.strokeStyle=g.state==='running'?C.GREEN:C.CYAN;ctx.lineWidth=1.5;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=6;
+      ctx.beginPath();ctx.moveTo(gx,gy);ctx.lineTo(ox+85,oy);ctx.stroke();ctx.restore();
+    } else if(g.state==='blocked'||g.state==='waiting'){
+      ctx.save();ctx.strokeStyle=C.RED;ctx.lineWidth=1;ctx.setLineDash([3,4]);
+      ctx.beginPath();ctx.moveTo(gx,gy);ctx.lineTo(ox+85,oy);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+    }
+  });
+}
+
+/* ── RENDER: ATOMIC ── */
+function renderAtomic(s){
+  sceneTitle('sync/atomic — HARDWARE-LEVEL ATOMIC OPERATIONS');
+  // Counter box
+  const cx=(CW-180)/2,cy=CH*.22;
+  ctx.save();ctx.strokeStyle=C.CYAN;ctx.fillStyle='rgba(34,211,238,.07)';ctx.lineWidth=2;ctx.shadowColor=C.CYAN;ctx.shadowBlur=12;
+  ctx.fillRect(cx,cy,180,70);ctx.strokeRect(cx,cy,180,70);
+  ctx.font=`14px 'VT323'`;ctx.fillStyle='rgba(34,211,238,.6)';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('int64 counter',cx+90,cy+6);
+  ctx.font=`28px 'VT323'`;ctx.fillStyle=C.CYAN;
+  ctx.fillText(s.counter,cx+90,cy+26);ctx.restore();
+  // AddInt64 viz
+  const addY=CH*.52;
+  const opCol=C.ORANGE;
+  ctx.save();ctx.font=`12px 'VT323'`;ctx.fillStyle=opCol;ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('LOCK XADD (hardware atomic)',CW/2,addY);ctx.restore();
+  // CAS visual
+  if(s.cas&&s.cas.old!==null){
+    const casx=CW*.1,casy=CH*.65;
+    const casCol=s.cas.swapped?C.GREEN:C.RED;
+    ctx.save();ctx.strokeStyle=casCol;ctx.fillStyle=casCol+'0F';ctx.lineWidth=1.5;
+    ctx.fillRect(casx,casy,CW*.8,60);ctx.strokeRect(casx,casy,CW*.8,60);
+    ctx.font=`13px 'VT323'`;ctx.fillStyle=casCol;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(`CAS: if counter==${s.cas.old} → set to ${s.cas.new} ... ${s.cas.swapped?'SWAPPED ✓':'FAILED — value changed, retry'}`,casx+CW*.4,casy+8);
+    ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle=casCol+'99';
+    ctx.fillText(s.cas.swapped?'atomic: no other goroutine changed the value during swap':'another goroutine changed counter between Load and CAS',casx+CW*.4,casy+34);
+    ctx.restore();
+    if(!s.cas.swapped)triggerCA();
+  }
+  // Multiple goroutines adding
+  if(s.writers>1){
+    const g2y=CH*.38;
+    [{id:0,x:CW*.25},{id:1,x:CW*.5},{id:2,x:CW*.75}].forEach((g)=>{
+      ctx.save();ctx.strokeStyle=C.ORANGE;ctx.fillStyle='rgba(249,115,22,.08)';ctx.lineWidth=1;
+      ctx.fillRect(g.x-40,g2y,80,36);ctx.strokeRect(g.x-40,g2y,80,36);
+      ctx.font=`11px 'VT323'`;ctx.fillStyle=C.ORANGE;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('AddInt64',g.x,g2y+18);ctx.restore();
+      ctx.save();ctx.strokeStyle=C.ORANGE;ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(g.x,g2y+36);ctx.lineTo(CW/2,cy+70);ctx.stroke();ctx.restore();
+    });
+  }
+}
+
+/* ── DISPATCHER ── */
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  switch(curScene){
+    case'mutex':renderMutex(step);break;
+    case'rwmutex':renderRWMutex(step);break;
+    case'sync_map':renderSyncMap(step);break;
+    case'sync_pool':renderSyncPool(step);break;
+    case'sync_once':renderSyncOnce(step);break;
+    case'atomic':renderAtomic(step);break;
+  }
+}
+
+/* ═══════════════════════════════════════
+   PLAYBACK
+═══════════════════════════════════════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:700};
+let curScene='mutex';
+const PSND={lock:'lock',unlock:'unlock',rlock:'rlock',wlock:'wlock',block:'block',store:'store',load:'load',cas:'cas',once:'once',warn:'warn',done:'done',init:'init'};
+function applyStep(step){
+  renderFrame(step);
+  const lkEl=document.getElementById('st-l');lkEl.textContent=step.locked===true?'YES':step.locked===false?'NO':step.rstate||'—';lkEl.style.color=step.locked||step.rstate==='writing'?'var(--orange)':'var(--green)';
+  document.getElementById('st-r').textContent=step.readers2??'0';
+  document.getElementById('st-w').textContent=step.writers??'0';
+  document.getElementById('st-b').textContent=step.blocked??'0';
+  document.getElementById('st-v').textContent=step.stval??'—';
+  const badge=document.getElementById('pbadge');badge.textContent=step.phase.toUpperCase();badge.className='pbadge '+step.phase;
+  document.getElementById('step-txt').textContent=step.desc;
+  document.getElementById('prog-bar').style.width=(ST.steps.length>1?(ST.idx/(ST.steps.length-1)*100):0)+'%';
+  document.getElementById('step-ctr').textContent=(ST.idx+1)+' / '+ST.steps.length;
+  renderCode(SC[curScene].code,step.cl>=0?step.cl:-1);
+  snd(PSND[step.phase]||'lock');
+  if(step.phase==='warn')triggerCA();
+}
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing){clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}else{ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}}
+function doReset(){if(ST.playing)togglePlay();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);}
+function changeSpeed(v){ST.speed=Math.round(2200-v*200);if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}}
+function selectScene(key){if(ST.playing)togglePlay();curScene=key;document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));ST.steps=buildSteps(key);ST.idx=0;const sc=SC[key];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);applyStep(ST.steps[0]);snd('lock');}
+function buildTabs(){const order=[['mutex','1. MUTEX'],['rwmutex','2. RWMUTEX'],['sync_map','3. SYNC.MAP'],['sync_pool','4. SYNC.POOL'],['sync_once','5. SYNC.ONCE'],['atomic','6. ATOMIC']];document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');}
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;switch(e.key){case'ArrowRight':next();break;case'ArrowLeft':prev();break;case' ':e.preventDefault();togglePlay();break;case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;case'1':selectScene('mutex');break;case'2':selectScene('rwmutex');break;case'3':selectScene('sync_map');break;case'4':selectScene('sync_pool');break;case'5':selectScene('sync_once');break;case'6':selectScene('atomic');break;}});
+
+/* ── BOOT ── */
+function boot(){
+  const term=document.getElementById('boot-terminal'),fill=document.getElementById('boot-fill');
+  const lines=[['Initializing sync.Mutex internal spinlock','OK'],['Bootstrapping per-P sync.Pool local caches','OK'],['Warming up RWMutex reader/writer state machine','OK'],['Loading sync.Map dual read/dirty maps','OK'],['Preparing sync.Once atomic double-check pattern','OK'],['Registering atomic CAS hardware instructions','OK'],['SYNC.VIZ READY','']];
+  let i=0;function nxt(){if(i>=lines.length){setTimeout(sa,400);return;}const[msg,ok]=lines[i];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${msg}</span><span class="bl-ok">${ok||(i===lines.length-1?'<span id="boot-cursor"> </span>':'')}</span>`;term.appendChild(div);setTimeout(()=>div.classList.add('show'),30);fill.style.width=((i+1)/lines.length*100)+'%';i++;setTimeout(nxt,i===lines.length?300:100);}
+  setTimeout(nxt,200);
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();const sc=SC['mutex'];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);window.addEventListener('resize',resizeCanvas);resizeCanvas();if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}setTimeout(()=>selectScene('mutex'),350);}
+boot();
+</script>
+</body>
+</html>

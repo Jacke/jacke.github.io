@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAP.VIZ</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.52) 100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1) contrast(1.03);}95%{filter:brightness(.82);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .3s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -4px 0 0 rgba(255,30,30,.35),inset 4px 0 0 rgba(30,80,255,.35);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:88px;color:var(--amber);text-shadow:0 0 44px var(--amber),0 0 88px rgba(255,178,41,.22);letter-spacing:10px;margin-bottom:4px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:700px;max-width:92vw;font-size:13px;line-height:2.1;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:700px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.25);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}
+#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.1);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:5px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.12);background:rgba(0,0,0,.35);min-height:36px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.hash{color:var(--blue);border-color:var(--blue);background:rgba(96,165,250,.08);}
+.pbadge.lookup{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.07);}
+.pbadge.insert{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+.pbadge.grow{color:var(--orange);border-color:var(--orange);background:rgba(249,115,22,.09);}
+.pbadge.evac{color:var(--purple);border-color:var(--purple);background:rgba(168,85,247,.08);}
+.pbadge.crash{color:var(--red);border-color:var(--red);background:rgba(244,63,94,.12);}
+.pbadge.warn{color:var(--orange);border-color:var(--orange);}
+.pbadge.done{color:var(--green);border-color:var(--green);background:rgba(74,222,128,.08);}
+#step-txt{font-size:11px;color:rgba(255,178,41,.78);flex:1;line-height:1.45;}
+#stats{display:flex;gap:14px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.si{display:flex;gap:5px;align-items:baseline;}
+.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}
+.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}
+.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:var(--red);border-color:var(--red);}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}
+.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:420px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.22);border-left:1px solid rgba(255,178,41,.15);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.14);}
+.phdr{font-family:'VT323',monospace;font-size:15px;letter-spacing:4px;color:var(--amber);padding:6px 12px 6px 14px;background:rgba(0,0,0,.42);border-bottom:1px solid rgba(255,178,41,.18);border-left:3px solid rgba(255,178,41,.55);}
+#code-scroll{overflow-y:auto;max-height:230px;padding:4px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}
+#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.7;padding:1px 6px;white-space:pre;}
+.cline.active{background:rgba(255,178,41,.1);border-left:2px solid var(--amber);}
+.ln{color:rgba(255,178,41,.28);width:22px;text-align:right;margin-right:9px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#6a7f8f;font-style:italic;}.op{color:#56b6c2;}
+#r-scroll{flex:1;overflow-y:auto;}
+#r-scroll::-webkit-scrollbar{width:3px;}
+#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:10px 14px;font-size:11.5px;line-height:1.85;color:rgba(255,178,41,.72);}
+.info-block strong{color:#ffcc55;}
+.tag{display:inline-block;background:rgba(255,178,41,.09);border:1px solid rgba(255,178,41,.28);padding:2px 7px;font-size:10px;margin:2px 2px;}
+.warn-tag{display:inline-block;background:rgba(244,63,94,.09);border:1px solid rgba(244,63,94,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#f43f5e;}
+.ok-tag{display:inline-block;background:rgba(74,222,128,.09);border:1px solid rgba(74,222,128,.4);padding:2px 7px;font-size:10px;margin:2px 2px;color:#4ade80;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas>
+<div id="scan-line"></div>
+<div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">MAP.VIZ</div>
+  <div id="boot-tagline">GO MAP INTERNALS — HMAP BMAP HASH GROW EVACUATE CONCURRENT</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X RUNTIME MEMORY CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">MAP.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc">
+        <span class="pbadge init" id="pbadge">INIT</span>
+        <span id="step-txt">Select a scenario (keys 1–6).</span>
+      </div>
+      <div id="stats">
+        <div class="si"><span class="sl">COUNT</span><span class="sv" id="st-c">—</span></div>
+        <div class="si"><span class="sl">B (log2)</span><span class="sv" id="st-b" style="color:var(--blue)">—</span></div>
+        <div class="si"><span class="sl">BUCKETS</span><span class="sv" id="st-bk" style="color:var(--orange)">—</span></div>
+        <div class="si"><span class="sl">LOAD</span><span class="sv" id="st-lf" style="color:var(--cyan)">—</span></div>
+        <div class="si"><span class="sl">OVERFLOW</span><span class="sv" id="st-ov" style="color:var(--purple)">—</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="4" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">←→</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–6</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ KEY RULES</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ GOTCHAS + INTERVIEW</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<script>
+/* ── NOISE ── */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');
+function r(){c.width=innerWidth;c.height=innerHeight;}r();window.addEventListener('resize',r);
+function d(){const id=x.createImageData(c.width,c.height),da=id.data;
+for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}
+x.putImageData(id,0,0);requestAnimationFrame(d);}d();})();
+function sGlitch(){setTimeout(()=>{const el=document.getElementById('crt-wrap');el.style.filter='brightness(.2)';setTimeout(()=>{el.style.filter='';sGlitch();},18+Math.random()*16);},3800+Math.random()*6200);}sGlitch();
+
+/* ── AUDIO ── */
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);const f={hash:420,lookup:520,insert:560,grow:280,evac:380,crash:140,warn:220,done:600,init:340};o.frequency.setValueAtTime(f[type]||380,AC.currentTime);o.type=type==='crash'||type==='warn'?'sawtooth':'triangle';g.gain.setValueAtTime(.08,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.14);o.start(AC.currentTime);o.stop(AC.currentTime+.17);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('insert');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+/* ── HIGHLIGHT ── */
+function hlGo(l){
+  const e=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ci=e.indexOf('//');const code=ci>=0?e.slice(0,ci):e;const cmt=ci>=0?e.slice(ci):'';
+  function hl(s){
+    s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');
+    s=s.replace(/\b(func|go|var|type|struct|return|if|else|for|range|defer|make|delete|true|false|nil|int|int32|int64|uint8|string|bool|error|unsafe|uintptr)\\b/g,'<span class="kw">$1</span>');
+    s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');
+    s=s.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="nm">$1</span>');
+    s=s.replace(/(:=|==|!=|&lt;&lt;|&gt;&gt;|&amp;)/g,'<span class="op">$1</span>');
+    return s;
+  }
+  return hl(code)+(cmt?'<span class="cm">'+cmt+'</span>':'');
+}
+function renderCode(lines,active){
+  const el=document.getElementById('code-scroll');
+  el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span>${hlGo(l)}</span></div>`).join('');
+  if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}
+}
+
+/* ═══════════════════════════════════════════
+   SCENARIO METADATA
+═══════════════════════════════════════════ */
+const SC={
+  hmap:{label:'HMAP STRUCT',
+    code:[
+      '// runtime/map.go — simplified hmap',
+      'type hmap struct {',
+      '    count     int        // number of live keys',
+      '    flags     uint8      // concurrent write detection',
+      '    B         uint8      // log2(bucket count)',
+      '    noverflow uint16     // overflow bucket count',
+      '    hash0     uint32     // random hash seed',
+      '    buckets   unsafe.Pointer // *[2^B]bmap',
+      '    oldbuckets unsafe.Pointer // non-nil during grow',
+      '    nevacuate uintptr    // evacuation progress counter',
+      '}',
+      '',
+      '// Number of buckets = 1 << B',
+      '// B=0 → 1 bucket, B=3 → 8 buckets',
+      '// Each bucket holds up to 8 key-value pairs',
+      '',
+      'func makemap(hint int) *hmap {',
+      '    h := new(hmap)',
+      '    h.hash0 = fastrand()    // random seed',
+      '    // B chosen so load factor < 6.5',
+      '    h.B = overLoadFactor(hint)',
+      '    h.buckets = newarray(bmap, 1<<h.B)',
+      '    return h',
+      '}',
+    ],
+    cx:`<strong>hmap:</strong> the header struct behind every Go map — 8 fields, ~56 bytes<br><strong>B:</strong> log base 2 of bucket count. B=3 means 8 buckets (2^3)<br><strong>hash0:</strong> random seed added to every hash call — prevents hash-flooding attacks<br><strong>oldbuckets:</strong> non-nil only during incremental grow, points to the old array<br><strong>nevacuate:</strong> progress counter for incremental evacuation during grow`,
+    how:`A Go map is a pointer to an hmap struct. The map literal <code>m := make(map[K]V)</code> allocates this struct plus a bucket array. The number of buckets is always a power of 2 (2^B), which makes modulo-based bucket selection a cheap bitwise AND.<br><br>The hash seed (hash0) is randomized per map creation to defend against hash-flooding DoS attacks where an attacker crafts keys that all collide into the same bucket.<br><br>The Go runtime uses different hash functions per key type (selected at compile time based on size/type), all seeded with hash0.`,
+    facts:`<span class="tag">Size</span> map header (hmap) = ~56 bytes on 64-bit<br><span class="ok-tag">SPEED</span> bucket count = 2^B, so bucket = hash &amp; (1&lt;&lt;B - 1) — bitwise AND, not modulo<br><span class="warn-tag">TRAP</span> var m map[K]V is nil map — reads OK (return zero), writes panic<br><span class="tag">hash0</span> randomized per map — same key hashes differently in different maps<br><span class="ok-tag">INTERVIEW</span> "what happens when you read from a nil map?" — returns zero value, no panic<br><span class="warn-tag">TRAP</span> writing to nil map panics: "assignment to entry in nil map"`,
+  },
+  bmap:{label:'BUCKET LAYOUT',
+    code:[
+      '// runtime/map.go — bmap (one bucket)',
+      '// Each bucket stores up to 8 key-value pairs',
+      'type bmap struct {',
+      '    tophash [8]uint8',
+      '    // followed by keys[8], values[8], overflow *bmap',
+      '    // (layout generated by compiler per key/value type)',
+      '}',
+      '',
+      '// tophash special values:',
+      'const (',
+      '    emptyRest      = 0 // slot empty, no more filled after',
+      '    emptyOne       = 1 // slot empty, but more may follow',
+      '    evacuatedX     = 2 // key evacuated to new bucket X',
+      '    evacuatedY     = 3 // key evacuated to new bucket Y',
+      '    evacuatedEmpty = 4 // cell empty, bucket evacuated',
+      '    minTopHash     = 5 // minimum valid tophash',
+      ')',
+      '',
+      '// tophash[i] = max(hash>>56, minTopHash)',
+      '// Fast comparison: check tophash FIRST before key equality',
+      '// Avoids expensive key comparison on most misses',
+    ],
+    cx:`<strong>bmap:</strong> one bucket, holds up to 8 key-value pairs<br><strong>tophash[8]:</strong> top 8 bits of hash for each slot — used for fast pre-filtering<br><strong>Layout:</strong> tophash[8] → keys[8] → values[8] → overflow *bmap (pointer at end)<br><strong>Value packing:</strong> keys grouped together (not interleaved) to avoid padding between K-V pairs<br><strong>overflow:</strong> pointer to next bucket in chain when all 8 slots are full`,
+    how:`The bmap struct lays out memory as: 8 tophash bytes, then 8 keys packed together, then 8 values packed together, then the overflow pointer. This layout (vs interleaved key-value pairs) reduces struct alignment padding, making better use of cache lines.<br><br>Lookup works in two passes: first compare tophash (8 bytes vs 1 byte — cheap), then on match do the full key equality comparison. This avoids calling the potentially expensive key comparison function on most slots.<br><br>The special tophash values 0–4 are reserved for state flags (empty, evacuated). Valid stored tophash values start at 5.`,
+    facts:`<span class="tag">Slots</span> 8 per bucket — chosen to fit in 1-2 cache lines<br><span class="ok-tag">LAYOUT</span> keys[8] then values[8] — less padding than interleaved key-value<br><span class="tag">tophash</span> top 8 bits of hash — fast pre-filter before key equality<br><span class="warn-tag">TRAP</span> values 0–4 are reserved state flags — valid hashes start at 5<br><span class="ok-tag">INTERVIEW</span> "why store tophash?" — avoids key equality for most misses<br><span class="tag">overflow</span> chained overflow buckets when 8 slots exhausted`,
+  },
+  lookup:{label:'LOOKUP',
+    code:[
+      '// Lookup: m[key]',
+      'func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer)',
+      '    unsafe.Pointer {',
+      '',
+      '    // 1. Hash the key with random seed',
+      '    hash := t.hasher(key, uintptr(h.hash0))',
+      '',
+      '    // 2. Select bucket: bottom B bits',
+      '    m := uintptr(1)<<h.B - 1',
+      '    b := (*bmap)(add(h.buckets, (hash&m)*uintptr(t.bucketsize)))',
+      '',
+      '    // 3. Also check oldbuckets if growing',
+      '    if c := h.oldbuckets; c != nil {',
+      '        oldb := (*bmap)(add(c, (hash&(m>>1))*uintptr(t.bucketsize)))',
+      '        if !evacuated(oldb) { b = oldb }',
+      '    }',
+      '',
+      '    // 4. Top 8 bits for fast tophash compare',
+      '    top := uint8(hash >> 56)',
+      '    if top < minTopHash { top += minTopHash }',
+      '',
+      '    // 5. Scan bucket and overflow chain',
+      '    for ; b != nil; b = b.overflow(t) {',
+      '        for i := 0; i < 8; i++ {',
+      '            if b.tophash[i] != top { continue }',
+      '            if key == b.keys[i] { return &b.values[i] }',
+      '        }',
+      '    }',
+      '    return unsafe.Pointer(&zeroVal)',
+      '}',
+    ],
+    cx:`<strong>Step 1:</strong> hash(key, seed) — 64-bit hash with map's random seed<br><strong>Step 2:</strong> bucket = hash &amp; (2^B - 1) — bottom B bits, bitwise AND (not modulo)<br><strong>Step 3:</strong> if growing, may need to check oldbuckets for non-evacuated data<br><strong>Step 4:</strong> tophash = hash >> 56 — top 8 bits for fast slot pre-filtering<br><strong>Step 5:</strong> scan tophash first, then key equality only on match`,
+    how:`A map lookup hashes the key to get a 64-bit value. The bottom B bits select which bucket to look in. Then the top 8 bits (tophash) are compared against each of the 8 tophash slots in the bucket — this comparison is a byte equality check, much cheaper than calling the key equality function.<br><br>Only when tophash matches does the runtime call the actual key comparison. This two-level filtering dramatically reduces expensive comparisons in practice.<br><br>If a grow is in progress (oldbuckets != nil), the runtime may need to check the old bucket array if that bucket hasn't been evacuated yet. The old bucket is found using B-1 bits (half as many buckets).`,
+    facts:`<span class="ok-tag">COMPLEXITY</span> O(1) average, O(n) worst case (degenerate collisions)<br><span class="tag">Bucket select</span> hash &amp; (2^B-1) — bitwise AND, not division<br><span class="tag">tophash</span> top 8 bits — pre-filter before key equality<br><span class="warn-tag">TRAP</span> map lookup during grow checks oldbuckets — no stale reads<br><span class="ok-tag">INTERVIEW</span> "what is O(1) for maps?" — amortized, assumes no extreme collisions<br><span class="tag">Miss cost</span> scan all 8 tophash bytes (cheap) before key comparison (expensive)`,
+  },
+  insert:{label:'INSERT',
+    code:[
+      '// m[key] = value  — mapassign',
+      'func mapassign(t *maptype, h *hmap, key unsafe.Pointer)',
+      '    unsafe.Pointer {',
+      '',
+      '    // Concurrent write detection',
+      '    if h.flags&hashWriting != 0 { fatal("concurrent write") }',
+      '    h.flags ^= hashWriting  // set write flag',
+      '',
+      '    hash := t.hasher(key, uintptr(h.hash0))',
+      '    bucket := hash & (uintptr(1)<<h.B - 1)',
+      '    top := uint8(hash >> 56)',
+      '',
+      '    var inserti *uint8         // where to store tophash',
+      '    var insertk unsafe.Pointer // where to store key',
+      '    var elem  unsafe.Pointer   // where to store value',
+      '',
+      'again:',
+      '    b := bucketAt(h.buckets, bucket)',
+      '    for ; b != nil; b = b.overflow(t) {',
+      '        for i := 0; i < 8; i++ {',
+      '            if b.tophash[i] == emptyRest { break }',
+      '            if b.tophash[i] != top { continue }',
+      '            if key == b.keys[i] { // update existing key',
+      '                elem = &b.values[i]; goto done',
+      '            }',
+      '        }',
+      '        if inserti == nil {      // remember first empty slot',
+      '            inserti = &b.tophash[i]',
+      '        }',
+      '    }',
+      '    // No room: add overflow bucket',
+      '    b = h.newoverflow(t, b)',
+      '    // Trigger grow if load > 6.5 or too many overflows',
+      '    if overLoadFactor(h.count+1, h.B) { hashGrow(t, h) }',
+      '}',
+    ],
+    cx:`<strong>Write flag:</strong> h.flags has hashWriting bit — set before write, cleared after<br><strong>Two cases:</strong> (1) key exists: update value in place; (2) new key: find empty slot<br><strong>Empty slot:</strong> first emptyOne slot saved as insertion point<br><strong>Overflow:</strong> if all 8 slots taken, allocate a new overflow bmap and chain it<br><strong>Grow trigger:</strong> after insert, check load factor (6.5) and overflow count`,
+    how:`Map insertion first checks for the write flag to detect concurrent access (this causes a fatal error, not a recoverable panic). Then it finds the target bucket and scans for either an existing key (update) or an empty slot (insert).<br><br>If the bucket and all its overflow buckets are full, a new overflow bucket is allocated and linked at the end of the chain. This degrades lookup performance and eventually triggers a grow.<br><br>After insertion, the runtime checks whether the load factor exceeds 6.5 (count / 2^B) or whether there are too many overflow buckets (indicating many deletions). If either threshold is hit, a grow is initiated.`,
+    facts:`<span class="tag">Load factor</span> 6.5 = grow threshold. Higher than typical (Java=0.75) due to 8-slot buckets<br><span class="ok-tag">UPDATE</span> updating existing key: value written in-place, no allocation<br><span class="warn-tag">TRAP</span> map values are NOT addressable: &amp;m[key] is a compile error<br><span class="tag">Grow trigger</span> load &gt; 6.5 OR too many overflow buckets (many deletes)<br><span class="ok-tag">INTERVIEW</span> "what is the load factor threshold?" — 6.5 for Go maps<br><span class="warn-tag">TRAP</span> deleting then inserting many keys can cause "same-size grow" (overflow cleanup)`,
+  },
+  grow:{label:'GROW / EVACUATE',
+    code:[
+      '// hashGrow: triggered when load > 6.5',
+      'func hashGrow(t *maptype, h *hmap) {',
+      '    bigger := uint8(1)',
+      '    if !overLoadFactor(h.count+1, h.B) {',
+      '        bigger = 0   // same-size grow (overflow cleanup)',
+      '    }',
+      '    oldbuckets := h.buckets',
+      '    newbuckets := newarray(bmap, 1<<(h.B+bigger))',
+      '    h.B += bigger',
+      '    h.oldbuckets = oldbuckets',
+      '    h.buckets = newbuckets',
+      '    h.nevacuate = 0',
+      '    // NOT fully evacuated yet — incremental!',
+      '}',
+      '',
+      '// evacuate: called 1-2 times per mapassign/mapdelete',
+      'func evacuate(t *maptype, h *hmap, oldbucket uintptr) {',
+      '    b := bucketAt(h.oldbuckets, oldbucket)',
+      '    newbit := uintptr(1) << (h.B - 1)',
+      '    for ; b != nil; b = b.overflow(t) {',
+      '        for i := 0; i < 8; i++ {',
+      '            // Key stays in X (low half) or moves to Y (high half)',
+      '            // based on bit (B-1) of hash',
+      '            useY := hash&newbit != 0',
+      '            dst := &xy[useY]',
+      '            *dst.b.tophash[dst.i] = top',
+      '            *dst.k = *src.k  // copy key',
+      '            *dst.e = *src.e  // copy value',
+      '        }',
+      '    }',
+      '    h.nevacuate++',
+      '    if h.nevacuate == newbit { h.oldbuckets = nil }',
+      '}',
+    ],
+    cx:`<strong>Two grow modes:</strong> (1) regular grow: B++ (2x buckets); (2) same-size grow: clean up overflow chains<br><strong>Incremental:</strong> NO stop-the-world. 1-2 buckets evacuated per map write/delete<br><strong>X/Y split:</strong> each old bucket splits into 2 new buckets — X (bit=0) and Y (bit=1) halves<br><strong>Read during grow:</strong> lookup checks oldbuckets for non-evacuated buckets — no stale reads<br><strong>Completion:</strong> when nevacuate == 2^(B-1), all old buckets evacuated, oldbuckets = nil`,
+    how:`When the load factor exceeds 6.5, Go doubles the bucket array (B++). The old bucket array is saved in oldbuckets. Crucially, the evacuation is NOT done all at once — this would cause latency spikes. Instead, 1-2 old buckets are evacuated per map write or delete operation.<br><br>Each old bucket splits into two new buckets based on one new bit of the hash. If bit (B-1) of the hash is 0, the key goes to bucket X (same index as old). If 1, it goes to bucket Y (old index + old bucket count).<br><br>During the transition, lookups check both the new and old arrays. Once nevacuate counter reaches the old bucket count, the grow is complete and oldbuckets is freed.`,
+    facts:`<span class="ok-tag">INCREMENTAL</span> no stop-the-world evacuation — latency stays bounded<br><span class="tag">2 modes</span> B++ grow (load &gt; 6.5) or same-size grow (too many overflows)<br><span class="tag">X/Y split</span> old bucket → 2 new buckets, split by 1 hash bit<br><span class="warn-tag">TRAP</span> map iteration during grow may yield keys in non-deterministic order<br><span class="ok-tag">INTERVIEW</span> "is map grow stop-the-world?" — No, incremental via nevacuate counter<br><span class="warn-tag">TRAP</span> for range over map while deleting — Go spec allows, safe, but order undefined`,
+  },
+  concurrent:{label:'CONCURRENT',
+    code:[
+      '// CONCURRENT MAP ACCESS — FATAL, NOT PANIC',
+      '',
+      '// Go maps are NOT safe for concurrent use.',
+      '// Concurrent writes cause a FATAL ERROR (unrecoverable).',
+      '',
+      '// BAD: data race → fatal error: concurrent map writes',
+      'go func() { m["a"] = 1 }()',
+      'go func() { m["b"] = 2 }()',
+      '',
+      '// BAD: concurrent read + write also detected',
+      'go func() { _ = m["a"] }()',
+      'go func() { m["b"] = 2 }()',
+      '',
+      '// OPTION 1: sync.Mutex (simple, correct)',
+      'var mu sync.Mutex',
+      'mu.Lock(); m[key] = val; mu.Unlock()',
+      '',
+      '// OPTION 2: sync.RWMutex (read-heavy workloads)',
+      'var rw sync.RWMutex',
+      'rw.RLock(); v := m[key]; rw.RUnlock()   // many readers',
+      'rw.Lock(); m[key] = val; rw.Unlock()    // single writer',
+      '',
+      '// OPTION 3: sync.Map (specific use cases)',
+      '// Good: many goroutines reading, few writes to stable keys',
+      '// Bad:  frequent writes — worse than mutex + plain map',
+      'var sm sync.Map',
+      'sm.Store("key", "value")',
+      'v, ok := sm.Load("key")',
+    ],
+    cx:`<strong>Fatal, not panic:</strong> concurrent map write detected → program crashes, no recover()<br><strong>Detection mechanism:</strong> hmap.flags hashWriting bit — set at start of write, checked on entry<br><strong>sync.Mutex:</strong> simple, works for all cases, low overhead for write-heavy<br><strong>sync.RWMutex:</strong> better for many concurrent readers, few writers<br><strong>sync.Map:</strong> copy-on-write dirty map — fast for stable read-mostly key sets only`,
+    how:`Go maps set a write flag (hashWriting bit in hmap.flags) at the start of every mutation. Any concurrent goroutine entering a write operation checks this flag first. If set, the runtime calls fatal() — not panic() — which means no deferred functions run and the crash cannot be recovered.<br><br>This is intentional: a data race on a map can corrupt the map's internal structure in ways that would cause unpredictable memory corruption. A fatal crash is safer than silently corrupting data.<br><br>sync.Map is not a general replacement for map+mutex. It uses a two-map design (read-only copy + dirty map) optimized for the case where keys are mostly stable and reads dominate. For write-heavy or unknown patterns, mutex + plain map is almost always faster.`,
+    facts:`<span class="warn-tag">FATAL</span> concurrent map write = fatal error, not recoverable panic<br><span class="tag">Detection</span> hmap.flags hashWriting bit — checked at start of every write<br><span class="ok-tag">RACE DETECTOR</span> go test -race detects concurrent map access at runtime<br><span class="warn-tag">TRAP</span> sync.Map is NOT faster than mutex + map for write-heavy workloads<br><span class="ok-tag">sync.Map USE CASE</span> many goroutines reading stable keys, infrequent writes<br><span class="tag">sync.RWMutex</span> rlock for reads, lock for writes — good for read-heavy apps`,
+  },
+};
+
+/* ═══════════════════════════════════════════
+   CANVAS HELPERS
+═══════════════════════════════════════════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const w=document.getElementById('viz-wrap');CW=canvas.width=w.clientWidth;CH=canvas.height=w.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+const C={A:'#ffb229',D:'rgba(255,178,41,.3)',G:'#4ade80',R:'#f43f5e',B:'#60a5fa',O:'#f97316',P:'#a855f7',N:'#22d3ee',BG:'#04050a'};
+
+function box(x,y,w,h,stroke,fill,glow){
+  ctx.save();
+  if(glow){ctx.shadowColor=stroke;ctx.shadowBlur=12;}
+  ctx.strokeStyle=stroke;ctx.lineWidth=1.5;
+  ctx.fillStyle=fill||stroke+'14';
+  ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);
+  ctx.restore();
+}
+function txt(t,x,y,font,color,align,baseline){
+  ctx.save();ctx.font=font;ctx.fillStyle=color;
+  ctx.textAlign=align||'center';ctx.textBaseline=baseline||'middle';
+  ctx.fillText(t,x,y);ctx.restore();
+}
+function glowTxt(t,x,y,font,color){
+  ctx.save();ctx.font=font;ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=10;
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,x,y);ctx.restore();
+}
+function arrow(x1,y1,x2,y2,col,lbl){
+  ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.shadowColor=col;ctx.shadowBlur=6;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.fillStyle=col;ctx.beginPath();
+  ctx.moveTo(x2,y2);ctx.lineTo(x2-8*Math.cos(a-0.3),y2-8*Math.sin(a-0.3));
+  ctx.lineTo(x2-8*Math.cos(a+0.3),y2-8*Math.sin(a+0.3));ctx.closePath();ctx.fill();
+  if(lbl){ctx.font="9px 'Share Tech Mono'";ctx.fillStyle=col;ctx.shadowBlur=0;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(lbl,(x1+x2)/2,(y1+y2)/2-3);}
+  ctx.restore();
+}
+function footnote(t){txt(t,CW/2,CH-10,"10px 'Share Tech Mono'",'rgba(255,178,41,.4)');}
+function sceneHdr(t){txt(t,CW/2,8,"10px 'Share Tech Mono'",'rgba(255,178,41,.22)');}
+
+/* ═══════════════════════════════════════════
+   RENDER: HMAP STRUCT
+═══════════════════════════════════════════ */
+function renderHmap(s){
+  sceneHdr('HMAP STRUCT — HEADER BEHIND EVERY GO MAP');
+  const fields=[
+    {name:'count',type:'int',val:s.count||'0',col:C.A},
+    {name:'flags',type:'uint8',val:s.flags||'0x00',col:C.O},
+    {name:'B',type:'uint8',val:s.B||'0',col:C.B},
+    {name:'noverflow',type:'uint16',val:s.noverfl||'0',col:C.P},
+    {name:'hash0',type:'uint32',val:s.hash0||'0x2B4E',col:C.N},
+    {name:'buckets',type:'unsafe.Pointer',val:s.bucketsPtr||'0xC010',col:C.G},
+    {name:'oldbuckets',type:'unsafe.Pointer',val:s.oldPtr||'nil',col:s.oldPtr&&s.oldPtr!=='nil'?C.O:C.D},
+    {name:'nevacuate',type:'uintptr',val:s.nevac||'0',col:s.nevac&&s.nevac!=='0'?C.P:C.D},
+  ];
+  const bw=CW*.5,bh=28,bx=(CW-bw)/2,by=CH*.1;
+  // struct header
+  box(bx-2,by-20,bw+4,fields.length*bh+24,C.A+'44',C.A+'05');
+  txt('type hmap struct',bx+bw/2,by-9,"11px 'VT323'",C.A);
+  fields.forEach((f,i)=>{
+    const fy=by+i*bh;
+    const active=s.highlight===f.name;
+    const fg=active?f.col+'33':'transparent';
+    ctx.save();if(active){ctx.shadowColor=f.col;ctx.shadowBlur=8;}
+    ctx.fillStyle=fg;ctx.fillRect(bx,fy,bw,bh);
+    ctx.strokeStyle=active?f.col:'rgba(255,178,41,.12)';ctx.lineWidth=active?1.5:1;
+    ctx.strokeRect(bx,fy,bw,bh);ctx.restore();
+    txt(f.name,bx+90,fy+bh/2,"12px 'IBM Plex Mono'",f.col,'center');
+    txt(f.type,bx+bw*.5,fy+bh/2,"10px 'IBM Plex Mono'",'rgba(255,178,41,.35)','center');
+    txt(f.val,bx+bw-16,fy+bh/2,"13px 'VT323'",active?f.col:C.A,'right');
+  });
+  // annotation callout
+  if(s.callout){
+    const cx2=bx+bw+20,cy=by+s.calloutRow*bh+bh/2;
+    ctx.save();ctx.strokeStyle=s.calloutCol||C.A;ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(bx+bw,cy);ctx.lineTo(cx2+10,cy);ctx.stroke();ctx.setLineDash([]);
+    box(cx2+10,cy-16,CW*.25,32,s.calloutCol||C.A);
+    txt(s.callout,cx2+10+CW*.125,cy,"10px 'Share Tech Mono'",s.calloutCol||C.A);
+    ctx.restore();
+  }
+  // bucket array hint
+  if(s.B){
+    const nb=Math.pow(2,parseInt(s.B));
+    const bary=by+fields.length*bh+30,barx=bx;
+    txt(`buckets array: 2^${s.B} = ${nb} bmap`,barx+bw/2,bary,"11px 'Share Tech Mono'",C.G,'center');
+    const sw=Math.min(bw/nb,40);
+    for(let i=0;i<Math.min(nb,8);i++){
+      box(barx+i*(sw+2),bary+14,sw,22,C.G+'66',C.G+'08');
+      txt(i,barx+i*(sw+2)+sw/2,bary+25,"9px 'VT323'",C.G+'88');
+    }
+    if(nb>8)txt(`+${nb-8} more`,barx+8*(sw+2)+8,bary+25,"9px 'Share Tech Mono'",C.G+'66','left');
+  }
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: BMAP BUCKET LAYOUT
+═══════════════════════════════════════════ */
+function renderBmap(s){
+  sceneHdr('BMAP — BUCKET INTERNAL LAYOUT (8 SLOTS)');
+  const N=8;
+  const slotW=Math.floor((CW*0.82)/N);
+  const startX=(CW-slotW*N)/2;
+  const rows=[
+    {label:'tophash[8]',y:CH*.12,h:34,col:C.B,vals:s.tophash||Array(8).fill('0x00')},
+    {label:'keys[8]',   y:CH*.28,h:34,col:C.G,vals:s.keys  ||Array(8).fill('—')},
+    {label:'values[8]', y:CH*.44,h:34,col:C.O,vals:s.vals  ||Array(8).fill('—')},
+  ];
+  rows.forEach(row=>{
+    txt(row.label,startX-4,row.y+row.h/2,"11px 'Share Tech Mono'",row.col+'88','right');
+    for(let i=0;i<N;i++){
+      const x=startX+i*slotW,active=s.activeSlot===i;
+      box(x,row.y,slotW-2,row.h,active?row.col:row.col+'55',active?row.col+'22':row.col+'08',active);
+      const v=row.vals[i];
+      txt(v,x+(slotW-2)/2,row.y+row.h/2,"11px 'VT323'",active?row.col:row.col+'bb');
+    }
+    // bracket
+    ctx.save();ctx.strokeStyle=row.col+'44';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(startX-16,row.y);ctx.lineTo(startX-22,row.y);ctx.lineTo(startX-22,row.y+row.h);ctx.lineTo(startX-16,row.y+row.h);ctx.stroke();ctx.restore();
+  });
+  // overflow pointer
+  const ovy=CH*.6,ovx=startX+N*slotW*0.4;
+  box(startX,ovy,slotW*N-2,28,C.P+'66',C.P+'08');
+  txt('overflow *bmap  →  '+(s.overflow||'nil'),startX+(slotW*N)/2,ovy+14,"11px 'Share Tech Mono'",s.overflow&&s.overflow!=='nil'?C.P:C.D);
+  if(s.overflow&&s.overflow!=='nil'){
+    const ox2=startX+slotW*N+20,oy2=ovy+14;
+    arrow(startX+slotW*N,ovy+14,ox2,oy2,C.P,'');
+    box(ox2,oy2-16,80,32,C.P+'88',C.P+'08');
+    txt('overflow',ox2+40,oy2,"10px 'VT323'",C.P);
+    txt('bucket',ox2+40,oy2+12,"9px 'Share Tech Mono'",C.P+'88');
+  }
+  // layout note
+  txt('keys grouped (not interleaved) → less padding, better cache use',CW/2,CH*.75,"10px 'Share Tech Mono'",'rgba(255,178,41,.4)');
+  if(s.note){glowTxt(s.note,CW/2,CH*.85,"13px 'VT323'",s.noteCol||C.A);}
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: LOOKUP
+═══════════════════════════════════════════ */
+function renderLookup(s){
+  sceneHdr('MAP LOOKUP — HASH → BUCKET → TOPHASH → KEY EQUALITY');
+  // hash breakdown
+  const hx=CW*.06,hy=CH*.1,hw=CW*.88,hh=38;
+  box(hx,hy,hw,hh,C.A+'55',C.A+'08');
+  txt('hash("'+( s.key||'hello' )+'") = 0x',hx+10,hy+hh/2,"12px 'VT323'",C.A,'left');
+  // hash bits visual
+  const bitsX=hx+220,bitsW=hw-230;
+  const B=parseInt(s.B||'3');
+  const bucketBits=B,topBits=8;
+  const otherBits=64-B-8;
+  const segments=[
+    {bits:topBits,col:C.B,label:'top 8\n(tophash)'},
+    {bits:otherBits,col:'rgba(255,178,41,.15)',label:`${otherBits} bits`},
+    {bits:bucketBits,col:C.G,label:`${B} bits\n(bucket)`},
+  ];
+  let sx=bitsX;
+  segments.forEach(seg=>{
+    const sw=Math.round(bitsW*seg.bits/64);
+    box(sx,hy,sw,hh,seg.col,seg.col.includes('rgba')?seg.col:seg.col+'22',!seg.col.includes('rgba'));
+    if(sw>20){
+      const label=seg.label.replace('\n',' ');
+      txt(label,sx+sw/2,hy+hh/2,"9px 'Share Tech Mono'",seg.col.includes('rgba')?'rgba(255,178,41,.25)':seg.col);
+    }
+    sx+=sw;
+  });
+  // bucket selection
+  const bsy=CH*.25,bsx=CW*.06;
+  txt('bucket = hash & (2^B - 1)',bsx,bsy,"11px 'Share Tech Mono'",C.G,'left');
+  txt(`B=${B}  →  mask = ${(1<<B)-1}  →  bucket #${s.bucket||'2'}`,bsx,bsy+18,"11px 'VT323'",C.G,'left');
+  // bucket array
+  const N=Math.pow(2,B);
+  const bw2=Math.min(50,(CW*.88)/(N+1));
+  const barX=(CW-bw2*N)/2,barY=CH*.35;
+  for(let i=0;i<N;i++){
+    const active=i===parseInt(s.bucket||'2');
+    box(barX+i*(bw2+2),barY,bw2,36,active?C.G:C.G+'44',active?C.G+'22':C.G+'08',active);
+    txt(i,barX+i*(bw2+2)+bw2/2,barY+18,"12px 'VT323'",active?C.G:C.G+'66');
+  }
+  txt('buckets[0..'+( N-1)+']',barX+bw2*N/2,barY-10,"9px 'Share Tech Mono'",C.G+'66');
+  // tophash scan
+  const tsy=CH*.54;
+  txt('tophash scan: top byte = '+( s.top||'0x8F'),CW/2,tsy,"11px 'Share Tech Mono'",C.B,'center');
+  const topVals=s.tophash||['0x12','0x8F','0x34','0x8F','0x00','0x00','0x00','0x00'];
+  const tsw=52,tsx=(CW-8*tsw)/2;
+  topVals.forEach((v,i)=>{
+    const hit=v===(s.top||'0x8F')&&v!=='0x00';
+    box(tsx+i*tsw,tsy+14,tsw-2,30,hit?C.B:C.B+'44',hit?C.B+'22':'transparent',hit);
+    txt(v,tsx+i*tsw+(tsw-2)/2,tsy+29,"10px 'VT323'",hit?C.B:C.B+'55');
+    if(hit){
+      txt('↑ match',tsx+i*tsw+(tsw-2)/2,tsy+52,"8px 'Share Tech Mono'",C.B);
+      if(s.keyMatch){txt('key ==',tsx+i*tsw+(tsw-2)/2,tsy+64,"8px 'Share Tech Mono'",C.G);}
+    }
+  });
+  if(s.result){glowTxt(s.result,CW/2,CH*.88,"14px 'VT323'",s.resultCol||C.G);}
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: INSERT
+═══════════════════════════════════════════ */
+function renderInsert(s){
+  sceneHdr('MAP INSERT — mapassign');
+  // flags
+  const fx=CW*.06,fy=CH*.08;
+  const flagSet=s.flagSet||false;
+  box(fx,fy,180,30,flagSet?C.R:C.A+'55',flagSet?C.R+'22':'transparent',flagSet);
+  txt('flags: hashWriting = '+(flagSet?'1 ← SET':'0'),fx+90,fy+15,"10px 'Share Tech Mono'",flagSet?C.R:C.A+'66');
+  if(s.concurrent){
+    glowTxt('FATAL: concurrent map writes',CW*.5,fy+15,"13px 'VT323'",C.R);
+    triggerCA();
+  }
+  // bucket slots
+  const N=8,slotH=28;
+  const bw=CW*.75,bx=(CW-bw)/2,by=CH*.2;
+  txt('bucket #'+( s.bucket||'0'),bx+bw/2,by-12,"11px 'Share Tech Mono'",C.A+'66');
+  const slotW=bw/N;
+  const slotStates=s.slots||Array(8).fill('empty');
+  slotStates.forEach((st,i)=>{
+    const col=st==='empty'?C.A+'33':st==='target'?C.G:st==='match'?C.B:C.O;
+    const active=st==='target'||st==='match';
+    box(bx+i*slotW,by,slotW-2,slotH,col,active?col+'22':'transparent',active);
+    const label=st==='empty'?'—':st==='target'?s.key||'new':st==='match'?'UPDATE':'key'+i;
+    txt(label,bx+i*slotW+(slotW-2)/2,by+slotH/2,"11px 'VT323'",col);
+    txt('tophash',bx+i*slotW+(slotW-2)/2,by+slotH+10,"7px 'Share Tech Mono'",C.A+'33');
+    const th=st==='empty'?'0x00':st==='target'?( s.top||'0xAB'):st==='match'?( s.top||'0xAB'):'0x'+Math.floor(Math.random()*200+5).toString(16).padStart(2,'0');
+    txt(th,bx+i*slotW+(slotW-2)/2,by+slotH+22,"9px 'VT323'",col+'99');
+  });
+  // load factor
+  const count=s.count||'6',B=s.B||'1',lf=( parseFloat(count)/Math.pow(2,parseInt(B))).toFixed(2);
+  const lfy=CH*.52;
+  txt(`count=${count}  B=${B}  load=${lf}  threshold=6.50`,CW/2,lfy,"11px 'Share Tech Mono'",'rgba(255,178,41,.55)');
+  const barW=CW*.6,barX=(CW-barW)/2,barY=lfy+14;
+  box(barX,barY,barW,10,C.A+'33','transparent');
+  const fillW=Math.min(parseFloat(lf)/10*barW,barW);
+  const barCol=parseFloat(lf)>6.5?C.R:parseFloat(lf)>5?C.O:C.G;
+  ctx.save();ctx.fillStyle=barCol;ctx.fillRect(barX,barY,fillW,10);
+  ctx.strokeStyle=barCol;ctx.lineWidth=1;ctx.strokeRect(barX,barY,barW,10);ctx.restore();
+  // threshold line
+  const thX=barX+barW*6.5/10;
+  ctx.save();ctx.strokeStyle=C.R;ctx.lineWidth=1;ctx.setLineDash([3,2]);
+  ctx.beginPath();ctx.moveTo(thX,barY-8);ctx.lineTo(thX,barY+18);ctx.stroke();ctx.setLineDash([]);
+  txt('6.5',thX,barY-14,"9px 'Share Tech Mono'",C.R,'center');ctx.restore();
+  if(s.overflow){
+    glowTxt('overflow bucket allocated!',CW/2,CH*.7,"13px 'VT323'",C.P);
+  }
+  if(s.growTrigger){
+    glowTxt('hashGrow() triggered: B → '+(parseInt(s.B||'1')+1)+', new bucket array x2',CW/2,CH*.78,"12px 'VT323'",C.O);
+  }
+  if(s.note){txt(s.note,CW/2,CH*.88,"10px 'Share Tech Mono'",s.noteCol||'rgba(255,178,41,.5)');}
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: GROW / EVACUATE
+═══════════════════════════════════════════ */
+function renderGrow(s){
+  sceneHdr('INCREMENTAL GROW — EVACUATION PROGRESS');
+  const B=parseInt(s.B||'2');
+  const oldN=Math.pow(2,B-1)||1,newN=Math.pow(2,B);
+  const maxDisp=Math.min(newN,8);
+  const bw=Math.min(52,Math.floor((CW*0.82)/maxDisp));
+  const oldStartX=(CW-oldN*Math.min(52,Math.floor((CW*0.82)/Math.min(oldN,8))))/2;
+  const newStartX=(CW-maxDisp*bw)/2;
+  const oldBW=Math.min(52,Math.floor((CW*0.82)/Math.min(oldN,8)));
+  const evac=parseInt(s.nevac||'0');
+  // OLD buckets
+  txt('oldbuckets  (B='+(B-1)+',  '+oldN+' buckets)',CW/2,CH*.1,"11px 'Share Tech Mono'",C.O+'aa','center');
+  for(let i=0;i<Math.min(oldN,8);i++){
+    const done=i<evac;
+    box(oldStartX+i*(oldBW+2),CH*.15,oldBW,36,done?C.O+'44':C.O,done?C.O+'0A':C.O+'18',!done);
+    txt(i,oldStartX+i*(oldBW+2)+oldBW/2,CH*.15+18,"12px 'VT323'",done?C.O+'44':C.O);
+    if(done)txt('evac',oldStartX+i*(oldBW+2)+oldBW/2,CH*.15+30,"7px 'Share Tech Mono'",C.O+'55');
+  }
+  // progress arrow
+  if(evac>0){
+    txt(`nevacuate = ${evac} / ${oldN}`,CW/2,CH*.33,"11px 'Share Tech Mono'",C.P,'center');
+    const pct=evac/oldN;
+    const pw=CW*0.5,px=(CW-pw)/2,py=CH*.37;
+    box(px,py,pw,8,C.P+'55','transparent');
+    ctx.save();ctx.fillStyle=C.P;ctx.fillRect(px,py,pw*pct,8);ctx.restore();
+  }
+  // NEW buckets
+  txt('buckets  (B='+B+',  '+newN+' buckets)',CW/2,CH*.47,"11px 'Share Tech Mono'",C.G+'aa','center');
+  for(let i=0;i<maxDisp;i++){
+    const filled=i<evac*2;
+    box(newStartX+i*(bw+2),CH*.52,bw,36,filled?C.G:C.G+'33',filled?C.G+'18':'transparent',filled);
+    txt(i,newStartX+i*(bw+2)+bw/2,CH*.52+18,"12px 'VT323'",filled?C.G:C.G+'33');
+    if(filled&&i<evac){txt('X',newStartX+i*(bw+2)+bw/2,CH*.52+30,"7px 'Share Tech Mono'",C.G+'88');}
+    else if(filled){txt('Y',newStartX+i*(bw+2)+bw/2,CH*.52+30,"7px 'Share Tech Mono'",C.G+'66');}
+  }
+  if(newN>8)txt(`(+${newN-8} more)`,newStartX+maxDisp*(bw+2)+8,CH*.52+18,"9px 'Share Tech Mono'",C.G+'55','left');
+  // X/Y explanation
+  const ey=CH*.7;
+  txt('OLD bucket → X (bit=0, same index)  +  Y (bit=1, index + oldN)',CW/2,ey,"10px 'Share Tech Mono'",'rgba(255,178,41,.5)');
+  if(s.note){glowTxt(s.note,CW/2,CH*.82,"13px 'VT323'",s.noteCol||C.G);}
+}
+
+/* ═══════════════════════════════════════════
+   RENDER: CONCURRENT
+═══════════════════════════════════════════ */
+function renderConcurrent(s){
+  sceneHdr('CONCURRENT MAP ACCESS');
+  const G1col=C.B,G2col=C.O;
+  const gw=CW*.3,gh=50,gy=CH*.1;
+  const g1x=CW*.08,g2x=CW*.62;
+  // goroutine boxes
+  box(g1x,gy,gw,gh,G1col,G1col+'11',s.g1active);
+  txt('goroutine 1',g1x+gw/2,gy+14,"11px 'VT323'",G1col);
+  txt(s.g1op||'m["a"] = 1',g1x+gw/2,gy+34,"10px 'Share Tech Mono'",G1col+'aa');
+  box(g2x,gy,gw,gh,G2col,G2col+'11',s.g2active);
+  txt('goroutine 2',g2x+gw/2,gy+14,"11px 'VT323'",G2col);
+  txt(s.g2op||'m["b"] = 2',g2x+gw/2,gy+34,"10px 'Share Tech Mono'",G2col+'aa');
+  // arrows to map
+  const mapX=CW*.38,mapY=CH*.4,mapW=CW*.24,mapH=50;
+  if(s.g1active)arrow(g1x+gw,gy+gh/2,mapX,mapY+mapH/2,G1col,'');
+  if(s.g2active)arrow(g2x,gy+gh/2,mapX+mapW,mapY+mapH/2,G2col,'');
+  // map box
+  const mapStroke=s.crash?C.R:C.A;
+  box(mapX,mapY,mapW,mapH,mapStroke,mapStroke+'0F',s.crash);
+  txt('map[string]int',mapX+mapW/2,mapY+mapH/2,"11px 'VT323'",mapStroke);
+  // flags indicator
+  const flagY=mapY+mapH+16;
+  const fgCol=s.flagConflict?C.R:s.g1active||s.g2active?C.O:C.A+'55';
+  txt('flags: hashWriting = '+(s.flagConflict?'1 (CONFLICT!)':s.g1active||s.g2active?'1':'0'),CW/2,flagY,"10px 'Share Tech Mono'",fgCol,'center');
+  if(s.crash){
+    glowTxt('fatal error: concurrent map writes',CW/2,CH*.65,"14px 'VT323'",C.R);
+    txt('(not panic — cannot be recovered)',CW/2,CH*.65+22,"10px 'Share Tech Mono'",C.R+'aa');
+    triggerCA();
+  }
+  // solutions
+  if(s.solution){
+    const sy=CH*.72;
+    const solutions=[
+      {label:'sync.Mutex',desc:'simple, always correct',col:C.G},
+      {label:'sync.RWMutex',desc:'read-heavy workloads',col:C.B},
+      {label:'sync.Map',desc:'stable read-mostly keys',col:C.P},
+    ];
+    txt('SOLUTIONS',CW/2,sy-8,"10px 'Share Tech Mono'",C.A+'55');
+    const sw=CW*.22,sgap=CW*.025;
+    const totalW=solutions.length*(sw+sgap)-sgap;
+    solutions.forEach((sol,i)=>{
+      const sx=(CW-totalW)/2+i*(sw+sgap);
+      const active=s.solution===sol.label;
+      box(sx,sy+4,sw,46,sol.col+(active?'':'55'),active?sol.col+'18':'transparent',active);
+      txt(sol.label,sx+sw/2,sy+20,"12px 'VT323'",sol.col);
+      txt(sol.desc,sx+sw/2,sy+38,"9px 'Share Tech Mono'",sol.col+(active?'':'88'));
+    });
+  }
+}
+
+/* ── DISPATCHER ── */
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  switch(curScene){
+    case'hmap':renderHmap(step);break;
+    case'bmap':renderBmap(step);break;
+    case'lookup':renderLookup(step);break;
+    case'insert':renderInsert(step);break;
+    case'grow':renderGrow(step);break;
+    case'concurrent':renderConcurrent(step);break;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   STEPS
+═══════════════════════════════════════════ */
+function buildSteps(key){
+  const S=[];
+  const snap=(phase,desc,cl,st)=>S.push({phase,desc,cl,...st});
+
+  if(key==='hmap'){
+    snap('init','hmap: the header struct allocated for every Go map. Pointer-sized — 56 bytes on 64-bit.',1,{highlight:null,B:null,hash0:'?',bucketsPtr:'?',oldPtr:'nil',nevac:'0',count:'0',noverfl:'0',flags:'0x00'});
+    snap('hash','hash0 = fastrand(). Random seed per map — prevents hash-flooding attacks.',5,{highlight:'hash0',B:null,hash0:'0x2B4E',bucketsPtr:'?',oldPtr:'nil',nevac:'0',count:'0',noverfl:'0',flags:'0x00'});
+    snap('init','B=1: 2^1=2 buckets. B=3: 2^3=8 buckets. hint drives initial B selection.',4,{highlight:'B',B:'3',hash0:'0x2B4E',bucketsPtr:'0xC010',oldPtr:'nil',nevac:'0',count:'0',noverfl:'0',flags:'0x00'});
+    snap('init','buckets: pointer to the bucket array on heap. Array of 2^B bmap structs.',6,{highlight:'buckets',B:'3',hash0:'0x2B4E',bucketsPtr:'0xC010',oldPtr:'nil',nevac:'0',count:'0',noverfl:'0',flags:'0x00'});
+    snap('insert','After inserting 3 keys: count=3. Buckets still same (B=3). Load=3/8=0.375.',2,{highlight:'count',B:'3',hash0:'0x2B4E',bucketsPtr:'0xC010',oldPtr:'nil',nevac:'0',count:'3',noverfl:'0',flags:'0x00'});
+    snap('grow','Growing: oldbuckets = old array. B becomes 4. nevacuate=0 (evacuation starts).',8,{highlight:'oldbuckets',B:'4',hash0:'0x2B4E',bucketsPtr:'0xC020',oldPtr:'0xC010',nevac:'0',count:'55',noverfl:'2',flags:'0x00',callout:'GROW in progress',calloutRow:6,calloutCol:C.O});
+    snap('evac','As keys written, nevacuate advances. oldbuckets freed when all evacuated.',9,{highlight:'nevacuate',B:'4',hash0:'0x2B4E',bucketsPtr:'0xC020',oldPtr:'0xC010',nevac:'7',count:'55',noverfl:'0',flags:'0x00'});
+    snap('done','Grow complete: oldbuckets=nil. B=4, 16 buckets. map fully operational.',8,{highlight:null,B:'4',hash0:'0x2B4E',bucketsPtr:'0xC020',oldPtr:'nil',nevac:'0',count:'55',noverfl:'0',flags:'0x00'});
+  }
+
+  else if(key==='bmap'){
+    snap('init','One bmap bucket: holds up to 8 key-value pairs. Memory starts with tophash[8].',3,{tophash:Array(8).fill('0x00'),keys:Array(8).fill('—'),vals:Array(8).fill('—'),overflow:null,activeSlot:-1,note:null});
+    snap('hash','Inserting key "cat". hash>>56 = 0xAB (tophash). Written to slot 0.',0,{tophash:['0xAB','0x00','0x00','0x00','0x00','0x00','0x00','0x00'],keys:['"cat"','—','—','—','—','—','—','—'],vals:['42','—','—','—','—','—','—','—'],overflow:null,activeSlot:0,note:'tophash stored BEFORE key — fast reject on mismatch',noteCol:C.B});
+    snap('insert','Inserting "dog" (0x3F), "elk" (0xC2), "fox" (0x77). Slots fill up.',0,{tophash:['0xAB','0x3F','0xC2','0x77','0x00','0x00','0x00','0x00'],keys:['"cat"','"dog"','"elk"','"fox"','—','—','—','—'],vals:['42','7','99','13','—','—','—','—'],overflow:null,activeSlot:3,note:'keys grouped together, values grouped after — avoids K-V padding',noteCol:C.G});
+    snap('insert','Bucket now has 7 keys. Slot 7 = last empty.',0,{tophash:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x00'],keys:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','—'],vals:['42','7','99','13','5','88','17','—'],overflow:null,activeSlot:7,note:'slot 7 empty — tophash=0x00 (emptyRest)',noteCol:C.A});
+    snap('insert','Bucket full (8/8). New key "jay" needs a slot — allocate overflow bucket.',0,{tophash:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'],keys:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'],vals:['42','7','99','13','5','88','17','2'],overflow:'0xC044',activeSlot:-1,note:'overflow chained at end — lookup must traverse chain',noteCol:C.P});
+    snap('done','Overflow degrades O(1) to O(chain len). Too many overflows triggers grow.',0,{tophash:['0xAB','0x3F','0xC2','0x77','0x1D','0xE5','0x8A','0x91'],keys:['"cat"','"dog"','"elk"','"fox"','"gnu"','"hen"','"ibis"','"jay"'],vals:['42','7','99','13','5','88','17','2'],overflow:'0xC044',activeSlot:-1,note:'bmap: 8 slots + overflow chain — foundation of Go hash table',noteCol:C.A});
+  }
+
+  else if(key==='lookup'){
+    snap('init','Lookup: m["hello"]. Step 1: compute hash with map seed.',5,{key:'hello',B:'3',bucket:null,top:null,tophash:Array(8).fill('0x00'),keyMatch:false,result:null});
+    snap('hash','hash("hello", seed) = 0x8FAB3C9D1E. 64-bit value. Bottom B=3 bits = bucket index.',5,{key:'hello',B:'3',bucket:'2',top:null,tophash:Array(8).fill('0x00'),keyMatch:false,result:null});
+    snap('hash','Bottom 3 bits → bucket #2. mask = (1<<3)-1 = 7. bucket = hash & 7 = 2.',7,{key:'hello',B:'3',bucket:'2',top:'0x8F',tophash:['0x12','0x8F','0x34','0x8F','0x00','0x00','0x00','0x00'],keyMatch:false,result:null});
+    snap('lookup','Top 8 bits = 0x8F. Scan tophash[8]: compare 0x8F vs each slot (byte compare, cheap).',19,{key:'hello',B:'3',bucket:'2',top:'0x8F',tophash:['0x12','0x8F','0x34','0x8F','0x00','0x00','0x00','0x00'],keyMatch:false,result:null});
+    snap('lookup','tophash[1]=0x8F matches! Now compare full key "hello" == keys[1]. Match!',21,{key:'hello',B:'3',bucket:'2',top:'0x8F',tophash:['0x12','0x8F','0x34','0x8F','0x00','0x00','0x00','0x00'],keyMatch:true,result:'→ return &values[1]',resultCol:C.G});
+    snap('lookup','tophash[3]=0x8F also matches! But keys[3]="world" ≠ "hello". Skip.',21,{key:'hello',B:'3',bucket:'2',top:'0x8F',tophash:['0x12','0x8F','0x34','0x8F','0x00','0x00','0x00','0x00'],keyMatch:true,result:'tophash pre-filters: avoids key compare for most misses',resultCol:C.B});
+    snap('done','Miss: scan all tophash, no match → return &zeroVal (zero value, no alloc).',28,{key:'missing',B:'3',bucket:'5',top:'0x1C',tophash:['0x12','0x8F','0x34','0x8F','0x00','0x00','0x00','0x00'],keyMatch:false,result:'→ zero value (not found)',resultCol:C.O});
+  }
+
+  else if(key==='insert'){
+    snap('init','mapassign: m["newkey"] = 99. Set hashWriting flag first (concurrent detection).',5,{flagSet:true,slots:Array(8).fill('empty'),bucket:'0',count:'0',B:'1',key:'newkey',top:'0xAB',overflow:false,growTrigger:false,note:'write flag set at start — concurrent write by another goroutine = fatal error',noteCol:C.O});
+    snap('insert','Find target bucket. Scan for empty slot. Slot 0 is empty — write tophash+key+value.',8,{flagSet:true,slots:['target','empty','empty','empty','empty','empty','empty','empty'],bucket:'0',count:'1',B:'1',key:'newkey',top:'0xAB',overflow:false,growTrigger:false,note:'first empty slot used; tophash stored for future fast lookup',noteCol:C.G});
+    snap('insert','Continue inserting. 5 keys now: count=5, B=1, load=5/2=2.5. Below threshold.',0,{flagSet:false,slots:['match','match','match','match','match','empty','empty','empty'],bucket:'0',count:'5',B:'1',key:'key5',top:'0xCD',overflow:false,growTrigger:false,note:'load=2.5 — safe, threshold is 6.5',noteCol:C.G});
+    snap('insert','Existing key found: tophash+key match in slot 2. Update value in place — no alloc.',19,{flagSet:true,slots:['match','match','match','match','match','empty','empty','empty'],bucket:'0',count:'5',B:'1',key:'key2',top:'0xXX',overflow:false,growTrigger:false,note:'update: value written in-place. key slot reused.',noteCol:C.B});
+    snap('warn','Bucket full (8/8). No empty slot — allocate overflow bmap and chain it.',0,{flagSet:true,slots:Array(8).fill('match'),bucket:'0',count:'8',B:'1',key:'newkey',top:'0xEE',overflow:true,growTrigger:false,note:'overflow chain degrades lookup — triggers grow if too many',noteCol:C.P});
+    snap('grow','count=14, B=1, load=14/2=7.0 > 6.5. hashGrow() called: B→2, new 4-bucket array.',31,{flagSet:false,slots:Array(8).fill('match'),bucket:'0',count:'14',B:'1',key:null,top:null,overflow:false,growTrigger:true,note:'grow is incremental — 1-2 buckets evacuated per subsequent write',noteCol:C.O});
+    snap('done','hashWriting flag cleared. Write complete.',0,{flagSet:false,slots:['match','match','match','target','empty','empty','empty','empty'],bucket:'0',count:'6',B:'2',key:'newkey',top:'0xAB',overflow:false,growTrigger:false,note:'map insert: O(1) amortized. Grow is incremental (no stop-the-world).',noteCol:C.A});
+  }
+
+  else if(key==='grow'){
+    snap('init','B=2: 4 old buckets, 52 keys. Load=52/4=13.0 >> 6.5. hashGrow() triggered.',0,{B:'2',nevac:'0',note:'oldbuckets saved, new array allocated. B→3 (8 buckets).',noteCol:C.O});
+    snap('grow','B now 3. New bucket array: 8 buckets. oldbuckets points to old 4-bucket array.',11,{B:'3',nevac:'0',note:'grow does NOT copy keys yet — incremental evacuation',noteCol:C.O});
+    snap('evac','First map write: evacuate(oldbucket=0). Keys split: bit(B-1) decides X or Y bucket.',18,{B:'3',nevac:'1',note:'bucket 0 evacuated: keys split into bucket 0 (X) and bucket 4 (Y)',noteCol:C.G});
+    snap('evac','Each subsequent write evacuates 1-2 more buckets. nevacuate advances.',18,{B:'3',nevac:'2',note:'incremental: no latency spike, each map write pays a small evacuation cost',noteCol:C.G});
+    snap('evac','nevacuate=3. Bucket 3 evacuated. 1 old bucket remains.',18,{B:'3',nevac:'3',note:'reads check oldbuckets for non-evacuated buckets (transparent to caller)',noteCol:C.B});
+    snap('done','nevacuate=4 = oldN. All evacuated. oldbuckets freed. GC can collect old array.',29,{B:'3',nevac:'4',note:'grow complete. map at B=3: 8 buckets, load=52/8=6.5.',noteCol:C.G});
+  }
+
+  else if(key==='concurrent'){
+    snap('init','Go maps are NOT safe for concurrent use. Concurrent reads: fine. Write+anything: fatal.',0,{g1active:false,g2active:false,g1op:'_ = m["a"]',g2op:'_ = m["b"]',flagConflict:false,crash:false,solution:null});
+    snap('hash','goroutine 1 starts write: m["a"]=1. Sets hashWriting flag.',5,{g1active:true,g2active:false,g1op:'m["a"] = 1',g2op:'m["b"] = 2',flagConflict:false,crash:false,solution:null});
+    snap('crash','goroutine 2 also starts write: checks flag → hashWriting=1 already set → FATAL.',6,{g1active:true,g2active:true,g1op:'m["a"] = 1',g2op:'m["b"] = 2',flagConflict:true,crash:true,solution:null});
+    snap('warn','FATAL (not panic): no deferred funcs, no recover(). Program terminates immediately.',0,{g1active:false,g2active:false,g1op:'(crashed)',g2op:'(crashed)',flagConflict:false,crash:false,solution:null});
+    snap('insert','Solution 1: sync.Mutex — simple, correct for any access pattern.',14,{g1active:false,g2active:false,g1op:'mu.Lock(); m["a"]=1',g2op:'mu.Lock(); m["b"]=2',flagConflict:false,crash:false,solution:'sync.Mutex'});
+    snap('lookup','Solution 2: sync.RWMutex — allows many concurrent readers, exclusive writer.',18,{g1active:false,g2active:false,g1op:'rw.RLock(); v=m["a"]',g2op:'rw.Lock(); m["b"]=2',flagConflict:false,crash:false,solution:'sync.RWMutex'});
+    snap('done','Solution 3: sync.Map — only for stable read-mostly key sets. Not a general replacement.',22,{g1active:false,g2active:false,g1op:'sm.Load("a")',g2op:'sm.Store("b",2)',flagConflict:false,crash:false,solution:'sync.Map'});
+  }
+
+  return S;
+}
+
+/* ═══════════════════════════════════════════
+   PLAYBACK ENGINE
+═══════════════════════════════════════════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:700};
+let curScene='hmap';
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');badge.textContent=step.phase.toUpperCase();badge.className='pbadge '+step.phase;
+  document.getElementById('step-txt').textContent=step.desc;
+  document.getElementById('prog-bar').style.width=(ST.steps.length>1?(ST.idx/(ST.steps.length-1)*100):0)+'%';
+  document.getElementById('step-ctr').textContent=(ST.idx+1)+' / '+ST.steps.length;
+  // stats
+  const sc=step;
+  document.getElementById('st-c').textContent=sc.count||sc.nevac!==undefined?sc.count||'—':'—';
+  document.getElementById('st-b').textContent=sc.B||'—';
+  const B=parseInt(sc.B||'0');
+  document.getElementById('st-bk').textContent=B?Math.pow(2,B):'—';
+  const lf=sc.count&&sc.B?(parseFloat(sc.count)/Math.pow(2,parseInt(sc.B))).toFixed(2):'—';
+  const lfEl=document.getElementById('st-lf');lfEl.textContent=lf;
+  lfEl.style.color=parseFloat(lf)>6.5?'var(--red)':parseFloat(lf)>5?'var(--orange)':'var(--cyan)';
+  document.getElementById('st-ov').textContent=sc.overflow?'yes':sc.noverfl||'—';
+  renderCode(SC[curScene].code,step.cl>=0?step.cl:-1);
+  snd(step.phase);
+  if(step.phase==='crash'||step.phase==='warn')triggerCA();
+}
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing){clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}else{ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}}
+function doReset(){if(ST.playing)togglePlay();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);}
+function changeSpeed(v){ST.speed=Math.round(2200-v*200);if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx<ST.steps.length-1)next();else{clearInterval(ST.timer);ST.playing=false;document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}},ST.speed);}}
+function selectScene(key){
+  if(ST.playing)togglePlay();
+  curScene=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  ST.steps=buildSteps(key);ST.idx=0;
+  const sc=SC[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  applyStep(ST.steps[0]);
+}
+function buildTabs(){
+  const order=[['hmap','1. HMAP'],['bmap','2. BUCKET'],['lookup','3. LOOKUP'],['insert','4. INSERT'],['grow','5. GROW'],['concurrent','6. CONCURRENT']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;
+    case'm':case'M':toggleMute();break;
+    case'1':selectScene('hmap');break;case'2':selectScene('bmap');break;
+    case'3':selectScene('lookup');break;case'4':selectScene('insert');break;
+    case'5':selectScene('grow');break;case'6':selectScene('concurrent');break;
+  }
+});
+
+/* ── BOOT ── */
+function boot(){
+  const term=document.getElementById('boot-terminal'),fill=document.getElementById('boot-fill');
+  const lines=[
+    ['Initializing hash seed (fastrand)','OK'],
+    ['Allocating hmap header struct','OK'],
+    ['Selecting initial B for hint=0','OK'],
+    ['Building bucket array 2^B bmap structs','OK'],
+    ['Loading tophash fast-path filter','OK'],
+    ['Calibrating load factor threshold (6.5)','OK'],
+    ['MAP.VIZ READY',''],
+  ];
+  let i=0;function nxt(){if(i>=lines.length){setTimeout(sa,400);return;}
+    const[msg,ok]=lines[i];const div=document.createElement('div');div.className='bl';
+    div.innerHTML=`<span>${msg}</span><span class="bl-ok">${ok||(i===lines.length-1?'<span id="boot-cursor"> </span>':'')}</span>`;
+    term.appendChild(div);setTimeout(()=>div.classList.add('show'),30);
+    fill.style.width=((i+1)/lines.length*100)+'%';i++;setTimeout(nxt,i===lines.length?300:100);}
+  setTimeout(nxt,200);
+}
+function sa(){
+  document.getElementById('boot').style.display='none';
+  document.getElementById('main').classList.add('show');
+  buildTabs();
+  const sc=SC['hmap'];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
+  try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  setTimeout(()=>selectScene('hmap'),350);
+}
+boot();
+</script>
+</body>
+</html>

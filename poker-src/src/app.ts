@@ -2287,6 +2287,9 @@ export function init(): void {
   const unlock = () => { unlockAudio(); document.removeEventListener('pointerdown', unlock); };
   document.addEventListener('pointerdown', unlock);
 
+  // Init other games
+  import('./durak/index.js').then(m => m.initDurak());
+
   // Populate rules content in both the side panel and the modal.
   const html = rulesHtml();
   const sideBody = document.querySelector('.rules-aside-body');

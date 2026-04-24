@@ -1,0 +1,739 @@
+/* ==========================================================================
+   XP Emulator Presentation Layer
+   ========================================================================== */
+
+/* --- Reset & Base --- */
+body.xp-page {
+  background: #847a6e;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+body.xp-page .main {
+  padding: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Room Environment --- */
+.xp-container {
+  background:
+    linear-gradient(180deg, #6b6157 0%, #7d7368 30%, #8a7f73 100%);
+  position: relative;
+}
+
+.xp-container::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background:
+    linear-gradient(180deg,
+      #5c4a3a 0%,
+      #6b5548 2%,
+      #7a6455 4%,
+      #6b5548 6%,
+      #5c4a3a 8%,
+      #6b5548 10%,
+      #7a6455 12%,
+      #6b5548 14%,
+      #5c4a3a 16%,
+      #6b5548 100%
+    );
+  z-index: 0;
+  border-top: 3px solid #4a3c30;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.xp-container > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Boot Overlay --- */
+#xp-boot-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.6s ease;
+}
+
+#xp-boot-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.xp-boot-inner {
+  text-align: center;
+  color: #fff;
+}
+
+.xp-boot-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.xp-boot-title {
+  font-family: "Franklin Gothic Medium", "Trebuchet MS", sans-serif;
+  font-size: 48px;
+  font-weight: normal;
+  color: #fff;
+  letter-spacing: -1px;
+}
+
+.xp-boot-title em {
+  font-style: normal;
+  color: #ff8c00;
+  font-weight: bold;
+  font-size: 52px;
+  vertical-align: super;
+  font-size: 32px;
+}
+
+.xp-boot-progress {
+  width: 220px;
+  height: 20px;
+  margin: 0 auto 24px;
+  background: #000;
+  border: 1px solid #333;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.xp-boot-bar {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  bottom: 2px;
+  width: 40px;
+  background: linear-gradient(to right, #0052cc, #0078d4, #0052cc);
+  border-radius: 1px;
+  animation: bootSlide 1.5s ease-in-out infinite;
+}
+
+@keyframes bootSlide {
+  0% { left: 2px; }
+  50% { left: calc(100% - 44px); }
+  100% { left: 2px; }
+}
+
+.xp-boot-status {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 30px;
+  min-height: 20px;
+}
+
+.xp-boot-copyright {
+  font-size: 11px;
+  color: #555;
+}
+
+/* --- XP Container --- */
+.xp-container {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 30px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  min-height: 100vh;
+  flex: 1;
+}
+
+/* --- Monitor --- */
+.computer-frame {
+  position: relative;
+  margin-bottom: 0;
+}
+
+.monitor-body {
+  position: relative;
+}
+
+.monitor-bezel {
+  background: linear-gradient(180deg, #d8d4cc 0%, #c8c3ba 20%, #bab5ab 50%, #b0ab9f 80%, #a8a398 100%);
+  border-radius: 20px 20px 16px 16px;
+  padding: 30px 36px 48px;
+  box-shadow:
+    0 3px 0 #e0dcd4,
+    0 -2px 0 #9a958a,
+    3px 0 0 #a8a398,
+    -3px 0 0 #a8a398,
+    0 10px 40px rgba(0,0,0,0.6),
+    0 4px 16px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(0,0,0,0.1);
+  position: relative;
+  border: 1px solid #a09a8e;
+}
+
+.monitor-brand {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: "Futura Now Headline", "Futura", Helvetica, sans-serif;
+  font-size: 12px;
+  color: #8a857c;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+}
+
+/* --- Monitor Controls Bar --- */
+.monitor-controls {
+  position: absolute;
+  bottom: 10px;
+  right: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2ecc40;
+  box-shadow: 0 0 6px #2ecc40, inset 0 1px 1px rgba(255,255,255,0.3);
+  animation: ledBlink 3s ease-in-out infinite;
+}
+
+.monitor-power-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #c0bab0, #a8a298);
+  border: 1px solid #908880;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.monitor-power-btn:hover {
+  background: linear-gradient(180deg, #c8c2b8, #b0aaa0);
+}
+
+.monitor-power-btn:active {
+  transform: scale(0.92);
+  box-shadow: 0 0 2px rgba(0,0,0,0.2), inset 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.monitor-power-btn svg {
+  width: 10px;
+  height: 10px;
+  stroke: #555;
+  stroke-width: 2;
+  fill: none;
+}
+
+@keyframes ledBlink {
+  0%, 90%, 100% { opacity: 1; }
+  95% { opacity: 0.3; }
+}
+
+.screen-wrapper {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+  box-shadow:
+    inset 0 3px 10px rgba(0,0,0,0.9),
+    inset 0 -2px 6px rgba(0,0,0,0.6),
+    inset 3px 0 8px rgba(0,0,0,0.4),
+    inset -3px 0 8px rgba(0,0,0,0.4),
+    0 0 0 2px #2a2520;
+}
+
+.screen {
+  position: relative;
+  width: 800px;
+  height: 600px;
+  background: #000;
+  overflow: hidden;
+}
+
+#screen_container {
+  position: absolute;
+  inset: 0;
+}
+
+#screen_container canvas {
+  width: 800px !important;
+  height: 600px !important;
+}
+
+#crt-canvas {
+  position: absolute;
+  inset: 0;
+  width: 800px;
+  height: 600px;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.screen.mouse-captured #crt-canvas {
+  cursor: none;
+}
+
+/* --- Screen Glow --- */
+.screen-glow {
+  position: absolute;
+  inset: -60px;
+  z-index: -1;
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+/* --- Monitor Stand --- */
+.monitor-stand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.monitor-stand-neck {
+  width: 100px;
+  height: 35px;
+  background: linear-gradient(90deg, #a8a298, #c0bbb2, #c8c3b8, #c0bbb2, #a8a298);
+  box-shadow: inset -3px 0 6px rgba(0,0,0,0.15), inset 3px 0 6px rgba(0,0,0,0.15);
+  border-left: 1px solid #9a958a;
+  border-right: 1px solid #9a958a;
+}
+
+.monitor-stand-base {
+  width: 240px;
+  height: 18px;
+  background: linear-gradient(180deg, #c0bbb2, #b0ab9f, #a8a298);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  border: 1px solid #9a958a;
+  border-top: none;
+}
+
+/* --- Desk Surface --- */
+.desk-surface {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 10px;
+  perspective: 800px;
+  padding: 24px 40px;
+  border-radius: 4px;
+}
+
+/* --- Keyboard --- */
+.keyboard-container {
+  perspective: 800px;
+}
+
+.keyboard {
+  background: linear-gradient(180deg, #d9d0c5 0%, #ccc3b7 100%);
+  padding: 10px 12px;
+  border-radius: 6px;
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.3),
+    0 1px 0 #e0d9cf,
+    inset 0 -1px 0 #a09890;
+  transform: rotateX(18deg);
+  transform-origin: top center;
+  width: 580px;
+}
+
+.kb-row {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 3px;
+}
+
+.kb-row:last-child {
+  margin-bottom: 0;
+}
+
+.key {
+  height: 28px;
+  background: linear-gradient(180deg, #f5f0e8, #e8e0d5);
+  border: 1px solid #b0a898;
+  border-bottom-width: 3px;
+  border-bottom-color: #8a8278;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  font-size: 9px;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition: border-bottom-width 0.05s, transform 0.05s;
+}
+
+.key:hover {
+  background: linear-gradient(180deg, #fff, #f0e8dd);
+  border-bottom-width: 4px;
+}
+
+.key:active, .key.pressed {
+  border-bottom-width: 1px;
+  transform: translateY(2px);
+  background: linear-gradient(180deg, #e0d8cc, #d5cdc0);
+}
+
+/* Key widths (base unit ~29px for standard key) */
+.key-1u { width: 29px; }
+.key-1-25u { width: 38px; }
+.key-1-5u { width: 46px; }
+.key-1-75u { width: 53px; }
+.key-2u { width: 61px; }
+.key-2-25u { width: 68px; }
+.key-2-75u { width: 83px; }
+.key-space { flex: 1; }
+
+/* Special key styling */
+.key-dark {
+  background: linear-gradient(180deg, #d0c8bc, #c0b8ac);
+}
+
+.key-accent {
+  background: linear-gradient(180deg, #3a7bd5, #2c5fb0);
+  color: #fff;
+  border-color: #1a3f80;
+  border-bottom-color: #102a5c;
+}
+
+/* --- Mouse --- */
+.mousemat {
+  width: 120px;
+  height: 140px;
+  background: linear-gradient(180deg, #2a2a3a, #1e1e2e);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transform: rotateX(18deg);
+  transform-origin: top center;
+}
+
+.mouse {
+  width: 44px;
+  height: 68px;
+  position: relative;
+}
+
+.mouse-button {
+  position: absolute;
+  top: 0;
+  height: 28px;
+  background: linear-gradient(180deg, #e8e0d5, #d8d0c5);
+  border: 1px solid #b0a898;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+}
+
+.mouse-button.left {
+  left: 0;
+  width: 50%;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.mouse-button.right {
+  right: 0;
+  width: 50%;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.mouse-wheel {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 12px;
+  background: #666;
+  border-radius: 3px;
+  z-index: 1;
+}
+
+.mouse-body-lower {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #d8d0c5, #ccc4b8);
+  border: 1px solid #b0a898;
+  border-top: none;
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+
+/* --- Light Switch --- */
+.light-switch-plate {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 100;
+  text-align: center;
+}
+
+.light-switch-toggle {
+  width: 40px;
+  height: 64px;
+  background: linear-gradient(180deg, #f5f1e8, #e8e0d5, #ddd5ca);
+  border: 2px solid #b8b0a4;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(0,0,0,0.05);
+  transition: background 0.2s;
+}
+
+.light-switch-toggle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #a09888;
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.3);
+}
+
+.switch-knob {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 26px;
+  background: linear-gradient(180deg, #efe8de, #ddd5ca, #cfc8bc);
+  border: 1px solid #a8a098;
+  border-radius: 3px;
+  top: 4px;
+  transition: top 0.15s ease;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+
+.lights-off .switch-knob {
+  top: 32px;
+  box-shadow: 0 -3px 6px rgba(0,0,0,0.2), inset 0 -1px 0 rgba(255,255,255,0.4);
+}
+
+.light-switch-label {
+  margin-top: 8px;
+  font-size: 9px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+/* --- Lights Off Mode --- */
+html.lights-off body.xp-page {
+  background: #030308;
+}
+
+html.lights-off .xp-container {
+  background: #050510;
+}
+
+html.lights-off .xp-container::before {
+  background: #0a0808;
+  border-top-color: #0a0808;
+  box-shadow: none;
+}
+
+html.lights-off .monitor-bezel {
+  filter: brightness(0.18);
+}
+
+html.lights-off .monitor-brand {
+  filter: brightness(0.3);
+}
+
+html.lights-off .monitor-led {
+  filter: brightness(0.6);
+}
+
+html.lights-off .monitor-controls {
+  filter: brightness(0.5);
+}
+
+html.lights-off .screen-wrapper {
+  filter: none;
+  box-shadow:
+    inset 0 3px 10px rgba(0,0,0,0.9),
+    inset 0 -2px 6px rgba(0,0,0,0.6),
+    0 0 0 2px #1a1510,
+    0 0 60px 10px rgba(80,120,200,0.08);
+}
+
+html.lights-off .screen {
+  filter: none;
+}
+
+html.lights-off .keyboard {
+  filter: brightness(0.12);
+}
+
+html.lights-off .key {
+  color: #0a0a0a;
+}
+
+html.lights-off .mousemat {
+  filter: brightness(0.15);
+}
+
+html.lights-off .monitor-stand-neck,
+html.lights-off .monitor-stand-base {
+  filter: brightness(0.15);
+}
+
+html.lights-off .desk-surface {
+  filter: brightness(0.15);
+}
+
+html.lights-off .screen-glow {
+  opacity: 1;
+}
+
+html.lights-off .light-switch-label {
+  color: #222;
+}
+
+html.lights-off .light-switch-toggle {
+  background: linear-gradient(180deg, #3a3830, #2a2820);
+  border-color: #444;
+}
+
+html.lights-off .switch-knob {
+  background: linear-gradient(180deg, #4a4840, #3a3830);
+  border-color: #555;
+}
+
+/* --- Mobile Fallback --- */
+.mobile-fallback {
+  display: none;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+.mobile-fallback-inner {
+  max-width: 400px;
+}
+
+.mobile-fallback h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.mobile-subtitle {
+  font-size: 1.1rem;
+  color: #aaa;
+  margin-bottom: 1.5rem;
+}
+
+.mobile-desc {
+  font-size: 0.95rem;
+  color: #888;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.mobile-links {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.mobile-links a {
+  color: #667eea;
+  text-decoration: none;
+  font-size: 0.95rem;
+  padding: 8px 16px;
+  border: 1px solid #667eea;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.mobile-links a:hover {
+  background: #667eea;
+  color: #fff;
+}
+
+/* --- Responsive --- */
+@media (max-width: 1100px) {
+  .xp-container {
+    display: none !important;
+  }
+  .light-switch-plate {
+    display: none !important;
+  }
+  .mobile-fallback {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 1101px) {
+  .mobile-fallback {
+    display: none !important;
+  }
+}
+
+/* Scale down for medium screens */
+@media (min-width: 1101px) and (max-width: 1300px) {
+  .screen {
+    width: 700px;
+    height: 525px;
+  }
+  #screen_container canvas {
+    width: 700px !important;
+    height: 525px !important;
+  }
+  #crt-canvas {
+    width: 700px;
+    height: 525px;
+  }
+  .keyboard {
+    width: 500px;
+  }
+}

@@ -328,6 +328,7 @@ poker-server/.env
 *.img
 *.iso
 *.bin
+*.glb
 save-state.html
 slow_burn.html
 WINXP.md

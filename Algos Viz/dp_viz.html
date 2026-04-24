@@ -1,0 +1,2010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DP Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050508;
+  --panel: #0a0a0f;
+  --panel2: #0e0e16;
+  --border: #1a1a2e;
+  --border-glow: #2a2a4e;
+  --c1: #00ffc8;
+  --c2: #ff006e;
+  --c3: #3d9bff;
+  --c4: #ffbe0b;
+  --c5: #ff7b00;
+  --c6: #b14aff;
+  --text: #c8cfe8;
+  --muted: #3a3d5c;
+  --muted2: #5a5d7c;
+  --cell-size: 46px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* animated grid bg */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -50%;
+  background-image:
+    linear-gradient(rgba(0,255,200,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,200,0.025) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: gridMove 20s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes gridMove {
+  0% { transform: translate(0,0); }
+  100% { transform: translate(60px, 60px); }
+}
+
+/* ─── LAYOUT ─────────────────────────────────── */
+.root {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  min-height: 100vh;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px 40px;
+  gap: 0;
+}
+
+/* ─── HEADER ─────────────────────────────────── */
+header {
+  padding: 28px 0 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.logo {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 30px rgba(0,255,200,0.4);
+}
+.logo em { color: var(--c1); font-style: normal; }
+
+.logo-sub {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--muted2);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ─── TOOLBAR ─────────────────────────────────── */
+.toolbar {
+  padding: 16px 0;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted2);
+}
+
+select, input[type="text"], input[type="number"] {
+  background: var(--panel2);
+  border: 1px solid var(--border-glow);
+  color: var(--c1);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  padding: 8px 12px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 260px;
+}
+select { cursor: pointer; }
+input[type="text"], input[type="number"] { min-width: 0; width: 150px; color: var(--c4); }
+
+select:focus, input:focus {
+  border-color: var(--c1);
+  box-shadow: 0 0 12px rgba(0,255,200,0.15);
+}
+
+.btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 9px 18px;
+  border: 1px solid;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--c1);
+  border-color: var(--c1);
+  color: #000;
+  box-shadow: 0 0 20px rgba(0,255,200,0.3);
+}
+.btn-primary:hover { box-shadow: 0 0 30px rgba(0,255,200,0.5); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border-glow);
+  color: var(--text);
+}
+.btn-ghost:hover { border-color: var(--c3); color: var(--c3); }
+.btn-ghost:disabled { opacity: 0.2; cursor: not-allowed; }
+
+.btn-auto {
+  background: transparent;
+  border-color: var(--c6);
+  color: var(--c6);
+}
+.btn-auto:hover { background: rgba(177,74,255,0.1); box-shadow: 0 0 15px rgba(177,74,255,0.3); }
+.btn-auto.active { background: rgba(177,74,255,0.15); box-shadow: 0 0 20px rgba(177,74,255,0.4); }
+
+.step-badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted2);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.speed-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+input[type="range"] {
+  width: 80px;
+  accent-color: var(--c6);
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* ─── MAIN BODY ─────────────────────────────────── */
+.body {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 16px;
+  padding: 16px 0;
+  min-height: 0;
+}
+
+@media (max-width: 1000px) {
+  .body { grid-template-columns: 1fr; }
+}
+
+/* ─── LEFT COLUMN ─────────────────────────────────── */
+.left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ─── PROBLEM DESCRIPTION ─────────────────────────────────── */
+.prob-info {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--c3);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--muted2);
+}
+.prob-info strong { color: var(--text); }
+.prob-info .complexity {
+  display: inline-flex;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.badge-time { border-color: var(--c1); color: var(--c1); }
+.badge-space { border-color: var(--c4); color: var(--c4); }
+
+/* ─── DP VISUALIZATION PANEL ─────────────────────────────────── */
+.viz-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.viz-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+}
+
+.viz-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: var(--c1);
+}
+
+.legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.6rem;
+  color: var(--muted2);
+  font-family: 'Space Mono', monospace;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.viz-body {
+  padding: 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+/* ─── DP TABLE ─────────────────────────────────── */
+.dp-table-wrap {
+  overflow: auto;
+  max-height: 380px;
+}
+
+table.dp-table {
+  border-collapse: separate;
+  border-spacing: 3px;
+}
+
+table.dp-table th {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted);
+  padding: 4px 6px;
+  text-align: center;
+  min-width: var(--cell-size);
+}
+
+.dp-cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border-radius: 5px;
+  text-align: center;
+  vertical-align: middle;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: default;
+  transition: background 0.25s, border-color 0.25s, transform 0.2s, box-shadow 0.25s, color 0.25s;
+  border: 1px solid var(--border);
+  background: #080810;
+  color: var(--muted);
+  position: relative;
+}
+
+/* cell states */
+.dp-cell.s-empty    { background: #080810; color: var(--muted); border-color: var(--border); }
+.dp-cell.s-filled   { background: rgba(0,255,200,0.06); color: var(--c1); border-color: rgba(0,255,200,0.2); }
+.dp-cell.s-active   {
+  background: rgba(0,255,200,0.18);
+  color: #fff;
+  border-color: var(--c1);
+  box-shadow: 0 0 18px rgba(0,255,200,0.5), inset 0 0 8px rgba(0,255,200,0.1);
+  transform: scale(1.12);
+  z-index: 10;
+  animation: cellPop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+.dp-cell.s-source   {
+  background: rgba(61,155,255,0.15);
+  color: var(--c3);
+  border-color: var(--c3);
+  box-shadow: 0 0 12px rgba(61,155,255,0.3);
+}
+.dp-cell.s-path     {
+  background: rgba(255,190,11,0.18);
+  color: var(--c4);
+  border-color: var(--c4);
+  box-shadow: 0 0 14px rgba(255,190,11,0.35);
+  animation: pathPulse 0.8s ease infinite alternate;
+}
+.dp-cell.s-infinity { color: var(--muted); font-size: 0.6rem; }
+.dp-cell.s-match    {
+  background: rgba(255,190,11,0.2);
+  color: var(--c4);
+  border-color: var(--c4);
+  box-shadow: 0 0 16px rgba(255,190,11,0.4);
+  animation: cellPop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+.dp-cell.s-no       { background: rgba(255,0,110,0.08); color: var(--c2); border-color: rgba(255,0,110,0.3); }
+.dp-cell.s-optimal  {
+  background: rgba(255,123,0,0.18);
+  color: var(--c5);
+  border-color: var(--c5);
+  box-shadow: 0 0 14px rgba(255,123,0,0.35);
+}
+
+@keyframes cellPop {
+  0%   { transform: scale(1); }
+  60%  { transform: scale(1.18); }
+  100% { transform: scale(1.12); }
+}
+@keyframes pathPulse {
+  from { box-shadow: 0 0 10px rgba(255,190,11,0.3); }
+  to   { box-shadow: 0 0 22px rgba(255,190,11,0.6); }
+}
+
+/* ─── 1D BAR CHART ─────────────────────────────────── */
+.bar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bars-container {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 110px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  padding: 8px 4px;
+}
+
+.bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  min-width: 38px;
+}
+
+.bar-rect {
+  width: 30px;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.3s cubic-bezier(0.34,1.56,0.64,1), background 0.25s, box-shadow 0.25s;
+  min-height: 3px;
+  background: var(--muted);
+}
+.bar-rect.b-filled   { background: rgba(0,255,200,0.45); }
+.bar-rect.b-active   { background: var(--c1); box-shadow: 0 0 14px rgba(0,255,200,0.6); }
+.bar-rect.b-source   { background: var(--c3); box-shadow: 0 0 10px rgba(61,155,255,0.5); }
+.bar-rect.b-path     { background: var(--c4); box-shadow: 0 0 12px rgba(255,190,11,0.5); }
+.bar-rect.b-negative { background: rgba(255,0,110,0.5); }
+
+.bar-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted2);
+  text-align: center;
+  min-height: 14px;
+  transition: color 0.2s;
+}
+.bar-val.bv-active { color: var(--c1); font-weight: 700; }
+
+.bar-lbl {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--muted);
+  text-align: center;
+  max-width: 38px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── STRING DISPLAY ─────────────────────────────────── */
+.str-row {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.str-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted2);
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.str-char {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: #080810;
+  color: var(--muted2);
+  transition: all 0.2s;
+}
+.str-char.sc-active { background: rgba(0,255,200,0.15); border-color: var(--c1); color: var(--c1); }
+.str-char.sc-source { background: rgba(61,155,255,0.15); border-color: var(--c3); color: var(--c3); }
+.str-char.sc-match  { background: rgba(255,190,11,0.2); border-color: var(--c4); color: var(--c4); animation: cellPop 0.3s ease; }
+
+/* ─── EXPLANATION BOX ─────────────────────────────────── */
+.expl-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.expl-step-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  color: var(--muted2);
+}
+
+.expl-text {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text);
+  min-height: 42px;
+}
+
+.expl-formula {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--c4);
+  background: rgba(255,190,11,0.06);
+  border: 1px solid rgba(255,190,11,0.15);
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: none;
+}
+.expl-formula.show { display: block; }
+
+/* ─── STATE ROW ─────────────────────────────────── */
+.state-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.state-chip {
+  background: var(--panel2);
+  border: 1px solid var(--border-glow);
+  border-radius: 4px;
+  padding: 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 60px;
+}
+.chip-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.48rem;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.chip-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* ─── RIGHT COLUMN ─────────────────────────────────── */
+.right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ─── CODE PANEL ─────────────────────────────────── */
+.code-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--border);
+}
+
+.code-dots { display: flex; gap: 5px; }
+.code-dot  { width: 9px; height: 9px; border-radius: 50%; }
+
+.code-lang {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  color: var(--c1);
+}
+
+.code-body {
+  padding: 12px 0;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.code-line {
+  display: flex;
+  align-items: stretch;
+  min-height: 22px;
+  padding: 0 14px;
+  transition: background 0.2s;
+  position: relative;
+}
+.code-line.hl-active {
+  background: rgba(0,255,200,0.08);
+  border-left: 2px solid var(--c1);
+}
+.code-line.hl-return {
+  background: rgba(255,190,11,0.07);
+  border-left: 2px solid var(--c4);
+}
+
+.line-num {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--muted);
+  width: 24px;
+  flex-shrink: 0;
+  text-align: right;
+  margin-right: 12px;
+  line-height: 22px;
+  user-select: none;
+}
+
+.line-content {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  line-height: 22px;
+  white-space: pre;
+  flex: 1;
+}
+
+/* syntax colors */
+.kw  { color: #ff79c6; }
+.fn  { color: #82cfff; }
+.cm  { color: #44475a; font-style: italic; }
+.st  { color: #f1fa8c; }
+.nm  { color: #bd93f9; }
+.op  { color: #ff79c6; }
+.tp  { color: #8be9fd; }
+.va  { color: var(--text); }
+.hl-green { color: var(--c1); font-weight: 700; }
+.hl-blue  { color: var(--c3); font-weight: 700; }
+.hl-gold  { color: var(--c4); font-weight: 700; }
+.hl-red   { color: var(--c2); font-weight: 700; }
+.hl-orange{ color: var(--c5); font-weight: 700; }
+.hl-purple{ color: var(--c6); font-weight: 700; }
+
+/* ─── RESULT BANNER ─────────────────────────────────── */
+.result-banner {
+  display: none;
+  background: linear-gradient(135deg, rgba(0,255,200,0.06), rgba(61,155,255,0.04));
+  border: 1px solid var(--c1);
+  border-radius: 8px;
+  padding: 16px 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  box-shadow: 0 0 30px rgba(0,255,200,0.15);
+  animation: resultReveal 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+.result-banner.show { display: flex; }
+@keyframes resultReveal {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.result-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  color: var(--muted2);
+  text-transform: uppercase;
+}
+.result-val {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: var(--c1);
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(0,255,200,0.5);
+}
+.result-extra { font-size: 0.8rem; color: var(--muted2); }
+
+/* ─── PROGRESS BAR ─────────────────────────────────── */
+.progress-bar-wrap {
+  height: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--c1), var(--c3));
+  border-radius: 1px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(0,255,200,0.5);
+}
+</style>
+</head>
+<body>
+<div class="root">
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="logo">DP<em>viz</em></div>
+      <div class="logo-sub">Dynamic Programming Visualizer — Go Edition</div>
+    </div>
+    <div class="header-right">
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--c1)"></div>активная</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--c3)"></div>источник</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,255,200,0.25)"></div>заполнена</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--c4)"></div>оптимальный путь</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--c2)"></div>невозможно</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="field-group">
+      <span class="field-label">Задача</span>
+      <select id="probSel" onchange="changeProblem()">
+        <option value="fib">Fibonacci Numbers</option>
+        <option value="climb">Climbing Stairs</option>
+        <option value="coinchange">Coin Change — минимум монет</option>
+        <option value="rob">House Robber</option>
+        <option value="maxsub">Maximum Subarray (Kadane)</option>
+        <option value="lis">Longest Increasing Subsequence</option>
+        <option value="knapsack">0/1 Knapsack</option>
+        <option value="lcs">Longest Common Subsequence</option>
+        <option value="edit">Edit Distance (Levenshtein)</option>
+        <option value="uniquepaths">Unique Paths — сетка M×N</option>
+        <option value="minpath">Min Path Sum — сетка</option>
+        <option value="wordbreak">Word Break</option>
+        <option value="palindrome">Longest Palindromic Subsequence</option>
+        <option value="matchain">Matrix Chain Multiplication</option>
+      </select>
+    </div>
+    <div id="extraInputs" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;"></div>
+    <button class="btn btn-primary" onclick="runSim()">▶ RUN</button>
+    <button class="btn btn-ghost" id="btnPrev" onclick="prevStep()" disabled>◀ PREV</button>
+    <span class="step-badge" id="stepBadge">—</span>
+    <button class="btn btn-ghost" id="btnNext" onclick="nextStep()" disabled>NEXT ▶</button>
+    <button class="btn btn-auto" id="btnAuto" onclick="toggleAuto()">AUTO ▶</button>
+    <div class="speed-wrap">
+      <span class="field-label">Speed</span>
+      <input type="range" id="speedSlider" min="1" max="10" value="5">
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-bar-wrap" style="margin-top:0">
+    <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- LEFT -->
+    <div class="left-col">
+      <div class="prob-info" id="probInfo"></div>
+
+      <!-- STATE CHIPS -->
+      <div class="state-row" id="stateRow"></div>
+
+      <!-- VIZ PANEL -->
+      <div class="viz-panel">
+        <div class="viz-panel-header">
+          <span class="viz-title" id="vizTitle">DP TABLE</span>
+        </div>
+        <div class="viz-body" id="vizBody"></div>
+      </div>
+
+      <!-- EXPLANATION -->
+      <div class="expl-box">
+        <span class="expl-step-title">STEP EXPLANATION</span>
+        <div class="expl-text" id="explText">Выбери задачу и нажми RUN</div>
+        <div class="expl-formula" id="explFormula"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right-col">
+      <div class="code-panel">
+        <div class="code-header">
+          <div class="code-dots">
+            <div class="code-dot" style="background:#ff5f57"></div>
+            <div class="code-dot" style="background:#febc2e"></div>
+            <div class="code-dot" style="background:#28c840"></div>
+          </div>
+          <span class="code-lang">GO</span>
+        </div>
+        <div class="code-body" id="codeBody"></div>
+      </div>
+
+      <div class="result-banner" id="resultBanner">
+        <div>
+          <div class="result-label">Answer</div>
+          <div class="result-val" id="resultVal">—</div>
+        </div>
+        <div class="result-extra" id="resultExtra"></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// PROBLEMS DEFINITION
+// ════════════════════════════════════════════════════════
+
+const PROBLEMS = {
+
+  // ── FIB ──────────────────────────────────────────────
+  fib: {
+    name: 'Fibonacci',
+    desc: '<strong>Числа Фибоначчи.</strong> dp[i] = dp[i-1] + dp[i-2]. Каждое число — сумма двух предыдущих.',
+    time: 'O(n)', space: 'O(n)',
+    inputs: [{id:'fn', label:'N', default:'12', type:'number', width:'80px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">fib</span>(n <span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    <span class="kw">if</span> n <= <span class="nm">1</span> { <span class="kw">return</span> n }', id:'base'},
+      {t:'    dp := <span class="fn">make</span>([]<span class="tp">int</span>, n+<span class="nm">1</span>)', id:'alloc'},
+      {t:'    dp[<span class="nm">0</span>] = <span class="nm">0</span>; dp[<span class="nm">1</span>] = <span class="nm">1</span>', id:'init'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">2</span>; i <= n; i++ {', id:'loop'},
+      {t:'        dp[i] = dp[i-<span class="nm">1</span>] + dp[i-<span class="nm">2</span>]', id:'fill'},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[n]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const n = Math.min(Math.max(+inp.fn||12,2),18);
+      const dp = new Array(n+1).fill(null);
+      const steps = [];
+      dp[0]=0; dp[1]=1;
+      steps.push({dp:[...dp], active:-1, sources:[], codeId:'init',
+        expl:`Инициализируем массив dp[0..${n}]. <span class="hl-green">dp[0]=0</span>, <span class="hl-green">dp[1]=1</span> — базовые случаи.`,
+        formula:'dp[0] = 0, dp[1] = 1',
+        chips:[{l:'n',v:n,c:'var(--c1)'},{l:'phase',v:'init',c:'var(--c4)'}]});
+      for (let i=2;i<=n;i++) {
+        dp[i]=dp[i-1]+dp[i-2];
+        steps.push({dp:[...dp], active:i, sources:[i-1,i-2], codeId:'fill',
+          expl:`<span class="hl-green">dp[${i}]</span> = dp[${i-1}] + dp[${i-2}] = <span class="hl-blue">${dp[i-1]}</span> + <span class="hl-blue">${dp[i-2]}</span> = <span class="hl-green">${dp[i]}</span>`,
+          formula:`dp[${i}] = dp[${i-1}] + dp[${i-2}] = ${dp[i]}`,
+          chips:[{l:'i',v:i,c:'var(--c1)'},{l:'dp[i-1]',v:dp[i-1],c:'var(--c3)'},{l:'dp[i-2]',v:dp[i-2],c:'var(--c3)'},{l:'dp[i]',v:dp[i],c:'var(--c4)'}]});
+      }
+      steps.push({dp:[...dp], active:n, sources:[], codeId:'ret',
+        expl:`Готово! <span class="hl-green">fib(${n}) = ${dp[n]}</span>.`,
+        formula:`return dp[${n}] = ${dp[n]}`, result:dp[n],
+        chips:[{l:'result',v:dp[n],c:'var(--c1)'}]});
+      return {steps, mode:'1d', labels:dp.map((_,i)=>`[${i}]`)};
+    }
+  },
+
+  // ── CLIMB ─────────────────────────────────────────────
+  climb: {
+    name: 'Climbing Stairs',
+    desc: '<strong>N ступенек.</strong> За шаг +1 или +2. Сколько способов добраться до вершины? Идентично Фибоначчи сдвинутому на 1.',
+    time: 'O(n)', space: 'O(n)',
+    inputs: [{id:'cn', label:'N ступеней', default:'8', type:'number', width:'80px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">climbStairs</span>(n <span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    <span class="kw">if</span> n <= <span class="nm">2</span> { <span class="kw">return</span> n }', id:'base'},
+      {t:'    dp := <span class="fn">make</span>([]<span class="tp">int</span>, n+<span class="nm">1</span>)', id:'alloc'},
+      {t:'    dp[<span class="nm">1</span>] = <span class="nm">1</span>; dp[<span class="nm">2</span>] = <span class="nm">2</span>', id:'init'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">3</span>; i <= n; i++ {', id:'loop'},
+      {t:'        dp[i] = dp[i-<span class="nm">1</span>] + dp[i-<span class="nm">2</span>]', id:'fill'},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[n]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const n=Math.min(Math.max(+inp.cn||8,3),14);
+      const dp=new Array(n+1).fill(null);
+      dp[1]=1; dp[2]=2;
+      const steps=[];
+      steps.push({dp:[...dp],active:-1,sources:[],codeId:'init',
+        expl:`Базовые случаи: <span class="hl-green">dp[1]=1</span> (один путь: один шаг), <span class="hl-green">dp[2]=2</span> (1+1 или шаг 2).`,
+        formula:'dp[1]=1, dp[2]=2',
+        chips:[{l:'n',v:n,c:'var(--c1)'}]});
+      for(let i=3;i<=n;i++){
+        dp[i]=dp[i-1]+dp[i-2];
+        steps.push({dp:[...dp],active:i,sources:[i-1,i-2],codeId:'fill',
+          expl:`На ступень <span class="hl-green">${i}</span>: прийти со ${i-1} (<span class="hl-blue">${dp[i-1]}</span> способов) или ${i-2} (<span class="hl-blue">${dp[i-2]}</span> способов). Итого: <span class="hl-green">${dp[i]}</span>.`,
+          formula:`dp[${i}] = dp[${i-1}] + dp[${i-2}] = ${dp[i]}`,
+          chips:[{l:'i',v:i,c:'var(--c1)'},{l:'from i-1',v:dp[i-1],c:'var(--c3)'},{l:'from i-2',v:dp[i-2],c:'var(--c3)'},{l:'ways',v:dp[i],c:'var(--c4)'}]});
+      }
+      steps.push({dp:[...dp],active:n,sources:[],codeId:'ret',
+        expl:`<span class="hl-green">climbStairs(${n}) = ${dp[n]}</span> уникальных способов.`,
+        formula:`return dp[${n}] = ${dp[n]}`,result:dp[n],
+        chips:[{l:'result',v:dp[n],c:'var(--c1)'}]});
+      return {steps,mode:'1d',labels:dp.map((_,i)=>i===0?'':'s'+i)};
+    }
+  },
+
+  // ── COIN CHANGE ───────────────────────────────────────
+  coinchange: {
+    name: 'Coin Change',
+    desc: '<strong>Минимальное количество монет</strong> для суммы <em>amount</em>. dp[i] = минимум монет для суммы i. Если недостижимо — ∞.',
+    time: 'O(n·amount)', space: 'O(amount)',
+    inputs: [
+      {id:'coins', label:'Монеты', default:'1,5,11', type:'text', width:'140px'},
+      {id:'amount', label:'Сумма', default:'15', type:'number', width:'80px'},
+    ],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">coinChange</span>(coins []<span class="tp">int</span>, amount <span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    INF := amount + <span class="nm">1</span>', id:''},
+      {t:'    dp := <span class="fn">make</span>([]<span class="tp">int</span>, amount+<span class="nm">1</span>)', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = INF } <span class="cm">// ∞</span>', id:'init'},
+      {t:'    dp[<span class="nm">0</span>] = <span class="nm">0</span>', id:'base'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i <= amount; i++ {', id:'loop'},
+      {t:'        <span class="kw">for</span> _, c := <span class="kw">range</span> coins {', id:''},
+      {t:'            <span class="kw">if</span> c <= i {', id:''},
+      {t:'                dp[i] = <span class="fn">min</span>(dp[i], dp[i-c]+<span class="nm">1</span>)', id:'fill'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">if</span> dp[amount] > amount { <span class="kw">return</span> -<span class="nm">1</span> }', id:'check'},
+      {t:'    <span class="kw">return</span> dp[amount]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const coins=(inp.coins||'1,5,11').split(',').map(x=>+x.trim()).filter(x=>x>0).sort((a,b)=>a-b);
+      const amount=Math.min(Math.max(+inp.amount||15,1),30);
+      const INF=amount+1;
+      const dp=new Array(amount+1).fill(INF);
+      dp[0]=0;
+      const steps=[];
+      steps.push({dp:[...dp],active:-1,sources:[],codeId:'base',INF,
+        expl:`dp[0..${amount}] = ∞ (${INF}). <span class="hl-green">dp[0]=0</span> — для суммы 0 нужно 0 монет.`,
+        formula:'dp[0]=0, dp[i]=∞ для i>0',
+        chips:[{l:'amount',v:amount,c:'var(--c1)'},{l:'coins',v:`[${coins}]`,c:'var(--c4)'}]});
+      for(let i=1;i<=amount;i++){
+        let bestCoin=null;
+        for(const c of coins){
+          if(c<=i && dp[i-c]+1<dp[i]){dp[i]=dp[i-c]+1; bestCoin=c;}
+        }
+        steps.push({dp:[...dp],active:i,sources:bestCoin!=null?[i-bestCoin]:[],codeId:'fill',INF,
+          expl:dp[i]>=INF
+            ? `Сумма <span class="hl-red">${i}</span> недостижима ни одной комбинацией монет. dp[${i}]=∞`
+            : `Сумма <span class="hl-green">${i}</span>: лучшая монета = <span class="hl-blue">${bestCoin}</span>. dp[${i-bestCoin}]+1 = <span class="hl-green">${dp[i]}</span>`,
+          formula:dp[i]>=INF?`dp[${i}] = ∞`:`dp[${i}] = dp[${i}-${bestCoin}]+1 = ${dp[i]}`,
+          chips:[{l:'i',v:i,c:'var(--c1)'},{l:'dp[i]',v:dp[i]>=INF?'∞':dp[i],c:dp[i]>=INF?'var(--c2)':'var(--c4)'},{l:'coin',v:bestCoin??'—',c:'var(--c3)'}]});
+      }
+      const ans=dp[amount]>=INF?-1:dp[amount];
+      steps.push({dp:[...dp],active:amount,sources:[],codeId:'ret',INF,
+        expl:ans===-1?`Сумму ${amount} <span class="hl-red">невозможно набрать</span> из монет [${coins}].`:`<span class="hl-green">${ans} монет</span> нужно для суммы ${amount}.`,
+        formula:`coinChange = ${ans}`,result:ans,
+        chips:[{l:'result',v:ans,c:ans<0?'var(--c2)':'var(--c1)'}]});
+      return {steps,mode:'1d',labels:dp.map((_,i)=>`${i}`),INF};
+    }
+  },
+
+  // ── HOUSE ROBBER ──────────────────────────────────────
+  rob: {
+    name: 'House Robber',
+    desc: '<strong>Грабитель домов.</strong> Нельзя грабить два соседних дома подряд. dp[i] = максимальная добыча из первых i домов.',
+    time: 'O(n)', space: 'O(n)',
+    inputs: [{id:'arr', label:'Деньги [дома]', default:'2,7,9,3,1,8', type:'text', width:'180px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">rob</span>(nums []<span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    n := <span class="fn">len</span>(nums)', id:''},
+      {t:'    <span class="kw">if</span> n == <span class="nm">1</span> { <span class="kw">return</span> nums[<span class="nm">0</span>] }', id:'base1'},
+      {t:'    dp := <span class="fn">make</span>([]<span class="tp">int</span>, n)', id:'alloc'},
+      {t:'    dp[<span class="nm">0</span>] = nums[<span class="nm">0</span>]', id:'init0'},
+      {t:'    dp[<span class="nm">1</span>] = <span class="fn">max</span>(nums[<span class="nm">0</span>], nums[<span class="nm">1</span>])', id:'init1'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">2</span>; i < n; i++ {', id:'loop'},
+      {t:'        dp[i] = <span class="fn">max</span>(dp[i-<span class="nm">1</span>], dp[i-<span class="nm">2</span>]+nums[i])', id:'fill'},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[n-<span class="nm">1</span>]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const nums=(inp.arr||'2,7,9,3,1,8').split(',').map(x=>+x.trim()).filter(x=>!isNaN(x)).slice(0,12);
+      const n=nums.length;
+      const dp=new Array(n).fill(0);
+      dp[0]=nums[0]; dp[1]=Math.max(nums[0],nums[1]);
+      const steps=[];
+      steps.push({dp:[...dp],active:-1,sources:[],codeId:'init1',
+        expl:`dp[0]=${nums[0]}, dp[1]=max(${nums[0]},${nums[1]})=<span class="hl-green">${dp[1]}</span>. Лучшее из первых двух домов.`,
+        formula:`dp[0]=${dp[0]}, dp[1]=${dp[1]}`,
+        chips:[{l:'nums',v:`[${nums}]`,c:'var(--c4)'}]});
+      for(let i=2;i<n;i++){
+        const rob=dp[i-2]+nums[i], skip=dp[i-1];
+        dp[i]=Math.max(rob,skip);
+        const didRob=rob>skip;
+        steps.push({dp:[...dp],active:i,sources:didRob?[i-2]:[i-1],codeId:'fill',
+          expl:didRob
+            ?`<span class="hl-green">Грабим дом ${i}</span> (${nums[i]}₽): dp[${i-2}]+${nums[i]}=${rob} > dp[${i-1}]=${skip}. dp[${i}]=<span class="hl-green">${dp[i]}</span>`
+            :`<span class="hl-blue">Пропускаем дом ${i}</span>: dp[${i-1}]=${skip} ≥ dp[${i-2}]+${nums[i]}=${rob}. dp[${i}]=<span class="hl-green">${dp[i]}</span>`,
+          formula:`dp[${i}] = max(${skip}, ${rob}) = ${dp[i]}`,
+          chips:[{l:'i',v:i,c:'var(--c1)'},{l:'rob',v:rob,c:'var(--c5)'},{l:'skip',v:skip,c:'var(--c3)'},{l:'best',v:dp[i],c:'var(--c4)'}]});
+      }
+      steps.push({dp:[...dp],active:n-1,sources:[],codeId:'ret',
+        expl:`Максимальная добыча без соседей: <span class="hl-green">${dp[n-1]}</span>`,
+        formula:`rob = ${dp[n-1]}`,result:dp[n-1],
+        chips:[{l:'result',v:dp[n-1],c:'var(--c1)'}]});
+      return {steps,mode:'1d',labels:nums.map((v,i)=>`h${i}(${v})`)};
+    }
+  },
+
+  // ── KADANE ────────────────────────────────────────────
+  maxsub: {
+    name: 'Maximum Subarray',
+    desc: '<strong>Алгоритм Кадане.</strong> dp[i] = максимальная сумма подмассива, заканчивающегося в i. Если dp[i-1]<0 — начинаем новый.',
+    time: 'O(n)', space: 'O(n)',
+    inputs: [{id:'arr', label:'Массив', default:'-2,1,-3,4,-1,2,1,-5,4', type:'text', width:'220px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">maxSubArray</span>(nums []<span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    dp := <span class="fn">make</span>([]<span class="tp">int</span>, <span class="fn">len</span>(nums))', id:'alloc'},
+      {t:'    dp[<span class="nm">0</span>] = nums[<span class="nm">0</span>]', id:'init'},
+      {t:'    res := dp[<span class="nm">0</span>]', id:'res0'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i < <span class="fn">len</span>(nums); i++ {', id:'loop'},
+      {t:'        dp[i] = <span class="fn">max</span>(nums[i], dp[i-<span class="nm">1</span>]+nums[i])', id:'fill'},
+      {t:'        res = <span class="fn">max</span>(res, dp[i])', id:'res'},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> res', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const nums=(inp.arr||'-2,1,-3,4,-1,2,1,-5,4').split(',').map(x=>+x.trim()).filter(x=>!isNaN(x)).slice(0,12);
+      const n=nums.length;
+      const dp=new Array(n).fill(0);
+      dp[0]=nums[0];
+      let res=dp[0];
+      const steps=[];
+      steps.push({dp:[...dp],active:0,sources:[],codeId:'init',
+        expl:`Базовый: <span class="hl-green">dp[0] = nums[0] = ${nums[0]}</span>. Начальный максимум = ${res}.`,
+        formula:`dp[0] = ${nums[0]}`,
+        chips:[{l:'res',v:res,c:'var(--c1)'}]});
+      for(let i=1;i<n;i++){
+        const extend=dp[i-1]+nums[i], fresh=nums[i];
+        dp[i]=Math.max(extend,fresh);
+        if(dp[i]>res) res=dp[i];
+        const didExtend=extend>fresh;
+        steps.push({dp:[...dp],active:i,sources:didExtend?[i-1]:[],codeId:'fill',
+          expl:didExtend
+            ?`<span class="hl-green">Продолжаем</span> подмассив: dp[${i-1}]+nums[${i}] = ${dp[i-1]}+${nums[i]} = <span class="hl-green">${dp[i]}</span> > ${fresh}`
+            :`<span class="hl-orange">Начинаем заново</span>: nums[${i}]=${nums[i]} > dp[${i-1}]+${nums[i]}=${extend}. dp[${i}]=<span class="hl-green">${dp[i]}</span>`,
+          formula:`dp[${i}] = max(${fresh}, ${dp[i-1]}+${nums[i]}) = ${dp[i]}`,
+          chips:[{l:'i',v:i,c:'var(--c1)'},{l:'nums[i]',v:nums[i],c:'var(--c4)'},{l:'dp[i]',v:dp[i],c:dp[i]<0?'var(--c2)':'var(--c1)'},{l:'res',v:res,c:'var(--c5)'}]});
+      }
+      steps.push({dp:[...dp],active:-1,sources:[],codeId:'ret',
+        expl:`Максимальная сумма подмассива: <span class="hl-green">${res}</span>`,
+        formula:`maxSubArray = ${res}`,result:res,
+        chips:[{l:'result',v:res,c:'var(--c1)'}]});
+      return {steps,mode:'1d',labels:nums.map((v,i)=>`${v}`)};
+    }
+  },
+
+  // ── LIS ───────────────────────────────────────────────
+  lis: {
+    name: 'LIS',
+    desc: '<strong>Longest Increasing Subsequence.</strong> dp[i] = длина LIS, заканчивающейся в элементе i. Для каждого i смотрим все j<i с nums[j]<nums[i].',
+    time: 'O(n²)', space: 'O(n)',
+    inputs: [{id:'arr', label:'Массив', default:'10,9,2,5,3,7,101,18', type:'text', width:'220px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">lengthOfLIS</span>(nums []<span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    n := <span class="fn">len</span>(nums)', id:''},
+      {t:'    dp := <span class="fn">make</span>([]<span class="tp">int</span>, n)', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = <span class="nm">1</span> } <span class="cm">// min LIS=1</span>', id:'init'},
+      {t:'    res := <span class="nm">1</span>', id:''},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i < n; i++ {', id:'loop'},
+      {t:'        <span class="kw">for</span> j := <span class="nm">0</span>; j < i; j++ {', id:'inner'},
+      {t:'            <span class="kw">if</span> nums[j] < nums[i] {', id:'cmp'},
+      {t:'                dp[i] = <span class="fn">max</span>(dp[i], dp[j]+<span class="nm">1</span>)', id:'fill'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'        res = <span class="fn">max</span>(res, dp[i])', id:'res'},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> res', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const nums=(inp.arr||'10,9,2,5,3,7,101,18').split(',').map(x=>+x.trim()).filter(x=>!isNaN(x)).slice(0,12);
+      const n=nums.length;
+      const dp=new Array(n).fill(1);
+      const steps=[];
+      steps.push({dp:[...dp],active:-1,sources:[],codeId:'init',
+        expl:`dp[i]=1 для всех — минимальная LIS из одного элемента. Массив: <span class="hl-blue">[${nums}]</span>`,
+        formula:'dp[i] = 1 ∀ i',
+        chips:[{l:'arr',v:`[${nums}]`,c:'var(--c4)'}]});
+      let res=1;
+      for(let i=1;i<n;i++){
+        for(let j=0;j<i;j++){
+          if(nums[j]<nums[i]){
+            if(dp[j]+1>dp[i]){
+              dp[i]=dp[j]+1;
+              if(dp[i]>res) res=dp[i];
+              steps.push({dp:[...dp],active:i,sources:[j],codeId:'fill',
+                expl:`nums[${j}]=${nums[j]} < nums[${i}]=${nums[i]}: обновляем <span class="hl-green">dp[${i}] = dp[${j}]+1 = ${dp[i]}</span>`,
+                formula:`dp[${i}] = max(dp[${i}], dp[${j}]+1) = ${dp[i]}`,
+                chips:[{l:'i',v:i,c:'var(--c1)'},{l:'nums[i]',v:nums[i],c:'var(--c4)'},{l:'j',v:j,c:'var(--c3)'},{l:'dp[i]',v:dp[i],c:'var(--c1)'}]});
+            }
+          }
+        }
+      }
+      steps.push({dp:[...dp],active:-1,sources:[],codeId:'ret',
+        expl:`LIS = <span class="hl-green">${res}</span>`,
+        formula:`lengthOfLIS = ${res}`,result:res,
+        chips:[{l:'result',v:res,c:'var(--c1)'}]});
+      return {steps,mode:'1d',labels:nums.map(v=>`${v}`)};
+    }
+  },
+
+  // ── KNAPSACK ──────────────────────────────────────────
+  knapsack: {
+    name: '0/1 Knapsack',
+    desc: '<strong>Рюкзак.</strong> Каждый предмет взять или нет. dp[i][w] = максимальная ценность первых i предметов при вместимости w.',
+    time: 'O(n·W)', space: 'O(n·W)',
+    inputs: [
+      {id:'weights', label:'Веса', default:'2,3,4,5', type:'text', width:'130px'},
+      {id:'values', label:'Ценности', default:'3,4,5,6', type:'text', width:'130px'},
+      {id:'cap', label:'Вместимость', default:'8', type:'number', width:'80px'},
+    ],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">knapsack</span>(w, v []<span class="tp">int</span>, cap <span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    n := <span class="fn">len</span>(w)', id:''},
+      {t:'    dp := make([][]<span class="tp">int</span>, n+<span class="nm">1</span>) <span class="cm">// rows</span>', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp {', id:''},
+      {t:'        dp[i] = make([]<span class="tp">int</span>, cap+<span class="nm">1</span>)', id:'init'},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i <= n; i++ {', id:'outer'},
+      {t:'        <span class="kw">for</span> j := <span class="nm">0</span>; j <= cap; j++ {', id:'inner'},
+      {t:'            dp[i][j] = dp[i-<span class="nm">1</span>][j] <span class="cm">// не берём</span>', id:'skip'},
+      {t:'            <span class="kw">if</span> w[i-<span class="nm">1</span>] <= j {', id:'check'},
+      {t:'                dp[i][j] = <span class="fn">max</span>(dp[i][j],', id:''},
+      {t:'                    dp[i-<span class="nm">1</span>][j-w[i-<span class="nm">1</span>]]+v[i-<span class="nm">1</span>])', id:'take'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[n][cap]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const W=(inp.weights||'2,3,4,5').split(',').map(x=>+x.trim()).filter(x=>x>0).slice(0,5);
+      const V=(inp.values||'3,4,5,6').split(',').map(x=>+x.trim()).filter(x=>x>0).slice(0,5);
+      const n=Math.min(W.length,V.length);
+      const cap=Math.min(Math.max(+inp.cap||8,1),12);
+      const dp=Array.from({length:n+1},()=>new Array(cap+1).fill(0));
+      const steps=[];
+      steps.push({dp:dp.map(r=>[...r]),active:[-1,-1],sources:[],codeId:'init',
+        expl:`Таблица (${n+1})×(${cap+1}). Строки=предметы, столбцы=вместимость. Всё по нулям.`,
+        formula:'dp[0][j]=0, dp[i][0]=0',
+        rowHdr:['—',...Array.from({length:n},(_,i)=>`item${i+1}(w=${W[i]},v=${V[i]})`)],
+        colHdr:Array.from({length:cap+1},(_,j)=>`w=${j}`),
+        chips:[{l:'items',v:n,c:'var(--c1)'},{l:'cap',v:cap,c:'var(--c4)'}]});
+      for(let i=1;i<=n;i++){
+        for(let j=0;j<=cap;j++){
+          dp[i][j]=dp[i-1][j];
+          let took=false;
+          if(W[i-1]<=j && dp[i-1][j-W[i-1]]+V[i-1]>dp[i][j]){
+            dp[i][j]=dp[i-1][j-W[i-1]]+V[i-1]; took=true;
+          }
+          steps.push({dp:dp.map(r=>[...r]),active:[i,j],
+            sources:took?[[i-1,j-W[i-1]]]:[[i-1,j]],codeId:took?'take':'skip',
+            expl:took
+              ?`Предмет ${i} (w=${W[i-1]},v=${V[i-1]}), вместимость=${j}. <span class="hl-green">Берём!</span> dp[${i-1}][${j-W[i-1]}]+${V[i-1]} = <span class="hl-green">${dp[i][j]}</span>`
+              :`Предмет ${i} (w=${W[i-1]}), вместимость=${j}. ${W[i-1]>j?'Не влезает.':''} <span class="hl-blue">Не берём</span> = ${dp[i][j]}`,
+            formula:took?`dp[${i}][${j}] = dp[${i-1}][${j-W[i-1]}]+${V[i-1]} = ${dp[i][j]}`:`dp[${i}][${j}] = dp[${i-1}][${j}] = ${dp[i][j]}`,
+            rowHdr:['—',...Array.from({length:n},(_,k)=>`i${k+1}(${W[k]},${V[k]})`)],
+            colHdr:Array.from({length:cap+1},(_,k)=>`${k}`),
+            chips:[{l:'i',v:i,c:'var(--c1)'},{l:'j',v:j,c:'var(--c3)'},{l:'took',v:took?'✓':'✗',c:took?'var(--c1)':'var(--c2)'},{l:'val',v:dp[i][j],c:'var(--c4)'}]});
+        }
+      }
+      steps.push({dp:dp.map(r=>[...r]),active:[n,cap],sources:[],codeId:'ret',
+        expl:`Максимальная ценность = <span class="hl-green">${dp[n][cap]}</span> при вместимости ${cap}.`,
+        formula:`knapsack = dp[${n}][${cap}] = ${dp[n][cap]}`,result:dp[n][cap],
+        rowHdr:['—',...Array.from({length:n},(_,k)=>`i${k+1}`)],
+        colHdr:Array.from({length:cap+1},(_,k)=>`${k}`),
+        chips:[{l:'result',v:dp[n][cap],c:'var(--c1)'}]});
+      return {steps,mode:'2d'};
+    }
+  },
+
+  // ── LCS ───────────────────────────────────────────────
+  lcs: {
+    name: 'LCS',
+    desc: '<strong>Longest Common Subsequence.</strong> dp[i][j] = длина LCS для s1[0..i-1] и s2[0..j-1]. Если символы совпадают — диагональ +1, иначе max соседей.',
+    time: 'O(m·n)', space: 'O(m·n)',
+    inputs: [
+      {id:'s1', label:'Строка 1', default:'ABCBDAB', type:'text', width:'140px'},
+      {id:'s2', label:'Строка 2', default:'BDCABA', type:'text', width:'140px'},
+    ],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">lcs</span>(s1, s2 <span class="tp">string</span>) <span class="tp">int</span> {', id:''},
+      {t:'    m, n := <span class="fn">len</span>(s1), <span class="fn">len</span>(s2)', id:''},
+      {t:'    dp := make([][]<span class="tp">int</span>, m+<span class="nm">1</span>)', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = make([]<span class="tp">int</span>, n+<span class="nm">1</span>) }', id:'init'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i <= m; i++ {', id:'outer'},
+      {t:'        <span class="kw">for</span> j := <span class="nm">1</span>; j <= n; j++ {', id:'inner'},
+      {t:'            <span class="kw">if</span> s1[i-<span class="nm">1</span>] == s2[j-<span class="nm">1</span>] {', id:'cmp'},
+      {t:'                dp[i][j] = dp[i-<span class="nm">1</span>][j-<span class="nm">1</span>] + <span class="nm">1</span>', id:'match'},
+      {t:'            } <span class="kw">else</span> {', id:''},
+      {t:'                dp[i][j] = <span class="fn">max</span>(dp[i-<span class="nm">1</span>][j], dp[i][j-<span class="nm">1</span>])', id:'nomatch'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[m][n]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const s1=(inp.s1||'ABCBDAB').toUpperCase().slice(0,7);
+      const s2=(inp.s2||'BDCABA').toUpperCase().slice(0,7);
+      const m=s1.length,n=s2.length;
+      const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+      const steps=[];
+      steps.push({dp:dp.map(r=>[...r]),active:[-1,-1],sources:[],codeId:'init',
+        expl:`Таблица (${m+1})×(${n+1}). Строки="${s1}", столбцы="${s2}". Все нули.`,
+        formula:'dp[i][0]=dp[0][j]=0',
+        rowHdr:['',...s1.split('')],colHdr:['',...s2.split('')],
+        s1,s2,chips:[{l:'s1',v:s1,c:'var(--c3)'},{l:'s2',v:s2,c:'var(--c5)'}]});
+      for(let i=1;i<=m;i++){
+        for(let j=1;j<=n;j++){
+          const match=s1[i-1]===s2[j-1];
+          dp[i][j]=match?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
+          steps.push({dp:dp.map(r=>[...r]),active:[i,j],
+            sources:match?[[i-1,j-1]]:dp[i-1][j]>=dp[i][j-1]?[[i-1,j]]:[[i,j-1]],
+            codeId:match?'match':'nomatch',
+            expl:match
+              ?`<span class="hl-gold">Совпадение!</span> s1[${i-1}]='${s1[i-1]}'==s2[${j-1}]='${s2[j-1]}'. dp[${i}][${j}]=dp[${i-1}][${j-1}]+1=<span class="hl-green">${dp[i][j]}</span>`
+              :`'${s1[i-1]}'≠'${s2[j-1]}'. dp[${i}][${j}]=max(↑${dp[i-1][j]},←${dp[i][j-1]})=<span class="hl-green">${dp[i][j]}</span>`,
+            formula:match?`dp[${i}][${j}]=dp[${i-1}][${j-1}]+1=${dp[i][j]}`:`dp[${i}][${j}]=max(${dp[i-1][j]},${dp[i][j-1]})=${dp[i][j]}`,
+            rowHdr:['',...s1.split('')],colHdr:['',...s2.split('')],
+            s1,s2,si:i-1,sj:j-1,matchChar:match?s1[i-1]:null,
+            chips:[{l:'i',v:`${i}(${s1[i-1]})`,c:'var(--c3)'},{l:'j',v:`${j}(${s2[j-1]})`,c:'var(--c6)'},{l:match?'match':'—',v:match?'✓':'✗',c:match?'var(--c4)':'var(--muted2)'},{l:'dp[i][j]',v:dp[i][j],c:'var(--c1)'}]});
+        }
+      }
+      steps.push({dp:dp.map(r=>[...r]),active:[m,n],sources:[],codeId:'ret',
+        expl:`LCS длиной <span class="hl-green">${dp[m][n]}</span> для "${s1}" и "${s2}".`,
+        formula:`lcs = ${dp[m][n]}`,result:dp[m][n],
+        rowHdr:['',...s1.split('')],colHdr:['',...s2.split('')],s1,s2,
+        chips:[{l:'result',v:dp[m][n],c:'var(--c1)'}]});
+      return {steps,mode:'2d'};
+    }
+  },
+
+  // ── EDIT DISTANCE ─────────────────────────────────────
+  edit: {
+    name: 'Edit Distance',
+    desc: '<strong>Расстояние Левенштейна.</strong> Минимум операций (вставка, удаление, замена) для word1→word2. Три предка каждой ячейки = три операции.',
+    time: 'O(m·n)', space: 'O(m·n)',
+    inputs: [
+      {id:'w1', label:'Слово 1', default:'horse', type:'text', width:'120px'},
+      {id:'w2', label:'Слово 2', default:'ros', type:'text', width:'120px'},
+    ],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">minDistance</span>(w1, w2 <span class="tp">string</span>) <span class="tp">int</span> {', id:''},
+      {t:'    m, n := <span class="fn">len</span>(w1), <span class="fn">len</span>(w2)', id:''},
+      {t:'    dp := make([][]<span class="tp">int</span>, m+<span class="nm">1</span>)', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = make([]<span class="tp">int</span>, n+<span class="nm">1</span>) }', id:''},
+      {t:'    <span class="kw">for</span> i := <span class="nm">0</span>; i <= m; i++ { dp[i][<span class="nm">0</span>] = i }', id:'init'},
+      {t:'    <span class="kw">for</span> j := <span class="nm">0</span>; j <= n; j++ { dp[<span class="nm">0</span>][j] = j }', id:'init2'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i <= m; i++ {', id:'outer'},
+      {t:'        <span class="kw">for</span> j := <span class="nm">1</span>; j <= n; j++ {', id:'inner'},
+      {t:'            <span class="kw">if</span> w1[i-<span class="nm">1</span>] == w2[j-<span class="nm">1</span>] {', id:'cmp'},
+      {t:'                dp[i][j] = dp[i-<span class="nm">1</span>][j-<span class="nm">1</span>]', id:'match'},
+      {t:'            } <span class="kw">else</span> {', id:''},
+      {t:'                dp[i][j] = <span class="nm">1</span> + <span class="fn">min</span>(dp[i-<span class="nm">1</span>][j],', id:''},
+      {t:'                    dp[i][j-<span class="nm">1</span>], dp[i-<span class="nm">1</span>][j-<span class="nm">1</span>])', id:'ops'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[m][n]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const w1=(inp.w1||'horse').toLowerCase().slice(0,7);
+      const w2=(inp.w2||'ros').toLowerCase().slice(0,7);
+      const m=w1.length,n=w2.length;
+      const dp=Array.from({length:m+1},(_,i)=>Array.from({length:n+1},(_,j)=>i===0?j:j===0?i:0));
+      const steps=[];
+      steps.push({dp:dp.map(r=>[...r]),active:[-1,-1],sources:[],codeId:'init2',
+        expl:`Базовые случаи: dp[i][0]=i (удалить i символов), dp[0][j]=j (вставить j символов).`,
+        formula:'dp[i][0]=i, dp[0][j]=j',
+        rowHdr:['',...w1.split('')],colHdr:['',...w2.split('')],
+        chips:[{l:'w1',v:w1,c:'var(--c3)'},{l:'w2',v:w2,c:'var(--c5)'}]});
+      for(let i=1;i<=m;i++){
+        for(let j=1;j<=n;j++){
+          const match=w1[i-1]===w2[j-1];
+          if(match){dp[i][j]=dp[i-1][j-1];}
+          else{dp[i][j]=1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);}
+          const opMin=Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+          const opName=match?'copy':dp[i][j]-1===dp[i-1][j-1]?'replace':dp[i][j]-1===dp[i-1][j]?'delete':'insert';
+          steps.push({dp:dp.map(r=>[...r]),active:[i,j],
+            sources:match?[[i-1,j-1]]:[[i-1,j-1],[i-1,j],[i,j-1]],
+            codeId:match?'match':'ops',
+            expl:match
+              ?`'${w1[i-1]}'=='${w2[j-1]}': символы совпадают. <span class="hl-green">Копируем dp[${i-1}][${j-1}]=${dp[i][j]}</span>`
+              :`'${w1[i-1]}'≠'${w2[j-1]}'. Лучшая операция: <span class="hl-gold">${opName}</span>. dp[${i}][${j}]=1+min(del=${dp[i-1][j]},ins=${dp[i][j-1]},rep=${dp[i-1][j-1]})=<span class="hl-green">${dp[i][j]}</span>`,
+            formula:match?`dp[${i}][${j}]=dp[${i-1}][${j-1}]=${dp[i][j]}`:`dp[${i}][${j}]=1+min(${dp[i-1][j]},${dp[i][j-1]},${dp[i-1][j-1]})=${dp[i][j]}`,
+            rowHdr:['',...w1.split('')],colHdr:['',...w2.split('')],
+            chips:[{l:'i',v:`${i}(${w1[i-1]})`,c:'var(--c3)'},{l:'j',v:`${j}(${w2[j-1]})`,c:'var(--c5)'},{l:'op',v:opName,c:'var(--c4)'},{l:'cost',v:dp[i][j],c:'var(--c1)'}]});
+        }
+      }
+      steps.push({dp:dp.map(r=>[...r]),active:[m,n],sources:[],codeId:'ret',
+        expl:`<span class="hl-green">${dp[m][n]} операций</span>: "${w1}" → "${w2}"`,
+        formula:`editDistance = ${dp[m][n]}`,result:dp[m][n],
+        rowHdr:['',...w1.split('')],colHdr:['',...w2.split('')],
+        chips:[{l:'result',v:dp[m][n],c:'var(--c1)'}]});
+      return {steps,mode:'2d'};
+    }
+  },
+
+  // ── UNIQUE PATHS ──────────────────────────────────────
+  uniquepaths: {
+    name: 'Unique Paths',
+    desc: '<strong>Пути в сетке M×N.</strong> Движение только вправо или вниз. dp[i][j] = dp[i-1][j] + dp[i][j-1].',
+    time: 'O(m·n)', space: 'O(m·n)',
+    inputs: [
+      {id:'rows', label:'Строки M', default:'4', type:'number', width:'80px'},
+      {id:'cols', label:'Столбцы N', default:'5', type:'number', width:'80px'},
+    ],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">uniquePaths</span>(m, n <span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    dp := make([][]<span class="tp">int</span>, m)', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = make([]<span class="tp">int</span>, n) }', id:''},
+      {t:'    <span class="kw">for</span> i := <span class="nm">0</span>; i < m; i++ { dp[i][<span class="nm">0</span>] = <span class="nm">1</span> }', id:'init'},
+      {t:'    <span class="kw">for</span> j := <span class="nm">0</span>; j < n; j++ { dp[<span class="nm">0</span>][j] = <span class="nm">1</span> }', id:'init2'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i < m; i++ {', id:'outer'},
+      {t:'        <span class="kw">for</span> j := <span class="nm">1</span>; j < n; j++ {', id:'inner'},
+      {t:'            dp[i][j] = dp[i-<span class="nm">1</span>][j] + dp[i][j-<span class="nm">1</span>]', id:'fill'},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[m-<span class="nm">1</span>][n-<span class="nm">1</span>]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const m=Math.min(Math.max(+inp.rows||4,2),7);
+      const n=Math.min(Math.max(+inp.cols||5,2),8);
+      const dp=Array.from({length:m},(_,i)=>Array.from({length:n},(_,j)=>(i===0||j===0)?1:0));
+      const steps=[];
+      steps.push({dp:dp.map(r=>[...r]),active:[-1,-1],sources:[],codeId:'init2',
+        expl:`Базовые: первая строка и первый столбец = 1 (единственный путь по краю).`,
+        formula:'dp[0][j]=1, dp[i][0]=1',
+        rowHdr:Array.from({length:m},(_,i)=>`r${i}`),colHdr:Array.from({length:n},(_,j)=>`c${j}`),
+        chips:[{l:'m',v:m,c:'var(--c1)'},{l:'n',v:n,c:'var(--c3)'}]});
+      for(let i=1;i<m;i++){
+        for(let j=1;j<n;j++){
+          dp[i][j]=dp[i-1][j]+dp[i][j-1];
+          steps.push({dp:dp.map(r=>[...r]),active:[i,j],sources:[[i-1,j],[i,j-1]],codeId:'fill',
+            expl:`dp[${i}][${j}] = сверху(${dp[i-1][j]}) + слева(${dp[i][j-1]}) = <span class="hl-green">${dp[i][j]}</span>`,
+            formula:`dp[${i}][${j}] = ${dp[i-1][j]} + ${dp[i][j-1]} = ${dp[i][j]}`,
+            rowHdr:Array.from({length:m},(_,k)=>`r${k}`),colHdr:Array.from({length:n},(_,k)=>`c${k}`),
+            chips:[{l:'i',v:i,c:'var(--c1)'},{l:'j',v:j,c:'var(--c3)'},{l:'↑',v:dp[i-1][j],c:'var(--c3)'},{l:'←',v:dp[i][j-1],c:'var(--c5)'},{l:'sum',v:dp[i][j],c:'var(--c4)'}]});
+        }
+      }
+      steps.push({dp:dp.map(r=>[...r]),active:[m-1,n-1],sources:[],codeId:'ret',
+        expl:`<span class="hl-green">${dp[m-1][n-1]}</span> путей из (0,0) в (${m-1},${n-1}).`,
+        formula:`uniquePaths(${m},${n}) = ${dp[m-1][n-1]}`,result:dp[m-1][n-1],
+        rowHdr:Array.from({length:m},(_,k)=>`r${k}`),colHdr:Array.from({length:n},(_,k)=>`c${k}`),
+        chips:[{l:'result',v:dp[m-1][n-1],c:'var(--c1)'}]});
+      return {steps,mode:'2d'};
+    }
+  },
+
+  // ── MIN PATH SUM ──────────────────────────────────────
+  minpath: {
+    name: 'Min Path Sum',
+    desc: '<strong>Минимальная сумма пути</strong> в сетке из верхнего-левого в нижний-правый. Движение только вправо/вниз.',
+    time: 'O(m·n)', space: 'O(m·n)',
+    inputs: [{id:'grid', label:'Сетка (строки через ;)', default:'1,3,1;1,5,1;4,2,1', type:'text', width:'200px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">minPathSum</span>(grid [][]<span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    m, n := <span class="fn">len</span>(grid), <span class="fn">len</span>(grid[<span class="nm">0</span>])', id:''},
+      {t:'    dp := grid <span class="cm">// reuse grid as dp</span>', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i < m; i++ { dp[i][<span class="nm">0</span>] += dp[i-<span class="nm">1</span>][<span class="nm">0</span>] }', id:'init'},
+      {t:'    <span class="kw">for</span> j := <span class="nm">1</span>; j < n; j++ { dp[<span class="nm">0</span>][j] += dp[<span class="nm">0</span>][j-<span class="nm">1</span>] }', id:'init2'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i < m; i++ {', id:'outer'},
+      {t:'        <span class="kw">for</span> j := <span class="nm">1</span>; j < n; j++ {', id:'inner'},
+      {t:'            dp[i][j] += <span class="fn">min</span>(dp[i-<span class="nm">1</span>][j], dp[i][j-<span class="nm">1</span>])', id:'fill'},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[m-<span class="nm">1</span>][n-<span class="nm">1</span>]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      let raw=(inp.grid||'1,3,1;1,5,1;4,2,1').split(';').map(r=>r.split(',').map(x=>+x.trim()));
+      const m=Math.min(raw.length,6),n=Math.min(raw[0].length,7);
+      const g=raw.slice(0,m).map(r=>r.slice(0,n));
+      const dp=g.map(r=>[...r]);
+      for(let i=1;i<m;i++) dp[i][0]+=dp[i-1][0];
+      for(let j=1;j<n;j++) dp[0][j]+=dp[0][j-1];
+      const steps=[];
+      steps.push({dp:dp.map(r=>[...r]),active:[-1,-1],sources:[],codeId:'init2',
+        expl:`Базовые: накопленная сумма по первой строке и первому столбцу.`,
+        formula:'dp[0][j]+=dp[0][j-1], dp[i][0]+=dp[i-1][0]',
+        rowHdr:Array.from({length:m},(_,i)=>`r${i}`),colHdr:Array.from({length:n},(_,j)=>`c${j}`),
+        chips:[{l:'grid',v:`${m}×${n}`,c:'var(--c1)'}]});
+      for(let i=1;i<m;i++){
+        for(let j=1;j<n;j++){
+          const best=Math.min(dp[i-1][j],dp[i][j-1]);
+          dp[i][j]+=best;
+          const fromTop=dp[i-1][j]<=dp[i][j-1];
+          steps.push({dp:dp.map(r=>[...r]),active:[i,j],sources:fromTop?[[i-1,j]]:[[i,j-1]],codeId:'fill',
+            expl:`dp[${i}][${j}] = grid(${g[i][j]}) + min(↑${dp[i-1][j]},←${dp[i][j-1]}) = <span class="hl-green">${dp[i][j]}</span>`,
+            formula:`dp[${i}][${j}] = ${g[i][j]} + ${best} = ${dp[i][j]}`,
+            rowHdr:Array.from({length:m},(_,k)=>`r${k}`),colHdr:Array.from({length:n},(_,k)=>`c${k}`),
+            chips:[{l:'i',v:i,c:'var(--c1)'},{l:'j',v:j,c:'var(--c3)'},{l:'cell',v:g[i][j],c:'var(--muted2)'},{l:'sum',v:dp[i][j],c:'var(--c4)'}]});
+        }
+      }
+      steps.push({dp:dp.map(r=>[...r]),active:[m-1,n-1],sources:[],codeId:'ret',
+        expl:`Минимальный путь = <span class="hl-green">${dp[m-1][n-1]}</span>.`,
+        formula:`minPathSum = ${dp[m-1][n-1]}`,result:dp[m-1][n-1],
+        rowHdr:Array.from({length:m},(_,k)=>`r${k}`),colHdr:Array.from({length:n},(_,k)=>`c${k}`),
+        chips:[{l:'result',v:dp[m-1][n-1],c:'var(--c1)'}]});
+      return {steps,mode:'2d'};
+    }
+  },
+
+  // ── WORD BREAK ────────────────────────────────────────
+  wordbreak: {
+    name: 'Word Break',
+    desc: '<strong>Word Break.</strong> Можно ли разбить строку s на слова из словаря? dp[i]=true если s[0..i-1] разбиваема.',
+    time: 'O(n²·m)', space: 'O(n)',
+    inputs: [
+      {id:'s', label:'Строка', default:'leetcode', type:'text', width:'140px'},
+      {id:'dict', label:'Словарь', default:'leet,code', type:'text', width:'180px'},
+    ],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">wordBreak</span>(s <span class="tp">string</span>, dict []<span class="tp">string</span>) <span class="tp">bool</span> {', id:''},
+      {t:'    n := <span class="fn">len</span>(s)', id:''},
+      {t:'    set := make(map[<span class="tp">string</span>]<span class="tp">bool</span>)', id:''},
+      {t:'    dp := <span class="fn">make</span>([]<span class="tp">bool</span>, n+<span class="nm">1</span>)', id:'alloc'},
+      {t:'    dp[<span class="nm">0</span>] = <span class="kw">true</span> <span class="cm">// пустая строка</span>', id:'init'},
+      {t:'    <span class="kw">for</span> i := <span class="nm">1</span>; i <= n; i++ {', id:'outer'},
+      {t:'        <span class="kw">for</span> j := <span class="nm">0</span>; j < i; j++ {', id:'inner'},
+      {t:'            <span class="kw">if</span> dp[j] && set[s[j:i]] {', id:'cmp'},
+      {t:'                dp[i] = <span class="kw">true</span>; <span class="kw">break</span>', id:'set'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[n]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const s=(inp.s||'leetcode').toLowerCase().slice(0,10);
+      const dict=new Set((inp.dict||'leet,code').split(',').map(x=>x.trim().toLowerCase()));
+      const n=s.length;
+      const dp=new Array(n+1).fill(false);
+      dp[0]=true;
+      const steps=[];
+      steps.push({dp:[...dp],active:-1,sources:[],codeId:'init',
+        expl:`dp[0]=<span class="hl-green">true</span> (пустая строка разбиваема). Словарь: [${[...dict].join(', ')}]`,
+        formula:'dp[0] = true',
+        chips:[{l:'s',v:s,c:'var(--c3)'},{l:'dict',v:`[${[...dict].join(',')}]`,c:'var(--c4)'}]});
+      for(let i=1;i<=n;i++){
+        let found=false;
+        for(let j=0;j<i&&!found;j++){
+          if(dp[j]&&dict.has(s.slice(j,i))){dp[i]=true;found=true;
+            steps.push({dp:[...dp],active:i,sources:[j],codeId:'set',
+              expl:`<span class="hl-gold">Найдено!</span> dp[${j}]=true и "<span class="hl-green">${s.slice(j,i)}</span>"∈dict. dp[${i}]=<span class="hl-green">true</span>`,
+              formula:`dp[${i}] = true (s[${j}:${i}]="${s.slice(j,i)}")`,
+              chips:[{l:'i',v:i,c:'var(--c1)'},{l:'word',v:s.slice(j,i),c:'var(--c4)'},{l:'dp[i]',v:'true',c:'var(--c1)'}]});}
+        }
+        if(!found){
+          steps.push({dp:[...dp],active:i,sources:[],codeId:'cmp',
+            expl:`Нет подходящего разбиения для s[0:${i}]="${s.slice(0,i)}". dp[${i}]=<span class="hl-red">false</span>`,
+            formula:`dp[${i}] = false`,
+            chips:[{l:'i',v:i,c:'var(--c1)'},{l:'dp[i]',v:'false',c:'var(--c2)'}]});
+        }
+      }
+      steps.push({dp:[...dp],active:n,sources:[],codeId:'ret',
+        expl:dp[n]?`"${s}" <span class="hl-green">можно</span> разбить на слова из словаря.`:`"${s}" <span class="hl-red">нельзя</span> разбить.`,
+        formula:`wordBreak = ${dp[n]}`,result:dp[n]?'✓ YES':'✗ NO',
+        chips:[{l:'result',v:dp[n]?'true':'false',c:dp[n]?'var(--c1)':'var(--c2)'}]});
+      return {steps,mode:'bool1d',labels:Array.from({length:n+1},(_,i)=>i===0?'""':`"${s.slice(0,i)}"`)};
+    }
+  },
+
+  // ── PALINDROME ────────────────────────────────────────
+  palindrome: {
+    name: 'Longest Palindromic Subseq',
+    desc: '<strong>Наибольшая палиндромная подпоследовательность.</strong> dp[i][j] = длина LPS для s[i..j]. Если s[i]==s[j] — dp[i+1][j-1]+2, иначе max(dp[i+1][j], dp[i][j-1]).',
+    time: 'O(n²)', space: 'O(n²)',
+    inputs: [{id:'s', label:'Строка', default:'bbbab', type:'text', width:'140px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">longestPalindromeSubseq</span>(s <span class="tp">string</span>) <span class="tp">int</span> {', id:''},
+      {t:'    n := <span class="fn">len</span>(s)', id:''},
+      {t:'    dp := make([][]<span class="tp">int</span>, n)', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = make([]<span class="tp">int</span>, n); dp[i][i] = <span class="nm">1</span> }', id:'init'},
+      {t:'    <span class="kw">for</span> l := <span class="nm">2</span>; l <= n; l++ { <span class="cm">// length</span>', id:'outer'},
+      {t:'        <span class="kw">for</span> i := <span class="nm">0</span>; i+l-<span class="nm">1</span> < n; i++ {', id:'inner'},
+      {t:'            j := i + l - <span class="nm">1</span>', id:''},
+      {t:'            <span class="kw">if</span> s[i] == s[j] {', id:'cmp'},
+      {t:'                dp[i][j] = dp[i+<span class="nm">1</span>][j-<span class="nm">1</span>] + <span class="nm">2</span>', id:'match'},
+      {t:'            } <span class="kw">else</span> {', id:''},
+      {t:'                dp[i][j] = <span class="fn">max</span>(dp[i+<span class="nm">1</span>][j], dp[i][j-<span class="nm">1</span>])', id:'nomatch'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[<span class="nm">0</span>][n-<span class="nm">1</span>]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const s=(inp.s||'bbbab').toLowerCase().slice(0,7);
+      const n=s.length;
+      const dp=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
+      const steps=[];
+      steps.push({dp:dp.map(r=>[...r]),active:[-1,-1],sources:[],codeId:'init',
+        expl:`dp[i][i]=1 для всех i (каждый символ — палиндром длиной 1). Строка: "${s}"`,
+        formula:'dp[i][i] = 1',
+        rowHdr:[...s],colHdr:[...s],
+        chips:[{l:'s',v:s,c:'var(--c3)'}]});
+      for(let l=2;l<=n;l++){
+        for(let i=0;i+l-1<n;i++){
+          const j=i+l-1;
+          const match=s[i]===s[j];
+          dp[i][j]=match?dp[i+1][j-1]+2:Math.max(dp[i+1][j],dp[i][j-1]);
+          steps.push({dp:dp.map(r=>[...r]),active:[i,j],
+            sources:match?[[i+1,j-1]]:dp[i+1][j]>=dp[i][j-1]?[[i+1,j]]:[[i,j-1]],
+            codeId:match?'match':'nomatch',
+            expl:match
+              ?`<span class="hl-gold">s[${i}]='${s[i]}'==s[${j}]='${s[j]}'</span>. dp[${i}][${j}]=dp[${i+1}][${j-1}]+2=<span class="hl-green">${dp[i][j]}</span>`
+              :`'${s[i]}'≠'${s[j]}'. dp[${i}][${j}]=max(${dp[i+1][j]},${dp[i][j-1]})=<span class="hl-green">${dp[i][j]}</span>`,
+            formula:match?`dp[${i}][${j}]=dp[${i+1}][${j-1}]+2=${dp[i][j]}`:`dp[${i}][${j}]=max(${dp[i+1][j]},${dp[i][j-1]})=${dp[i][j]}`,
+            rowHdr:[...s],colHdr:[...s],
+            chips:[{l:'l',v:l,c:'var(--c6)'},{l:'i',v:`${i}(${s[i]})`,c:'var(--c3)'},{l:'j',v:`${j}(${s[j]})`,c:'var(--c5)'},{l:'lps',v:dp[i][j],c:'var(--c1)'}]});
+        }
+      }
+      steps.push({dp:dp.map(r=>[...r]),active:[0,n-1],sources:[],codeId:'ret',
+        expl:`Наибольшая палиндромная подпоследовательность "${s}": длина <span class="hl-green">${dp[0][n-1]}</span>`,
+        formula:`longestPalindromeSubseq = ${dp[0][n-1]}`,result:dp[0][n-1],
+        rowHdr:[...s],colHdr:[...s],
+        chips:[{l:'result',v:dp[0][n-1],c:'var(--c1)'}]});
+      return {steps,mode:'2d'};
+    }
+  },
+
+  // ── MATRIX CHAIN ──────────────────────────────────────
+  matchain: {
+    name: 'Matrix Chain',
+    desc: '<strong>Цепочка матриц.</strong> dp[i][j] = минимум умножений для перемножения матриц i..j. Пробуем каждое разбиение k.',
+    time: 'O(n³)', space: 'O(n²)',
+    inputs: [{id:'dims', label:'Размеры [p0..pn]', default:'10,30,5,60', type:'text', width:'180px'}],
+    code: [
+      {t:'<span class="kw">func</span> <span class="fn">matrixChain</span>(p []<span class="tp">int</span>) <span class="tp">int</span> {', id:''},
+      {t:'    n := <span class="fn">len</span>(p) - <span class="nm">1</span> <span class="cm">// n matrices</span>', id:''},
+      {t:'    dp := make([][]<span class="tp">int</span>, n)', id:'alloc'},
+      {t:'    <span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = make([]<span class="tp">int</span>, n) } <span class="cm">// dp[i][i]=0</span>', id:'init'},
+      {t:'    <span class="kw">for</span> l := <span class="nm">2</span>; l <= n; l++ {', id:'outer'},
+      {t:'        <span class="kw">for</span> i := <span class="nm">0</span>; i+l-<span class="nm">1</span> < n; i++ {', id:'middle'},
+      {t:'            j := i + l - <span class="nm">1</span>', id:''},
+      {t:'            dp[i][j] = <span class="fn">math.MaxInt</span>', id:'setinf'},
+      {t:'            <span class="kw">for</span> k := i; k < j; k++ {', id:'inner'},
+      {t:'                cost := dp[i][k] + dp[k+<span class="nm">1</span>][j]', id:'cost'},
+      {t:'                    + p[i]*p[k+<span class="nm">1</span>]*p[j+<span class="nm">1</span>]', id:'cost2'},
+      {t:'                dp[i][j] = <span class="fn">min</span>(dp[i][j], cost)', id:'fill'},
+      {t:'            }', id:''},
+      {t:'        }', id:''},
+      {t:'    }', id:''},
+      {t:'    <span class="kw">return</span> dp[<span class="nm">0</span>][n-<span class="nm">1</span>]', id:'ret'},
+      {t:'}', id:''},
+    ],
+    build(inp) {
+      const p=(inp.dims||'10,30,5,60').split(',').map(x=>+x.trim()).filter(x=>x>0).slice(0,6);
+      const n=p.length-1;
+      const INF=1e9;
+      const dp=Array.from({length:n},()=>new Array(n).fill(0));
+      const steps=[];
+      steps.push({dp:dp.map(r=>[...r]),active:[-1,-1],sources:[],codeId:'init',INF:INF,
+        expl:`dp[i][i]=0 (одна матрица — 0 умножений). p=[${p}]. Матриц: ${n}`,
+        formula:'dp[i][i] = 0',
+        rowHdr:Array.from({length:n},(_,i)=>`M${i+1}`),
+        colHdr:Array.from({length:n},(_,i)=>`M${i+1}`),
+        chips:[{l:'matrices',v:n,c:'var(--c1)'},{l:'dims',v:`[${p}]`,c:'var(--c4)'}]});
+      for(let l=2;l<=n;l++){
+        for(let i=0;i<=n-l;i++){
+          const j=i+l-1;
+          dp[i][j]=INF;
+          let bestK=-1,bestCost=INF;
+          for(let k=i;k<j;k++){
+            const cost=dp[i][k]+dp[k+1][j]+p[i]*p[k+1]*p[j+1];
+            if(cost<dp[i][j]){dp[i][j]=cost; bestK=k; bestCost=cost;}
+            steps.push({dp:dp.map(r=>[...r]),active:[i,j],sources:[[i,k],[k+1,j]],codeId:'fill',INF,
+              expl:`l=${l}, i=${i}, j=${j}, k=${k}. cost=dp[${i}][${k}]+dp[${k+1}][${j}]+${p[i]}*${p[k+1]}*${p[j+1]}=${dp[i][k]}+${dp[k+1][j]}+${p[i]*p[k+1]*p[j+1]}=<span class="hl-green">${cost}</span>. Текущий min=${dp[i][j]>=INF?'∞':dp[i][j]}`,
+              formula:`dp[${i}][${j}] = min(cur, dp[${i}][${k}]+dp[${k+1}][${j}]+${p[i]*p[k+1]*p[j+1]}) = ${dp[i][j]>=INF?'∞':dp[i][j]}`,
+              rowHdr:Array.from({length:n},(_,k)=>`M${k+1}`),colHdr:Array.from({length:n},(_,k)=>`M${k+1}`),
+              chips:[{l:'l',v:l,c:'var(--c6)'},{l:'i..j',v:`${i}..${j}`,c:'var(--c3)'},{l:'k',v:k,c:'var(--c4)'},{l:'cost',v:cost,c:'var(--c1)'}]});
+          }
+        }
+      }
+      steps.push({dp:dp.map(r=>[...r]),active:[0,n-1],sources:[],codeId:'ret',INF,
+        expl:`Минимум умножений: <span class="hl-green">${dp[0][n-1]}</span>`,
+        formula:`matrixChain = ${dp[0][n-1]}`,result:dp[0][n-1],
+        rowHdr:Array.from({length:n},(_,k)=>`M${k+1}`),colHdr:Array.from({length:n},(_,k)=>`M${k+1}`),
+        chips:[{l:'result',v:dp[0][n-1],c:'var(--c1)'}]});
+      return {steps,mode:'2d'};
+    }
+  },
+};
+
+// ════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════
+let SIM = null; // { steps, mode, labels, INF }
+let stepIdx = -1;
+let autoTimer = null;
+let isAuto = false;
+
+// ════════════════════════════════════════════════════════
+// PROBLEM CHANGE
+// ════════════════════════════════════════════════════════
+function changeProblem() {
+  stopAuto();
+  const key = document.getElementById('probSel').value;
+  const P = PROBLEMS[key];
+  if (!P) return;
+
+  // inputs
+  const ia = document.getElementById('extraInputs');
+  ia.innerHTML = '';
+  (P.inputs || []).forEach(inp => {
+    const g = document.createElement('div');
+    g.className = 'field-group';
+    const l = document.createElement('span');
+    l.className = 'field-label';
+    l.textContent = inp.label;
+    const i = document.createElement('input');
+    i.type = inp.type || 'text';
+    i.id = 'inp_' + inp.id;
+    i.value = inp.default || '';
+    i.style.width = inp.width || '140px';
+    g.append(l, i);
+    ia.appendChild(g);
+  });
+
+  // description
+  document.getElementById('probInfo').innerHTML =
+    `${P.desc} <div class="complexity"><span class="badge badge-time">Time: ${P.time}</span><span class="badge badge-space">Space: ${P.space}</span></div>`;
+
+  // code
+  renderCode(P.code, null);
+
+  // clear viz
+  document.getElementById('vizBody').innerHTML = '';
+  document.getElementById('explText').textContent = 'Нажми RUN';
+  document.getElementById('explFormula').classList.remove('show');
+  document.getElementById('resultBanner').classList.remove('show');
+  document.getElementById('stateRow').innerHTML = '';
+  stepIdx = -1; SIM = null;
+  updateNav();
+}
+
+function renderCode(lines, activeId) {
+  const body = document.getElementById('codeBody');
+  body.innerHTML = '';
+  lines.forEach((line, i) => {
+    const div = document.createElement('div');
+    div.className = 'code-line';
+    if (line.id && line.id === activeId) {
+      div.classList.add('hl-active');
+    }
+    const num = document.createElement('span');
+    num.className = 'line-num';
+    num.textContent = i + 1;
+    const content = document.createElement('span');
+    content.className = 'line-content';
+    content.innerHTML = line.t;
+    div.append(num, content);
+    if (line.id) div.dataset.codeId = line.id;
+    body.appendChild(div);
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// RUN
+// ════════════════════════════════════════════════════════
+function getInputs() {
+  const key = document.getElementById('probSel').value;
+  const P = PROBLEMS[key];
+  const res = {};
+  (P.inputs || []).forEach(inp => {
+    res[inp.id] = document.getElementById('inp_' + inp.id)?.value ?? inp.default;
+  });
+  return res;
+}
+
+function runSim() {
+  stopAuto();
+  const key = document.getElementById('probSel').value;
+  const P = PROBLEMS[key];
+  SIM = P.build(getInputs());
+  stepIdx = 0;
+  document.getElementById('resultBanner').classList.remove('show');
+  renderStep(stepIdx);
+  updateNav();
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER STEP
+// ════════════════════════════════════════════════════════
+function renderStep(idx) {
+  if (!SIM || idx < 0 || idx >= SIM.steps.length) return;
+  const s = SIM.steps[idx];
+  const P = PROBLEMS[document.getElementById('probSel').value];
+
+  // code highlight
+  document.querySelectorAll('.code-line').forEach(el => {
+    el.classList.remove('hl-active', 'hl-return');
+  });
+  if (s.codeId) {
+    document.querySelectorAll(`[data-code-id="${s.codeId}"]`).forEach(el => {
+      el.classList.add(s.phase === 'ret' || s.codeId === 'ret' ? 'hl-return' : 'hl-active');
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+
+  // explanation
+  document.getElementById('explText').innerHTML = s.expl || '';
+  const fEl = document.getElementById('explFormula');
+  if (s.formula) { fEl.textContent = s.formula; fEl.classList.add('show'); }
+  else fEl.classList.remove('show');
+
+  // state chips
+  renderChips(s.chips || []);
+
+  // viz
+  if (SIM.mode === '1d' || SIM.mode === 'bool1d') render1D(s);
+  else if (SIM.mode === '2d') render2D(s);
+
+  // result
+  if (s.result !== undefined) {
+    document.getElementById('resultVal').textContent = s.result;
+    document.getElementById('resultBanner').classList.add('show');
+  }
+
+  // progress
+  const pct = SIM.steps.length > 1 ? Math.round((idx / (SIM.steps.length - 1)) * 100) : 100;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('stepBadge').textContent = `${idx + 1} / ${SIM.steps.length}`;
+}
+
+// ── CHIPS ─────────────────────────────────────────────
+function renderChips(chips) {
+  const row = document.getElementById('stateRow');
+  row.innerHTML = '';
+  chips.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'state-chip';
+    d.innerHTML = `<span class="chip-label">${c.l}</span><span class="chip-val" style="color:${c.c}">${c.v}</span>`;
+    row.appendChild(d);
+  });
+}
+
+// ── 1D VIZ ────────────────────────────────────────────
+function render1D(s) {
+  const el = document.getElementById('vizBody');
+  el.innerHTML = '';
+  const dp = s.dp;
+  const labels = SIM.labels || dp.map((_, i) => `[${i}]`);
+  const INF = SIM.INF || 99999;
+  const isBool = SIM.mode === 'bool1d';
+
+  // compute bar heights
+  const vals = dp.filter(v => v != null && !isBool && Math.abs(v) < INF);
+  const maxV = vals.length ? Math.max(...vals.map(Math.abs), 1) : 1;
+  const hasNeg = vals.some(v => v < 0);
+
+  // BARS
+  const barsWrap = document.createElement('div');
+  barsWrap.className = 'bars-container';
+
+  dp.forEach((v, i) => {
+    const isActive = s.active === i;
+    const isSource = Array.isArray(s.sources) && s.sources.includes(i);
+    const filled = v !== null && v !== undefined;
+
+    const item = document.createElement('div');
+    item.className = 'bar-item';
+
+    const rect = document.createElement('div');
+    rect.className = 'bar-rect';
+
+    if (isBool) {
+      const h = v ? 60 : 12;
+      rect.style.height = h + 'px';
+      if (isActive) rect.classList.add('b-active');
+      else if (isSource) rect.classList.add('b-source');
+      else if (v) rect.classList.add('b-filled');
+    } else {
+      const absV = Math.abs(v || 0);
+      const h = filled && Math.abs(v) < INF ? Math.max(8, Math.round((absV / maxV) * 90)) : 8;
+      rect.style.height = h + 'px';
+      if (isActive) rect.classList.add('b-active');
+      else if (isSource) rect.classList.add('b-source');
+      else if (filled && v < INF) { rect.classList.add(v < 0 ? 'b-negative' : 'b-filled'); }
+    }
+
+    const valEl = document.createElement('div');
+    valEl.className = 'bar-val' + (isActive ? ' bv-active' : '');
+    valEl.textContent = !filled ? '?' : isBool ? (v ? 'T' : 'F') : (v >= INF ? '∞' : v);
+
+    const lblEl = document.createElement('div');
+    lblEl.className = 'bar-lbl';
+    lblEl.title = labels[i] || i;
+    lblEl.textContent = labels[i] || i;
+
+    item.append(rect, valEl, lblEl);
+    barsWrap.appendChild(item);
+  });
+  el.appendChild(barsWrap);
+
+  // TABLE
+  const scroll = document.createElement('div');
+  scroll.className = 'dp-table-wrap';
+  scroll.style.marginTop = '10px';
+  const table = document.createElement('table');
+  table.className = 'dp-table';
+
+  // header
+  const hRow = document.createElement('tr');
+  dp.forEach((_, i) => {
+    const th = document.createElement('th');
+    th.textContent = labels[i] || i;
+    hRow.appendChild(th);
+  });
+  table.appendChild(hRow);
+
+  // cells
+  const dRow = document.createElement('tr');
+  dp.forEach((v, i) => {
+    const td = document.createElement('td');
+    td.className = 'dp-cell';
+    const isActive = s.active === i;
+    const isSource = Array.isArray(s.sources) && s.sources.includes(i);
+    if (isActive) td.classList.add('s-active');
+    else if (isSource) td.classList.add('s-source');
+    else if (v !== null && v !== undefined) td.classList.add(v >= INF ? 's-infinity' : isBool ? (v ? 's-filled' : 's-no') : 's-filled');
+
+    if (v === null || v === undefined) td.textContent = '';
+    else if (isBool) td.textContent = v ? 'T' : 'F';
+    else td.textContent = v >= INF ? '∞' : v;
+
+    dRow.appendChild(td);
+  });
+  table.appendChild(dRow);
+  scroll.appendChild(table);
+  el.appendChild(scroll);
+}
+
+// ── 2D VIZ ────────────────────────────────────────────
+function render2D(s) {
+  const el = document.getElementById('vizBody');
+  el.innerHTML = '';
+  const dp = s.dp;
+  const active = s.active || [-1, -1];
+  const sources = s.sources || [];
+  const rowHdr = s.rowHdr || dp.map((_, i) => `r${i}`);
+  const colHdr = s.colHdr || dp[0].map((_, j) => `c${j}`);
+  const INF = SIM.INF || 99999;
+
+  const scroll = document.createElement('div');
+  scroll.className = 'dp-table-wrap';
+  const table = document.createElement('table');
+  table.className = 'dp-table';
+
+  // col headers
+  const hRow = document.createElement('tr');
+  const corner = document.createElement('th');
+  corner.textContent = '';
+  hRow.appendChild(corner);
+  colHdr.forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    hRow.appendChild(th);
+  });
+  table.appendChild(hRow);
+
+  dp.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    const rowTh = document.createElement('th');
+    rowTh.textContent = rowHdr[i] || i;
+    tr.appendChild(rowTh);
+
+    row.forEach((v, j) => {
+      const td = document.createElement('td');
+      td.className = 'dp-cell';
+      const isActive = active[0] === i && active[1] === j;
+      const isSource = sources.some(src => src[0] === i && src[1] === j);
+
+      if (isActive) td.classList.add('s-active');
+      else if (isSource) td.classList.add('s-source');
+      else if (v !== 0 && v !== null) td.classList.add(v >= INF ? 's-infinity' : 's-filled');
+      else td.classList.add('s-empty');
+
+      td.textContent = v >= INF ? '∞' : v;
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+
+  scroll.appendChild(table);
+  el.appendChild(scroll);
+
+  // string display for LCS/edit
+  if (s.s1 && s.s2) {
+    const strWrap = document.createElement('div');
+    strWrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:10px;';
+
+    const makeStrRow = (label, str, activeIdx, sourceIdx) => {
+      const row = document.createElement('div');
+      row.className = 'str-row';
+      const lbl = document.createElement('span');
+      lbl.className = 'str-label';
+      lbl.textContent = label + ':';
+      row.appendChild(lbl);
+      [...str].forEach((ch, idx) => {
+        const c = document.createElement('div');
+        c.className = 'str-char';
+        c.textContent = ch;
+        if (idx === activeIdx) c.classList.add('sc-active');
+        else if (idx === sourceIdx) c.classList.add('sc-source');
+        if (s.matchChar && ch === s.matchChar && idx === (label === 's1' ? s.si : s.sj)) c.classList.add('sc-match');
+        row.appendChild(c);
+      });
+      return row;
+    };
+
+    strWrap.appendChild(makeStrRow('s1', s.s1, s.si, null));
+    strWrap.appendChild(makeStrRow('s2', s.s2, s.sj, null));
+    el.appendChild(strWrap);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════
+function prevStep() {
+  if (!SIM || stepIdx <= 0) return;
+  stepIdx--;
+  renderStep(stepIdx);
+  updateNav();
+}
+function nextStep() {
+  if (!SIM || stepIdx >= SIM.steps.length - 1) return;
+  stepIdx++;
+  renderStep(stepIdx);
+  updateNav();
+}
+function updateNav() {
+  document.getElementById('btnPrev').disabled = !SIM || stepIdx <= 0;
+  document.getElementById('btnNext').disabled = !SIM || stepIdx >= (SIM?.steps.length || 0) - 1;
+}
+
+function toggleAuto() {
+  isAuto ? stopAuto() : startAuto();
+}
+function startAuto() {
+  if (!SIM) return;
+  isAuto = true;
+  const btn = document.getElementById('btnAuto');
+  btn.textContent = 'PAUSE ⏸';
+  btn.classList.add('active');
+  tick();
+}
+function stopAuto() {
+  isAuto = false;
+  const btn = document.getElementById('btnAuto');
+  btn.textContent = 'AUTO ▶';
+  btn.classList.remove('active');
+  if (autoTimer) clearTimeout(autoTimer);
+}
+function tick() {
+  if (!isAuto) return;
+  if (!SIM || stepIdx >= SIM.steps.length - 1) { stopAuto(); return; }
+  nextStep();
+  const spd = parseInt(document.getElementById('speedSlider').value);
+  const delay = Math.round(1800 / spd);
+  autoTimer = setTimeout(tick, delay);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowRight') nextStep();
+  if (e.key === 'ArrowLeft') prevStep();
+  if (e.key === ' ') { e.preventDefault(); toggleAuto(); }
+  if (e.key === 'Enter') runSim();
+});
+
+// BOOT
+window.onload = () => { changeProblem(); runSim(); };
+</script>
+</body>
+</html>

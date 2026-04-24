@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEM.VIZ v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#04050a;--amber:#ffb229;--amber-dim:#a06800;--green:#4ade80;--red:#f43f5e;--purple:#a855f7;--blue:#60a5fa;--cyan:#22d3ee;--orange:#f97316;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--amber);font-family:'Share Tech Mono',monospace;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 65%,rgba(0,0,0,.48)100%);pointer-events:none;z-index:9000;}
+@keyframes crt-flicker{0%,94%{filter:brightness(1)contrast(1.03);}95%{filter:brightness(.84);}96%{filter:brightness(1);}}
+#crt-wrap{width:100vw;height:100vh;display:flex;flex-direction:column;animation:crt-flicker .18s steps(1) infinite;}
+#scan-line{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,178,41,.05);pointer-events:none;z-index:8999;animation:scanmove 8s linear infinite;}
+@keyframes scanmove{from{top:-3px;}to{top:100vh;}}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:8998;opacity:.028;}
+#ca-overlay{position:fixed;inset:0;pointer-events:none;z-index:9002;opacity:0;}
+#ca-overlay.fire{animation:ca-anim .28s ease forwards;}
+@keyframes ca-anim{0%{opacity:1;box-shadow:inset -3px 0 0 rgba(255,30,30,.3),inset 3px 0 0 rgba(30,80,255,.3);}100%{opacity:0;}}
+#boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:7000;padding:48px;}
+#boot-logo{font-family:'VT323',monospace;font-size:80px;color:var(--amber);text-shadow:0 0 40px var(--amber);letter-spacing:8px;margin-bottom:6px;}
+#boot-tagline{font-size:13px;color:var(--amber-dim);letter-spacing:5px;margin-bottom:48px;}
+#boot-terminal{width:640px;max-width:92vw;font-size:13px;line-height:2;}
+.bl{display:flex;justify-content:space-between;gap:16px;opacity:0;transition:opacity .1s;}.bl.show{opacity:1;}.bl-ok{color:#4ade80;}
+#boot-progress{width:640px;max-width:92vw;margin-top:28px;height:3px;background:rgba(255,178,41,.1);border:1px solid rgba(255,178,41,.2);}
+#boot-fill{height:100%;width:0%;background:var(--amber);box-shadow:0 0 10px var(--amber);transition:width .08s linear;}
+#boot-copy{margin-top:20px;font-size:12px;color:rgba(255,178,41,.28);letter-spacing:3px;}
+@keyframes bcursor{50%{opacity:0;}}#boot-cursor{display:inline-block;width:9px;height:14px;background:var(--amber);animation:bcursor .7s step-end infinite;vertical-align:middle;margin-left:4px;}
+#main{display:none;flex:1;flex-direction:column;height:100vh;overflow:hidden;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}#main.show{display:flex;animation:fadeIn .5s ease;}
+#header{display:flex;align-items:center;gap:10px;padding:5px 14px;border-bottom:1px solid rgba(255,178,41,.18);background:rgba(0,0,0,.5);flex-shrink:0;height:44px;}
+#logo{font-family:'VT323',monospace;font-size:32px;color:var(--amber);text-shadow:0 0 18px var(--amber);letter-spacing:4px;flex-shrink:0;}
+#tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}#tabs::-webkit-scrollbar{display:none;}
+.tab{font-size:9px;padding:3px 9px;border:1px solid rgba(255,178,41,.22);background:transparent;color:var(--amber-dim);cursor:pointer;letter-spacing:1.5px;white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.tab:hover,.tab.active{border-color:var(--amber);background:rgba(255,178,41,.11);color:var(--amber);}
+#snd-btn{font-size:15px;background:transparent;border:1px solid rgba(255,178,41,.25);color:var(--amber);padding:3px 8px;cursor:pointer;flex-shrink:0;}
+#panels{display:flex;flex:1;overflow:hidden;}
+#left{flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,178,41,.12);}
+#viz-wrap{flex:1;position:relative;overflow:hidden;}
+#viz-canvas{width:100%;height:100%;display:block;}
+#prog-wrap{height:2px;background:rgba(255,178,41,.08);flex-shrink:0;}
+#prog-bar{height:100%;width:0%;background:linear-gradient(to right,rgba(255,178,41,.2),var(--amber));transition:width .1s;}
+#step-desc{padding:4px 12px;display:flex;align-items:center;gap:9px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.32);min-height:32px;flex-shrink:0;}
+.pbadge{font-family:'VT323',monospace;font-size:13px;padding:2px 7px;border:1px solid;letter-spacing:2px;flex-shrink:0;}
+.pbadge.init{color:var(--amber-dim);border-color:var(--amber-dim);}
+.pbadge.stack{color:#60a5fa;border-color:#60a5fa;background:rgba(96,165,250,.07);}
+.pbadge.heap{color:#4ade80;border-color:#4ade80;background:rgba(74,222,128,.08);}
+.pbadge.escape{color:#f97316;border-color:#f97316;background:rgba(249,115,22,.09);}
+.pbadge.gc{color:#a855f7;border-color:#a855f7;background:rgba(168,85,247,.09);}
+.pbadge.grow{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.08);}
+.pbadge.alloc{color:#fbbf24;border-color:#fbbf24;background:rgba(251,191,36,.07);}
+.pbadge.free{color:#f43f5e;border-color:#f43f5e;background:rgba(244,63,94,.08);}
+.pbadge.move{color:#22d3ee;border-color:#22d3ee;background:rgba(34,211,238,.08);}
+#step-txt{font-size:9.5px;color:rgba(255,178,41,.65);flex:1;line-height:1.4;}
+#stats{display:flex;gap:12px;padding:3px 12px;border-top:1px solid rgba(255,178,41,.09);background:rgba(0,0,0,.2);flex-shrink:0;align-items:center;}
+.si{display:flex;gap:5px;align-items:baseline;}.sl{font-size:7.5px;color:var(--amber-dim);letter-spacing:1.5px;}.sv{font-family:'VT323',monospace;font-size:18px;color:var(--amber);}
+#controls{display:flex;align-items:center;gap:6px;padding:4px 12px;border-top:1px solid rgba(255,178,41,.13);background:rgba(0,0,0,.28);flex-shrink:0;flex-wrap:wrap;}
+.cbtn{font-family:'VT323',monospace;font-size:14px;padding:2px 9px;border:1px solid rgba(255,178,41,.35);background:transparent;color:var(--amber);cursor:pointer;transition:all .1s;}.cbtn:hover{background:rgba(255,178,41,.08);}
+#play-btn.playing{color:#f43f5e;border-color:#f43f5e;}
+.csep{width:1px;height:16px;background:rgba(255,178,41,.12);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:60px;height:2px;background:rgba(255,178,41,.25);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--amber);cursor:pointer;}
+#step-ctr{font-family:'VT323',monospace;font-size:14px;color:var(--amber-dim);margin-left:auto;}
+#kbhints{display:flex;gap:10px;padding:2px 12px;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,178,41,.06);flex-shrink:0;}
+.kbh{font-size:7.5px;color:rgba(255,178,41,.28);}.kbk{border:1px solid rgba(255,178,41,.18);padding:0 3px;font-size:7px;}
+#right{width:350px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18);}
+.psec{flex-shrink:0;border-bottom:1px solid rgba(255,178,41,.09);}
+.phdr{font-family:'VT323',monospace;font-size:12px;letter-spacing:3px;color:var(--amber-dim);padding:4px 11px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,178,41,.07);}
+#code-scroll{overflow-y:auto;max-height:200px;padding:3px 0;}
+#code-scroll::-webkit-scrollbar{width:3px;}#code-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.25);}
+.cline{display:flex;font-family:'IBM Plex Mono',monospace;font-size:9.5px;line-height:1.65;padding:0 6px;white-space:pre;}.cline.active{background:rgba(255,178,41,.09);}
+.ln{color:rgba(255,178,41,.18);width:18px;text-align:right;margin-right:8px;user-select:none;flex-shrink:0;}
+.kw{color:#c678dd;}.str{color:#98c379;}.nm{color:#d19a66;}.fn{color:#61afef;}.cm{color:#4b5263;font-style:italic;}
+#r-scroll{flex:1;overflow-y:auto;}#r-scroll::-webkit-scrollbar{width:3px;}#r-scroll::-webkit-scrollbar-thumb{background:rgba(255,178,41,.15);}
+.info-block{padding:7px 11px;font-size:9.5px;line-height:1.75;color:rgba(255,178,41,.48);}.info-block strong{color:rgba(255,178,41,.75);}
+.rw-tag{display:inline-block;background:rgba(255,178,41,.07);border:1px solid rgba(255,178,41,.2);padding:1px 5px;font-size:8.5px;margin:1px 2px;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,178,41,.2);}
+</style>
+</head>
+<body>
+<canvas id="noise"></canvas><div id="scan-line"></div><div id="ca-overlay"></div>
+<div id="boot">
+  <div id="boot-logo">MEM.VIZ</div>
+  <div id="boot-tagline">GO MEMORY MODEL VISUALIZER v1.0</div>
+  <div id="boot-terminal"></div>
+  <div id="boot-progress"><div id="boot-fill"></div></div>
+  <div id="boot-copy">© 198X ALGORITHMICS CORP. ALL RIGHTS RESERVED.</div>
+</div>
+<div id="crt-wrap"><div id="main">
+  <div id="header">
+    <div id="logo">MEM.VIZ</div>
+    <div id="tabs"></div>
+    <button id="snd-btn" onclick="toggleMute()">🔊</button>
+  </div>
+  <div id="panels">
+    <div id="left">
+      <div id="viz-wrap"><canvas id="viz-canvas"></canvas></div>
+      <div id="prog-wrap"><div id="prog-bar"></div></div>
+      <div id="step-desc"><span class="pbadge init" id="pbadge">INIT</span><span id="step-txt">Select scenario (1–5).</span></div>
+      <div id="stats">
+        <div class="si"><span class="sl">HEAP_LIVE</span><span class="sv" id="s-heap">0B</span></div>
+        <div class="si"><span class="sl">STACK_USED</span><span class="sv" id="s-stack">0B</span></div>
+        <div class="si"><span class="sl">GOROUTINES</span><span class="sv" id="s-gor">1</span></div>
+        <div class="si"><span class="sl">GC_RUNS</span><span class="sv" id="s-gc">0</span></div>
+        <div class="si"><span class="sl">ESCAPED</span><span class="sv" id="s-esc" style="color:#f97316">0</span></div>
+      </div>
+      <div id="controls">
+        <button class="cbtn" onclick="prev()">◀ PREV</button>
+        <button class="cbtn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="cbtn" onclick="next()">NEXT ▶</button>
+        <div class="csep"></div>
+        <button class="cbtn" onclick="doReset()">↺ RESET</button>
+        <div class="csep"></div>
+        <div style="display:flex;align-items:center;gap:5px"><span style="font-size:8px;color:var(--amber-dim)">SPEED</span>
+          <input type="range" id="sp-sl" min="1" max="10" value="5" oninput="changeSpeed(this.value)">
+        </div>
+        <span id="step-ctr">0 / 0</span>
+      </div>
+      <div id="kbhints">
+        <span class="kbh"><span class="kbk">← →</span> Step</span>
+        <span class="kbh"><span class="kbk">SPACE</span> Play</span>
+        <span class="kbh"><span class="kbk">R</span> Reset</span>
+        <span class="kbh"><span class="kbk">M</span> Mute</span>
+        <span class="kbh"><span class="kbk">1–5</span> Scenario</span>
+      </div>
+    </div>
+    <div id="right">
+      <div class="psec"><div class="phdr">▸ GO SOURCE</div><div id="code-scroll"></div></div>
+      <div id="r-scroll">
+        <div class="psec"><div class="phdr">▸ KEY RULE</div><div id="cx-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ HOW IT WORKS</div><div id="how-info" class="info-block"></div></div>
+        <div class="psec"><div class="phdr">▸ INTERVIEW FACTS</div><div id="facts" class="info-block"></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<script>
+/* NOISE */
+(()=>{const c=document.getElementById('noise'),x=c.getContext('2d');const r=()=>{c.width=innerWidth;c.height=innerHeight;};r();window.addEventListener('resize',r);const d=()=>{const id=x.createImageData(c.width,c.height),da=id.data;for(let i=0;i<da.length;i+=4){const v=Math.random()>.968?255:0;da[i]=da[i+1]=da[i+2]=v;da[i+3]=v?130:0;}x.putImageData(id,0,0);requestAnimationFrame(d);};d();})();
+function sGlitch(){setTimeout(()=>{document.getElementById('crt-wrap').style.filter='brightness(.25)';setTimeout(()=>{document.getElementById('crt-wrap').style.filter='';sGlitch();},20+Math.random()*14);},4200+Math.random()*5200);}sGlitch();
+let AC=null,muted=false;
+function initAudio(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+function snd(type){if(muted||!AC)return;try{const g=AC.createGain(),ws=AC.createWaveShaper();const cv=new Float32Array(256);for(let i=0;i<256;i++){const x=i*2/256-1;cv[i]=x*(Math.PI+11)/(Math.PI+11*Math.abs(x));}ws.curve=cv;ws.connect(AC.destination);g.connect(ws);const o=AC.createOscillator();o.connect(g);const p={stack:[380,.06],heap:[480,.07],escape:[300,.1],gc:[560,.1],grow:[440,.08],alloc:[420,.06],free:[200,.08],move:[350,.07],click:[360,.04]};const[f,d]=p[type]||[360,.05];o.frequency.setValueAtTime(f,AC.currentTime);o.type='sawtooth';g.gain.setValueAtTime(.1,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.start(AC.currentTime);o.stop(AC.currentTime+d+.02);}catch(e){}}
+function toggleMute(){muted=!muted;document.getElementById('snd-btn').textContent=muted?'🔇':'🔊';if(!muted)snd('click');}
+function triggerCA(){const el=document.getElementById('ca-overlay');el.classList.remove('fire');void el.offsetWidth;el.classList.add('fire');}
+
+function hlGo(l){let s=l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');s=s.replace(/(\/\/.*)/g,'<span class="cm">$1</span>');s=s.replace(/"([^"]*)"/g,'<span class="str">"$1"</span>');s=s.replace(/\b(func|go|var|type|struct|return|if|for|make|new|nil|int|string|bool|interface|append|len|cap|unsafe|Sizeof|Pointer|uintptr)\b/g,'<span class="kw">$1</span>');s=s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="fn">$1</span>');s=s.replace(/\b(\d+)\b/g,'<span class="nm">$1</span>');return s;}
+function renderCode(lines,active){const el=document.getElementById('code-scroll');el.innerHTML=lines.map((l,i)=>`<div class="cline${i===active?' active':''}"><span class="ln">${i+1}</span><span class="cc">${hlGo(l)}</span></div>`).join('');if(active>=0){const a=el.querySelectorAll('.cline')[active];if(a)a.scrollIntoView({block:'nearest'});}}
+
+/* ══════ SCENARIOS ══════ */
+const SCENARIOS={
+  escape:{label:'ESCAPE ANALYSIS',
+    code:['// Escape analysis: compiler decides stack vs heap','','func noEscape() *int {','    x := 42           // x escapes to heap','    return &x         // address returned → escapes','}','','func stackOnly() int {','    x := 42           // x stays on stack','    return x          // value returned → no escape','}','','func sliceEscape() {','    s := make([]int, 1000)  // large: heap','    _ = s','}','','func interfaceEscape(v interface{}) {','    // v stored in interface → heap (box alloc)','    store(v)  // unknown consumer → must escape','    // go build -gcflags="-m" shows escape decisions','}'],
+    cx:`<strong>Escape</strong>: variable allocated on heap instead of stack<br><strong>Causes</strong>: return pointer, store in interface, closure capture, too large for stack, go routine<br><strong>Cost</strong>: heap alloc = GC pressure; stack alloc = free on return<br><strong>Tool</strong>: <code>go build -gcflags="-m"</code>`,
+    how:`Go's compiler runs escape analysis on every variable. If a variable's address is taken and outlives its stack frame — it escapes to the heap.<br><br>Stack allocation is nearly free: just decrement SP. Heap allocation triggers GC eventually. Variables under 32KB typically stay on stack when possible.<br><br>Common escape triggers: returning a pointer, storing in <code>interface{}</code>, large arrays, goroutine captures.`,
+    facts:`<span class="rw-tag">-gcflags="-m"</span> show escape analysis output per variable<br><span class="rw-tag">interface{}</span> boxing always allocates unless inlined by compiler<br><span class="rw-tag">fmt.Println</span> causes escapes — avoid in hot paths<br><span class="rw-tag">sync.Pool</span> reduces heap pressure for frequently allocated objects<br><span class="rw-tag">Benchmark</span> use -benchmem to count allocations per op`,
+  },
+  stackgrow:{label:'STACK GROWTH',
+    code:['// Goroutine stack: starts small, grows as needed','','// Initial stack: 2KB (Go 1.4+)','// Max stack: 1GB (default, GOGC configurable)','','func recursive(n int) int {','    // each call frame: ~48 bytes','    if n == 0 { return 0 }','    return recursive(n - 1) + n  // stack grows','    // at overflow: runtime copies entire stack','    // old stack → new stack (2x size)','    // all pointers updated (Go uses pointer maps)','    // old stack freed','}','','// Stack segments (old pre-Go1.4):','// - hot split problem: flip-flop between segments','// Contiguous stacks (Go 1.4+):','// - copy-on-grow: no hot split, pointer rewrite','},'],
+    cx:`<strong>Initial</strong>: 2KB per goroutine (Go 1.14+)<br><strong>Growth</strong>: double on overflow — copy entire stack<br><strong>Shrink</strong>: GC can shrink idle goroutine stacks<br><strong>Max</strong>: 1GB default (runtime.GOMAXSTACKS)`,
+    how:`Goroutine stacks start at 2KB and grow dynamically. When the stack is too small, the runtime:<br>1. Allocates a new stack 2x the size<br>2. Copies all frames to the new location<br>3. Rewrites all pointers (using stack pointer maps)<br>4. Frees the old stack<br><br>This is why Go can run millions of goroutines — each starts tiny vs OS threads (8MB default).`,
+    facts:`<span class="rw-tag">OS thread</span> stack: 8MB fixed — limits thread count<br><span class="rw-tag">Goroutine</span> stack: 2KB start → millions concurrent<br><span class="rw-tag">Stack scan</span> GC must scan all goroutine stacks for pointers<br><span class="rw-tag">goroutine leak</span> blocked goroutine = stack never freed<br><span class="rw-tag">Nosplit</span> runtime functions marked nosplit can't grow stack`,
+  },
+  gc:{label:'TRI-COLOR GC',
+    code:['// Tri-color mark-and-sweep GC','// Three sets: White (unmarked), Grey (frontier), Black (done)','','// Phase 1: MARK START (STW ~100µs)','// - enable write barrier','// - scan all goroutine stacks (root set)','// - mark root objects grey','','// Phase 2: CONCURRENT MARK (concurrent)','// - goroutines run alongside GC workers','// - Grey → scan children → Black','// - Write barrier: if mutator writes, re-grey','','// Phase 3: MARK TERMINATION (STW ~100µs)','// - flush write barrier buffers','// - ensure all grey objects processed','','// Phase 4: SWEEP (concurrent)','// - reclaim white (unreachable) objects','// - no STW; lazy sweep during allocation','','// GOGC=100: GC when heap doubles (default)'],
+    cx:`<strong>STW pauses</strong>: 2 per cycle, typically under 500µs<br><strong>Throughput</strong>: ~25% CPU for GC at GOGC=100<br><strong>Write barrier</strong>: Dijkstra-style — tri-color invariant maintenance<br><strong>GOGC=off</strong>: disable GC (use in tests/batch only)`,
+    how:`Go uses a concurrent tri-color mark-and-sweep GC:<br><br><strong>White</strong>: not yet seen — candidate for collection<br><strong>Grey</strong>: seen but children not scanned yet<br><strong>Black</strong>: seen and all children processed — safe<br><br>The write barrier ensures: no black object directly points to white (tri-color invariant). Mutator goroutines run concurrently with GC workers.`,
+    facts:`<span class="rw-tag">GOGC=100</span> trigger: heap doubles since last GC<br><span class="rw-tag">GOMEMLIMIT</span> Go 1.19+ soft memory limit for GC<br><span class="rw-tag">runtime.GC()</span> force immediate collection<br><span class="rw-tag">pprof heap</span> profile heap allocations with runtime/pprof<br><span class="rw-tag">Finalizers</span> runtime.SetFinalizer — avoid in prod (nondeterministic)`,
+  },
+  layout:{label:'STRUCT LAYOUT',
+    code:['// Struct alignment: fields padded to alignment','','type Bad struct {','    a bool    // 1 byte + 7 pad','    b float64 // 8 bytes  → total: 16','    c bool    // 1 byte + 7 pad → total: 24','    // size: 24 bytes','    // waste: 14 bytes padding!','    // unsafe.Sizeof(Bad{}) == 24','    // fields not sorted by alignment','    // cost: larger structs = more GC scan work','    // cost: more cache line splits','    // cost: false sharing in concurrent maps','    // cost: larger slices = more memory','','}','','type Good struct {','    b float64 // 8 bytes','    a bool    // 1 byte','    c bool    // 1 byte + 6 pad','    // unsafe.Sizeof(Good{}) == 16 (saves 8B!)','    // rule: largest fields first','    // tool: fieldalignment linter','}'],
+    cx:`<strong>Alignment rule</strong>: field at offset divisible by its size<br><strong>bool</strong>: 1-byte align. <strong>int32</strong>: 4-byte. <strong>float64</strong>: 8-byte<br><strong>Struct size</strong>: padded to largest field alignment<br><strong>Savings</strong>: reorder fields → up to 33% smaller struct`,
+    how:`CPU requires fields to be naturally aligned: a float64 must be at an 8-byte-aligned offset. The Go compiler inserts <em>padding</em> between fields if needed.<br><br><strong>Fix</strong>: sort fields from largest to smallest alignment. This eliminates inter-field padding.<br><br><code>unsafe.Sizeof()</code> shows true struct size. <code>go vet -fieldalignment</code> lints bad layouts.`,
+    facts:`<span class="rw-tag">fieldalignment</span> tool: golang.org/x/tools/go/analysis/passes/fieldalignment<br><span class="rw-tag">False sharing</span> two goroutines writing adjacent fields → same cache line → contention<br><span class="rw-tag">cache line</span> 64 bytes — pad hot fields to 64B to prevent sharing<br><span class="rw-tag">atomic</span> 64-bit atomics require 8-byte alignment (checked at startup)`,
+  },
+  pointers:{label:'POINTER INTERNALS',
+    code:['// Go pointers: safe, GC-traced, no pointer arithmetic','','// Fat pointer (slice):','type SliceHeader struct {','    Data uintptr  // pointer to backing array','    Len  int      // current length','    Cap  int      // capacity','    // 24 bytes total on 64-bit','}','','// Fat pointer (string):','type StringHeader struct {','    Data uintptr','    Len  int      // 16 bytes total','    // string is immutable → no Cap field','}','','// Interface: two-word struct','type Iface struct {','    Type *itab   // pointer to type info + methods','    Data unsafe.Pointer // pointer to value (or value itself)','    // small values (≤ ptr size) stored directly','    // larger values: heap-allocated, Data points there','    // nil interface: both words = nil','    // typed nil: Type != nil, Data = nil','}'],
+    cx:`<strong>Slice</strong>: 24 bytes (ptr + len + cap)<br><strong>String</strong>: 16 bytes (ptr + len) — immutable<br><strong>Interface</strong>: 16 bytes (type ptr + data ptr)<br><strong>Map/Chan</strong>: single pointer (8 bytes) to runtime struct`,
+    how:`Understanding Go's fat pointers is critical for performance:<br><br><strong>Slices</strong>: passing a slice copies 24 bytes, not the backing array. Slice tricks are O(1) because they just adjust header fields.<br><br><strong>Interfaces</strong>: boxing a small value into <code>interface{}</code> may heap-allocate. The type word enables dynamic dispatch.<br><br><strong>nil</strong>: a typed nil interface has non-nil Type word — equality check <code>err == nil</code> checks both words.`,
+    facts:`<span class="rw-tag">typed nil</span> (*T)(nil) != nil as error — classic Go bug<br><span class="rw-tag">interface boxing</span> always allocates if value > pointer size<br><span class="rw-tag">reflect.SliceHeader</span> deprecated in 1.20 — use unsafe.Slice instead<br><span class="rw-tag">uintptr</span> NOT traced by GC — never store live pointers as uintptr<br><span class="rw-tag">unsafe.Pointer</span> GC-safe pointer conversion — 6 valid patterns only`,
+  },
+};
+
+/* ══════ STEP BUILDERS ══════ */
+function buildSteps(key){
+  const steps=[];
+  function snap(phase,desc,cl,state){steps.push({phase,desc,cl,...state});}
+
+  if(key==='escape'){
+    snap('init','Escape analysis: compiler decides at compile time where each variable lives.',0,{heapObjs:[],stackFrames:[{name:'main',vars:[]}],gcRuns:0,escaped:0,heapBytes:0,stackBytes:0,goroutines:1});
+    snap('stack','stackOnly(): x=42 returned by VALUE. No pointer taken. x lives on stack frame.',7,{heapObjs:[],stackFrames:[{name:'stackOnly',vars:[{name:'x',val:'42',loc:'stack',hl:true}]},{name:'main',vars:[]}],gcRuns:0,escaped:0,heapBytes:0,stackBytes:8,goroutines:1});
+    snap('stack','stackOnly() returns. Stack frame popped. x freed instantly — no GC needed. Cost: ~0.',9,{heapObjs:[],stackFrames:[{name:'main',vars:[{name:'ret',val:'42',loc:'stack'}]}],gcRuns:0,escaped:0,heapBytes:0,stackBytes:8,goroutines:1});
+    snap('escape','noEscape(): x=42, but &x is returned. x\'s address outlives the stack frame. ESCAPES TO HEAP.',3,{heapObjs:[{id:'x',label:'x=42',size:8,hl:true,color:'#f97316'}],stackFrames:[{name:'noEscape',vars:[{name:'x',val:'*heap',loc:'heap',hl:true,escaped:true}]},{name:'main',vars:[]}],gcRuns:0,escaped:1,heapBytes:8,stackBytes:4,goroutines:1});
+    snap('heap','noEscape() returns. Stack frame gone. Heap object survives — pointer returned to caller.',5,{heapObjs:[{id:'x',label:'x=42',size:8,color:'#f97316'}],stackFrames:[{name:'main',vars:[{name:'p',val:'0xc0001',loc:'stack'}]}],gcRuns:0,escaped:1,heapBytes:8,stackBytes:8,goroutines:1});
+    snap('escape','sliceEscape(): make([]int, 1000) = 8000 bytes. Large allocation always on heap.',12,{heapObjs:[{id:'x',label:'x=42',size:8,color:'#f97316'},{id:'sl',label:'[1000]int',size:8000,hl:true,color:'#4ade80'}],stackFrames:[{name:'sliceEscape',vars:[{name:'s',val:'hdr→heap',loc:'stack'}]},{name:'main',vars:[{name:'p',val:'0xc0001',loc:'stack'}]}],gcRuns:0,escaped:2,heapBytes:8008,stackBytes:24,goroutines:1});
+    snap('escape','interfaceEscape(): v interface{} — value boxed into interface. Unknown size/type → heap.',16,{heapObjs:[{id:'x',label:'x=42',size:8,color:'#f97316'},{id:'sl',label:'[1000]int',size:8000,color:'#4ade80'},{id:'iface',label:'iface box',size:16,hl:true,color:'#a855f7'}],stackFrames:[{name:'main',vars:[{name:'p',val:'0xc0001',loc:'stack'},{name:'v',val:'iface',loc:'heap',escaped:true}]}],gcRuns:0,escaped:3,heapBytes:8024,stackBytes:16,goroutines:1});
+    snap('gc','Heap grows. GC triggers. Unreachable objects swept. Escape analysis keeps heap small by promoting stack allocations.',19,{heapObjs:[{id:'sl',label:'[1000]int',size:8000,color:'#4ade80'},{id:'iface',label:'iface box',size:16,color:'#a855f7'}],stackFrames:[{name:'main',vars:[{name:'p',val:'(freed)',loc:'stack',freed:true}]}],gcRuns:1,escaped:3,heapBytes:8016,stackBytes:16,goroutines:1});
+  }
+
+  else if(key==='stackgrow'){
+    snap('init','Goroutine stack growth. Initial stack: 2KB. Each recursive call consumes stack space.',0,{stacks:[{id:'g1',label:'G1',frames:[{name:'main',sz:64}],size:2048,cap:2048,color:'#60a5fa'}],heapObjs:[],gcRuns:0,escaped:0,heapBytes:0,stackBytes:64,goroutines:1});
+    snap('stack','recursive(5) call. Frame ~48 bytes pushed. Stack: 112/2048 bytes.',5,{stacks:[{id:'g1',label:'G1',frames:[{name:'main',sz:64},{name:'recursive(5)',sz:48,hl:true}],size:2048,cap:2048,color:'#60a5fa'}],heapObjs:[],gcRuns:0,escaped:0,heapBytes:0,stackBytes:112,goroutines:1});
+    snap('stack','Deeper recursion. Frames accumulating. Stack: 376/2048 bytes.',5,{stacks:[{id:'g1',label:'G1',frames:[{name:'main',sz:64},{name:'rec(5)',sz:48},{name:'rec(4)',sz:48},{name:'rec(3)',sz:48},{name:'rec(2)',sz:48},{name:'rec(1)',sz:48,hl:true}],size:2048,cap:2048,color:'#60a5fa'}],heapObjs:[],gcRuns:0,escaped:0,heapBytes:0,stackBytes:376,goroutines:1});
+    snap('grow','Stack overflow! Runtime detects low stack space. Allocating new 4KB stack (2x). Copying all frames.',10,{stacks:[{id:'g1',label:'G1 (GROWING)',frames:[{name:'main',sz:64},{name:'rec(5)',sz:48},{name:'rec(4)',sz:48},{name:'rec(3)',sz:48},{name:'rec(2)',sz:48},{name:'rec(1)',sz:48},{name:'rec(0)',sz:48,hl:true}],size:4096,cap:4096,color:'#22d3ee',growing:true}],heapObjs:[],gcRuns:0,escaped:0,heapBytes:0,stackBytes:448,goroutines:1});
+    snap('move','New 4KB stack allocated. ALL frames copied. ALL interior pointers rewritten. Old 2KB stack freed.',11,{stacks:[{id:'g1',label:'G1 (2x stack)',frames:[{name:'main',sz:64},{name:'rec(5)',sz:48},{name:'rec(4)',sz:48},{name:'rec(3)',sz:48},{name:'rec(2)',sz:48},{name:'rec(1)',sz:48},{name:'rec(0)',sz:48}],size:4096,cap:4096,color:'#4ade80',copied:true}],heapObjs:[],gcRuns:0,escaped:0,heapBytes:0,stackBytes:448,goroutines:1});
+    snap('stack','Compare: 3 goroutines. Each starts at 2KB. Total: 6KB. OS threads: 8MB each = 24MB for 3 threads.',0,{stacks:[{id:'g1',label:'G1',frames:[{name:'handler',sz:64}],size:2048,cap:2048,color:'#60a5fa'},{id:'g2',label:'G2',frames:[{name:'worker',sz:64}],size:2048,cap:2048,color:'#4ade80'},{id:'g3',label:'G3',frames:[{name:'poller',sz:48}],size:2048,cap:2048,color:'#a855f7'}],heapObjs:[],gcRuns:0,escaped:0,heapBytes:0,stackBytes:6144,goroutines:3});
+  }
+
+  else if(key==='gc'){
+    const white=(id,sz)=>({id,size:sz,color:'rgba(255,255,255,0.7)',state:'white',label:id});
+    const grey=(id,sz)=>({id,size:sz,color:'#fbbf24',state:'grey',label:id});
+    const black=(id,sz)=>({id,size:sz,color:'#1a1a2e',state:'black',border:'#60a5fa',label:id});
+    snap('init','Tri-color GC. Heap objects: white=unvisited, grey=frontier, black=done. Roots: stack vars + globals.',0,{gcPhase:'idle',heapObjs:[white('A',32),white('B',24),white('C',16),white('D',48),white('E',20),white('F',28)],roots:['A','C'],gcRuns:0,escaped:0,heapBytes:168,stackBytes:32,goroutines:2,writebBarrier:false});
+    snap('gc','PHASE 1: Mark Start (STW ~100µs). Write barrier enabled. Root objects → GREY.',1,{gcPhase:'mark_start',heapObjs:[grey('A',32),white('B',24),grey('C',16),white('D',48),white('E',20),white('F',28)],roots:['A','C'],gcRuns:0,escaped:0,heapBytes:168,stackBytes:32,goroutines:2,writeBarrier:true,stw:true});
+    snap('gc','PHASE 2: Concurrent mark. A scanned → A=BLACK, children B,D → GREY. Goroutines still running.',4,{gcPhase:'mark',heapObjs:[black('A',32),grey('B',24),grey('C',16),grey('D',48),white('E',20),white('F',28)],roots:['A','C'],gcRuns:0,escaped:0,heapBytes:168,stackBytes:32,goroutines:2,writeBarrier:true,stw:false,edges:[['A','B'],['A','D'],['C','E']]});
+    snap('gc','B,C,D scanned → BLACK. E→GREY (child of C). F unreachable: stays WHITE.',4,{gcPhase:'mark',heapObjs:[black('A',32),black('B',24),black('C',16),black('D',48),grey('E',20),white('F',28)],roots:['A','C'],gcRuns:0,escaped:0,heapBytes:168,stackBytes:32,goroutines:2,writeBarrier:true,stw:false,edges:[['A','B'],['A','D'],['C','E']]});
+    snap('gc','PHASE 3: Mark Termination (STW ~100µs). All grey processed. E→BLACK. F still WHITE=garbage.',13,{gcPhase:'mark_term',heapObjs:[black('A',32),black('B',24),black('C',16),black('D',48),black('E',20),white('F',28)],roots:['A','C'],gcRuns:0,escaped:0,heapBytes:168,stackBytes:32,goroutines:2,writeBarrier:false,stw:true,edges:[['A','B'],['A','D'],['C','E']]});
+    snap('free','PHASE 4: Concurrent SWEEP. F (white) → unreachable → FREED. Heap: 168B → 140B. Next GC at 280B.',16,{gcPhase:'sweep',heapObjs:[black('A',32),black('B',24),black('C',16),black('D',48),black('E',20)],roots:['A','C'],gcRuns:1,escaped:0,heapBytes:140,stackBytes:32,goroutines:2,writeBarrier:false,stw:false,edges:[['A','B'],['A','D'],['C','E']]});
+    triggerCA&&triggerCA();
+  }
+
+  else if(key==='layout'){
+    snap('init','Struct layout. CPU requires natural alignment. Compiler inserts padding between misaligned fields.',0,{structs:[{name:'Bad',fields:[{name:'a bool',size:1,align:1,pad:7,color:'#f43f5e'},{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'c bool',size:1,align:1,pad:7,color:'#f43f5e'}],total:24,waste:14},{name:'Good',fields:[{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'a bool',size:1,align:1,pad:0,color:'#4ade80'},{name:'c bool',size:1,align:1,pad:6,color:'#4ade80'}],total:16,waste:6}],gcRuns:0,escaped:0,heapBytes:0,stackBytes:0,goroutines:1});
+    snap('alloc','Bad struct: a(1B) at offset 0. float64 needs 8-byte align → 7 bytes PADDING inserted!',2,{structs:[{name:'Bad',fields:[{name:'a bool',size:1,align:1,pad:7,color:'#f43f5e',hl:true},{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'c bool',size:1,align:1,pad:7,color:'#f43f5e'}],total:24,waste:14,showPad:true},{name:'Good',fields:[{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'a bool',size:1,align:1,pad:0,color:'#4ade80'},{name:'c bool',size:1,align:1,pad:6,color:'#4ade80'}],total:16,waste:6}],gcRuns:0,escaped:0,heapBytes:24,stackBytes:0,goroutines:1});
+    snap('alloc','Bad: c(1B) at offset 17. Struct must be 8-byte aligned → 7 bytes tail padding. Total: 24B.',5,{structs:[{name:'Bad',fields:[{name:'a bool',size:1,align:1,pad:7,color:'#f43f5e'},{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'c bool',size:1,align:1,pad:7,color:'#f43f5e',hl:true}],total:24,waste:14,showPad:true},{name:'Good',fields:[{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'a bool',size:1,align:1,pad:0,color:'#4ade80'},{name:'c bool',size:1,align:1,pad:6,color:'#4ade80'}],total:16,waste:6}],gcRuns:0,escaped:0,heapBytes:24,stackBytes:0,goroutines:1});
+    snap('heap','Good struct: float64 first (8B). bool follows at offset 8 — only 1B, no alignment gap needed.',10,{structs:[{name:'Bad',fields:[{name:'a bool',size:1,align:1,pad:7,color:'#f43f5e'},{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'c bool',size:1,align:1,pad:7,color:'#f43f5e'}],total:24,waste:14,showPad:true},{name:'Good',fields:[{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa',hl:true},{name:'a bool',size:1,align:1,pad:0,color:'#4ade80',hl:true},{name:'c bool',size:1,align:1,pad:6,color:'#4ade80'}],total:16,waste:6,showPad:true}],gcRuns:0,escaped:0,heapBytes:16,stackBytes:0,goroutines:1});
+    snap('heap','Good: 16 bytes total vs 24 bytes. 33% smaller! 1 million structs: saves 8MB. Better cache utilization.',14,{structs:[{name:'Bad (24B)',fields:[{name:'a bool',size:1,align:1,pad:7,color:'#f43f5e'},{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'c bool',size:1,align:1,pad:7,color:'#f43f5e'}],total:24,waste:14,showPad:true},{name:'Good (16B)',fields:[{name:'b float64',size:8,align:8,pad:0,color:'#60a5fa'},{name:'a bool',size:1,align:1,pad:0,color:'#4ade80'},{name:'c bool',size:1,align:1,pad:6,color:'#4ade80'}],total:16,waste:6,showPad:true,winner:true}],gcRuns:0,escaped:0,heapBytes:16,stackBytes:0,goroutines:1});
+  }
+
+  else if(key==='pointers'){
+    snap('init','Go fat pointers. Slice, string, interface — each is a multi-word header, not a bare address.',0,{ptrs:[],gcRuns:0,escaped:0,heapBytes:0,stackBytes:0,goroutines:1});
+    snap('alloc','Slice header: 3 words (24B). Data=pointer to backing array, Len=used, Cap=allocated.',1,{ptrs:[{type:'SLICE',words:[{label:'Data',val:'→ heap',w:8,color:'#60a5fa'},{label:'Len',val:'5',w:8,color:'#4ade80'},{label:'Cap',val:'8',w:8,color:'#a855f7'}],note:'append() may grow backing array (new alloc), or reuse capacity',hl:true}],heapObjs:[{id:'arr',label:'[8]int backing',size:64,color:'#60a5fa'}],gcRuns:0,escaped:1,heapBytes:64,stackBytes:24,goroutines:1});
+    snap('alloc','String header: 2 words (16B). Data=pointer, Len=bytes. No Cap — strings are immutable.',5,{ptrs:[{type:'SLICE',words:[{label:'Data',val:'→ heap',w:8,color:'#60a5fa'},{label:'Len',val:'5',w:8,color:'#4ade80'},{label:'Cap',val:'8',w:8,color:'#a855f7'}],note:'24 bytes total'},{type:'STRING',words:[{label:'Data',val:'→ heap',w:8,color:'#fbbf24'},{label:'Len',val:'11',w:8,color:'#4ade80'}],note:'16 bytes. immutable — sharing backing bytes is safe',hl:true}],heapObjs:[{id:'arr',label:'[8]int',size:64,color:'#60a5fa'},{id:'str',label:'"hello world"',size:11,color:'#fbbf24'}],gcRuns:0,escaped:2,heapBytes:75,stackBytes:40,goroutines:1});
+    snap('alloc','Interface: 2 words (16B). Type=*itab (method table), Data=ptr to value or value itself.',9,{ptrs:[{type:'SLICE',words:[{label:'Data',val:'→',w:8,color:'#60a5fa'},{label:'Len',val:'5',w:8,color:'#4ade80'},{label:'Cap',val:'8',w:8,color:'#a855f7'}],note:'24B'},{type:'STRING',words:[{label:'Data',val:'→',w:8,color:'#fbbf24'},{label:'Len',val:'11',w:8,color:'#4ade80'}],note:'16B'},{type:'INTERFACE',words:[{label:'Type',val:'*itab',w:8,color:'#a855f7'},{label:'Data',val:'→ val',w:8,color:'#f97316'}],note:'nil interface: BOTH words = 0. typed nil: Type≠0, Data=0',hl:true}],heapObjs:[{id:'arr',label:'[8]int',size:64,color:'#60a5fa'},{id:'str',label:'"hello world"',size:11,color:'#fbbf24'},{id:'iface',label:'boxed val',size:8,color:'#f97316'}],gcRuns:0,escaped:3,heapBytes:83,stackBytes:56,goroutines:1});
+    snap('escape','GOTCHA: typed nil. (*MyErr)(nil) boxed into error interface → Type!=nil. "err != nil" is TRUE! Classic bug.',16,{ptrs:[{type:'INTERFACE (error)',words:[{label:'Type',val:'*MyErr≠nil',w:8,color:'#f43f5e',hl:true},{label:'Data',val:'nil',w:8,color:'#f43f5e',hl:true}],note:'⚠ typed nil: Type field is non-nil → err != nil evaluates true!',hl:true}],heapObjs:[],gcRuns:0,escaped:1,heapBytes:0,stackBytes:16,goroutines:1});
+  }
+
+  return steps;
+}
+
+/* ══════ CANVAS ══════ */
+const canvas=document.getElementById('viz-canvas');
+const ctx=canvas.getContext('2d');
+let CW=0,CH=0;
+function resizeCanvas(){const w=document.getElementById('viz-wrap');CW=canvas.width=w.clientWidth;CH=canvas.height=w.clientHeight;if(ST.steps.length)renderFrame(ST.steps[ST.idx]);}
+
+function renderFrame(step){
+  ctx.clearRect(0,0,CW,CH);
+  if(!step)return;
+  switch(curScene){
+    case'escape':renderEscape(step);break;
+    case'stackgrow':renderStack(step);break;
+    case'gc':renderGC(step);break;
+    case'layout':renderLayout(step);break;
+    case'pointers':renderPointers(step);break;
+  }
+}
+
+/* ─── ESCAPE RENDER ─── */
+function renderEscape(step){
+  const{heapObjs,stackFrames,gcRuns}=step;
+  const PAD=14;
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`ESCAPE ANALYSIS  heap_live=${step.heapBytes}B  gc_runs=${gcRuns}  escaped=${step.escaped}`,PAD,4);
+
+  // STACK column
+  const sX=PAD,sY=28,sW=CW*0.45-20,frameH=54;
+  ctx.font=`12px 'VT323'`;ctx.fillStyle='rgba(96,165,250,.5)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText('STACK',sX,sY);
+  (stackFrames||[]).forEach((f,i)=>{
+    const fy=sY+18+i*frameH;
+    ctx.save();ctx.strokeStyle='rgba(96,165,250,.3)';ctx.lineWidth=1;ctx.strokeRect(sX,fy,sW,frameH-4);
+    ctx.font=`11px 'VT323'`;ctx.fillStyle='rgba(96,165,250,.6)';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(f.name+'()',sX+4,fy+2);
+    (f.vars||[]).forEach((v,j)=>{
+      const col=v.escaped?'#f97316':v.freed?'#f43f5e':v.hl?'#fbbf24':'rgba(96,165,250,.5)';
+      ctx.font=`10px 'IBM Plex Mono'`;ctx.fillStyle=col;ctx.textBaseline='top';
+      ctx.fillText(`  ${v.name} = ${v.val}${v.escaped?' ↗ heap':''}${v.freed?' (freed)':''}`,sX+4,fy+16+j*14);
+    });
+    ctx.restore();
+  });
+
+  // HEAP column
+  const hX=CW*0.5,hY=28,hW=CW*0.48;
+  ctx.font=`12px 'VT323'`;ctx.fillStyle='rgba(74,222,128,.5)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText('HEAP',hX,hY);
+  const gridCols=3,cellW=hW/gridCols-6;
+  (heapObjs||[]).forEach((o,i)=>{
+    const col=o.hl?o.color:o.color||'#4ade80';
+    const ox=hX+(i%gridCols)*(cellW+6),oy=hY+18+Math.floor(i/gridCols)*60;
+    const oh=Math.max(36,Math.min(54,o.size/200*36+20));
+    ctx.save();if(o.hl){ctx.shadowColor=col;ctx.shadowBlur=12;}
+    ctx.fillStyle=col+'18';ctx.strokeStyle=col+'88';ctx.lineWidth=1.2;
+    ctx.fillRect(ox,oy,cellW,oh);ctx.strokeRect(ox,oy,cellW,oh);
+    ctx.font=`11px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(o.label,ox+cellW/2,oy+oh/2-6);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=col+'88';
+    ctx.fillText(`${o.size}B`,ox+cellW/2,oy+oh/2+8);
+    ctx.restore();
+  });
+  if(!heapObjs||heapObjs.length===0){
+    ctx.font=`12px 'Share Tech Mono'`;ctx.fillStyle='rgba(74,222,128,.1)';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('(empty — all on stack)',hX+hW/2,CH/2);
+  }
+}
+
+/* ─── STACK GROW RENDER ─── */
+function renderStack(step){
+  const{stacks}=step;if(!stacks)return;
+  const PAD=14;
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`STACK GROWTH  goroutines=${step.goroutines}  stack_used=${step.stackBytes}B`,PAD,4);
+
+  const gapX=24,stackW=Math.min(160,(CW-PAD*2-(stacks.length-1)*gapX)/stacks.length);
+  stacks.forEach((g,gi)=>{
+    const sx=PAD+gi*(stackW+gapX);
+    const maxFrameH=Math.min(40,(CH-80)/Math.max(1,(g.frames||[]).length+1));
+    const totalH=(g.frames.length+1)*maxFrameH;
+    const baseY=Math.min(CH-40,80+totalH);
+
+    // capacity bar bg
+    const capH=Math.min(CH-80,g.cap/32);
+    ctx.save();ctx.strokeStyle=g.color+'44';ctx.lineWidth=1;ctx.strokeRect(sx,baseY-capH,stackW,capH);ctx.restore();
+
+    // label
+    ctx.font=`14px 'VT323'`;ctx.fillStyle=g.color;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`${g.label} ${g.growing?'↑ GROW':''}${g.copied?'✓ COPIED':''}`,sx,28);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=g.color+'88';
+    ctx.fillText(`${g.size/1024}KB / ${g.cap/1024}KB`,sx,44);
+
+    // frames
+    (g.frames||[]).forEach((f,fi)=>{
+      const fy=baseY-(fi+1)*maxFrameH;
+      const col=f.hl?'#fbbf24':g.color;
+      ctx.save();if(f.hl||g.growing){ctx.shadowColor=col;ctx.shadowBlur=8;}
+      ctx.fillStyle=col+'18';ctx.strokeStyle=col+(f.hl?'':g.copied?'88':'44');ctx.lineWidth=f.hl?1.5:1;
+      ctx.fillRect(sx,fy,stackW,maxFrameH-2);ctx.strokeRect(sx,fy,stackW,maxFrameH-2);
+      ctx.font=`10px 'IBM Plex Mono'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(`${f.name} (${f.sz}B)`,sx+4,fy+maxFrameH/2);
+      ctx.restore();
+    });
+
+    // SP indicator
+    const spY=baseY-(g.frames.length)*maxFrameH;
+    ctx.save();ctx.strokeStyle=g.color+'80';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(sx,spY);ctx.lineTo(sx+stackW,spY);ctx.stroke();ctx.setLineDash([]);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=g.color+'60';ctx.textAlign='right';ctx.textBaseline='bottom';
+    ctx.fillText('SP',sx+stackW-2,spY-1);ctx.restore();
+  });
+
+  // legend
+  ctx.font=`10px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.25)';ctx.textAlign='right';ctx.textBaseline='bottom';
+  ctx.fillText('goroutine 2KB start  vs  OS thread 8MB fixed',CW-PAD,CH-6);
+}
+
+/* ─── GC RENDER ─── */
+function renderGC(step){
+  const{heapObjs,gcPhase,stw,writeBarrier,edges}=step;
+  const PAD=14;
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText(`TRI-COLOR GC  phase=${gcPhase||'idle'}  heap=${step.heapBytes}B  gc_runs=${step.gcRuns}  STW=${stw?'YES':'no'}  WB=${writeBarrier?'ON':'off'}`,PAD,4);
+
+  // STW banner
+  if(stw){
+    ctx.save();ctx.fillStyle='rgba(244,63,94,.08)';ctx.fillRect(0,0,CW,CH);
+    ctx.font=`18px 'VT323'`;ctx.fillStyle='rgba(244,63,94,.5)';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('STOP THE WORLD',CW/2,22);ctx.restore();
+  }
+
+  if(!heapObjs||heapObjs.length===0)return;
+  const cols=Math.ceil(Math.sqrt(heapObjs.length+1));const rows=Math.ceil(heapObjs.length/cols);
+  const cellW=(CW-PAD*2)/cols,cellH=Math.min(80,(CH-60)/rows);
+  const startY=56;
+
+  // draw edges first
+  const posMap={};heapObjs.forEach((o,i)=>{posMap[o.id]={x:PAD+(i%cols)*cellW+cellW/2,y:startY+Math.floor(i/cols)*cellH+cellH/2};});
+  (edges||[]).forEach(([a,b])=>{
+    const p=posMap[a],q=posMap[b];if(!p||!q)return;
+    ctx.save();ctx.strokeStyle='rgba(255,178,41,.2)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+  });
+
+  // draw nodes
+  heapObjs.forEach((o,i)=>{
+    const ox=PAD+(i%cols)*cellW,oy=startY+Math.floor(i/cols)*cellH;
+    const col=o.state==='grey'?'#fbbf24':o.state==='black'?'#60a5fa':o.state==='white'?'rgba(200,200,220,0.7)':'#4ade80';
+    const borderCol=o.border||col;
+    ctx.save();if(o.state==='grey'){ctx.shadowColor='#fbbf24';ctx.shadowBlur=12;}
+    ctx.fillStyle=o.state==='black'?'rgba(26,26,46,0.9)':col+'18';
+    ctx.strokeStyle=borderCol;ctx.lineWidth=o.state==='grey'?2:1;
+    const r=Math.min(cellW,cellH)*0.38;const cx2=ox+cellW/2,cy2=oy+cellH/2;
+    ctx.beginPath();ctx.arc(cx2,cy2,r,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.font=`16px 'VT323'`;ctx.fillStyle=o.state==='black'?'#60a5fa':col;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(o.id,cx2,cy2-4);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle=(o.state==='black'?'#60a5fa':col)+'88';
+    ctx.fillText(o.state.toUpperCase(),cx2,cy2+10);
+    ctx.restore();
+    // mark root
+    if((step.roots||[]).includes(o.id)){ctx.save();ctx.strokeStyle='rgba(255,178,41,.4)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx2,cy2,r+6,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  });
+
+  // legend
+  const lX=CW-PAD-180,lY=CH-52;
+  [['#aaa','WHITE = unvisited'],['#fbbf24','GREY = frontier'],['#60a5fa','BLACK = done'],['rgba(200,200,200,.3)','free']].forEach(([c,t],i)=>{
+    ctx.fillStyle=c;ctx.fillRect(lX,lY+i*12,10,10);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.4)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(t,lX+14,lY+i*12);
+  });
+}
+
+/* ─── LAYOUT RENDER ─── */
+function renderLayout(step){
+  const{structs}=step;if(!structs)return;
+  const PAD=14;
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText('STRUCT MEMORY LAYOUT  |  natural alignment rules',PAD,4);
+  const structH=(CH-50)/2-10;
+  structs.forEach((s,si)=>{
+    const sy=28+si*(structH+10);
+    const col=s.winner?'#4ade80':'rgba(255,178,41,.5)';
+    ctx.save();if(s.winner){ctx.shadowColor='#4ade80';ctx.shadowBlur=10;}
+    ctx.font=`14px 'VT323'`;ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(`${s.name}  — ${s.total}B  (waste: ${s.waste}B)`,PAD,sy);ctx.restore();
+
+    const scale=8;let ox=PAD;const oy=sy+20;const bh=24;
+    s.fields.forEach(f=>{
+      const fw=f.size*scale;
+      ctx.save();if(f.hl){ctx.shadowColor=f.color;ctx.shadowBlur=8;}
+      ctx.fillStyle=f.color+'25';ctx.strokeStyle=f.color;ctx.lineWidth=f.hl?1.8:1;
+      ctx.fillRect(ox,oy,fw,bh);ctx.strokeRect(ox,oy,fw,bh);
+      ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle=f.color;ctx.textAlign='center';ctx.textBaseline='middle';
+      if(fw>20)ctx.fillText(f.name,ox+fw/2,oy+bh/2);
+      ctx.restore();ox+=fw;
+      if(s.showPad&&f.pad>0){
+        const pw=f.pad*scale;
+        ctx.save();ctx.fillStyle='rgba(244,63,94,.1)';ctx.strokeStyle='rgba(244,63,94,.3)';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+        ctx.fillRect(ox,oy,pw,bh);ctx.strokeRect(ox,oy,pw,bh);
+        ctx.font=`8px 'Share Tech Mono'`;ctx.fillStyle='rgba(244,63,94,.5)';ctx.textAlign='center';ctx.textBaseline='middle';
+        if(pw>14)ctx.fillText(`+${f.pad}`,ox+pw/2,oy+bh/2);
+        ctx.restore();ox+=pw;
+      }
+    });
+    // byte ruler
+    const totalPx=s.total*scale;
+    ctx.save();ctx.strokeStyle='rgba(255,178,41,.2)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PAD,oy+bh+3);ctx.lineTo(PAD+totalPx,oy+bh+3);ctx.stroke();
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='right';ctx.textBaseline='top';ctx.fillText(`${s.total}B`,PAD+totalPx,oy+bh+4);ctx.restore();
+  });
+}
+
+/* ─── POINTERS RENDER ─── */
+function renderPointers(step){
+  const{ptrs,heapObjs}=step;
+  const PAD=14;
+  ctx.font=`11px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.fillText('GO FAT POINTERS  |  slice / string / interface internals',PAD,4);
+  const wordW=72,wordH=36,ptrGap=14;
+  (ptrs||[]).forEach((ptr,pi)=>{
+    const py=28+pi*(wordH+ptrGap+22);
+    ctx.save();if(ptr.hl){ctx.shadowColor='rgba(255,178,41,.3)';ctx.shadowBlur=8;}
+    ctx.font=`12px 'VT323'`;ctx.fillStyle=ptr.hl?'var(--amber)':'rgba(255,178,41,.5)';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(ptr.type,PAD,py);ctx.restore();
+    ptr.words.forEach((w,wi)=>{
+      const wx=PAD+wi*(wordW+4),wy=py+16;
+      ctx.save();if(w.hl||ptr.hl){ctx.shadowColor=w.color;ctx.shadowBlur=8;}
+      ctx.fillStyle=w.color+'1a';ctx.strokeStyle=w.color+(w.hl?'':ptr.hl?'aa':'55');ctx.lineWidth=w.hl?2:1;
+      ctx.fillRect(wx,wy,wordW,wordH);ctx.strokeRect(wx,wy,wordW,wordH);
+      ctx.font=`9px 'IBM Plex Mono'`;ctx.fillStyle='rgba(255,178,41,.35)';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(w.label,wx+wordW/2,wy+2);
+      ctx.font=`13px 'VT323'`;ctx.fillStyle=w.color;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(w.val,wx+wordW/2,wy+wordH-2);
+      ctx.restore();
+    });
+    // total size label
+    const totalW=ptr.words.length*(wordW+4);
+    ctx.font=`9px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,178,41,.3)';ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillText(ptr.note,PAD,py+16+wordH+2);
+  });
+
+  // heap objects
+  if(heapObjs&&heapObjs.length>0){
+    const hx=CW*0.6,hy=28,hw=CW*0.38;
+    ctx.font=`11px 'VT323'`;ctx.fillStyle='rgba(74,222,128,.4)';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('HEAP',hx,hy);
+    heapObjs.forEach((o,i)=>{
+      const oy=hy+16+i*40;
+      ctx.save();ctx.fillStyle=o.color+'18';ctx.strokeStyle=o.color+'66';ctx.lineWidth=1;
+      ctx.fillRect(hx,oy,hw,30);ctx.strokeRect(hx,oy,hw,30);
+      ctx.font=`12px 'VT323'`;ctx.fillStyle=o.color;ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText(`${o.label}  (${o.size}B)`,hx+6,oy+15);ctx.restore();
+    });
+  }
+}
+
+/* ══════ PLAYBACK ══════ */
+let ST={steps:[],idx:0,playing:false,timer:null,speed:520};
+let curScene='escape';
+
+function applyStep(step){
+  renderFrame(step);
+  const badge=document.getElementById('pbadge');
+  const phase=step.phase||'init';
+  badge.className='pbadge '+phase;badge.textContent=phase.toUpperCase();
+  document.getElementById('step-txt').textContent=step.desc||'';
+  document.getElementById('s-heap').textContent=step.heapBytes>0?(step.heapBytes>=1024?Math.round(step.heapBytes/1024)+'KB':step.heapBytes+'B'):'0B';
+  document.getElementById('s-stack').textContent=step.stackBytes>0?(step.stackBytes>=1024?Math.round(step.stackBytes/1024)+'KB':step.stackBytes+'B'):'0B';
+  document.getElementById('s-gor').textContent=step.goroutines||1;
+  document.getElementById('s-gc').textContent=step.gcRuns||0;
+  document.getElementById('s-esc').textContent=step.escaped||0;
+  const pct=ST.steps.length>1?(ST.idx/(ST.steps.length-1))*100:0;
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('step-ctr').textContent=`${ST.idx+1} / ${ST.steps.length}`;
+  renderCode(SCENARIOS[curScene].code,step.cl>=0?step.cl:-1);
+  if(phase&&phase!=='init')snd(phase);
+  if(phase==='gc'||phase==='free')triggerCA();
+}
+
+function next(){if(ST.idx<ST.steps.length-1){ST.idx++;applyStep(ST.steps[ST.idx]);}else if(ST.playing)pause();}
+function prev(){if(ST.idx>0){ST.idx--;applyStep(ST.steps[ST.idx]);}}
+function togglePlay(){if(ST.playing)pause();else play();snd('click');}
+function play(){if(!ST.steps.length)return;if(ST.idx>=ST.steps.length-1)ST.idx=0;ST.playing=true;document.getElementById('play-btn').textContent='⏸ PAUSE';document.getElementById('play-btn').classList.add('playing');ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}
+function pause(){ST.playing=false;clearInterval(ST.timer);document.getElementById('play-btn').textContent='▶ PLAY';document.getElementById('play-btn').classList.remove('playing');}
+function doReset(){pause();ST.idx=0;if(ST.steps.length)applyStep(ST.steps[0]);snd('click');}
+function changeSpeed(v){const m={1:1200,2:900,3:700,4:520,5:380,6:260,7:180,8:110,9:65,10:30};ST.speed=m[v]||380;if(ST.playing){clearInterval(ST.timer);ST.timer=setInterval(()=>{if(ST.idx>=ST.steps.length-1){pause();return;}ST.idx++;applyStep(ST.steps[ST.idx]);},ST.speed);}}
+
+function selectScene(key){
+  curScene=key;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
+  const sc=SCENARIOS[key];
+  document.getElementById('cx-info').innerHTML=sc.cx;
+  document.getElementById('how-info').innerHTML=sc.how;
+  document.getElementById('facts').innerHTML=sc.facts;
+  renderCode(sc.code,-1);
+  if(ST.playing)pause();
+  ST.steps=buildSteps(key);ST.idx=0;
+  if(ST.steps.length){applyStep(ST.steps[0]);setTimeout(()=>play(),300);}
+  snd('click');
+}
+
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('boot').style.display!=='none')return;
+  switch(e.key){
+    case'ArrowRight':next();break;case'ArrowLeft':prev();break;
+    case' ':e.preventDefault();togglePlay();break;
+    case'r':case'R':doReset();break;case'm':case'M':toggleMute();break;
+    case'1':selectScene('escape');break;case'2':selectScene('stackgrow');break;
+    case'3':selectScene('gc');break;case'4':selectScene('layout');break;
+    case'5':selectScene('pointers');break;
+  }
+});
+
+function buildTabs(){
+  const order=[['escape','1. ESCAPE ANALYSIS'],['stackgrow','2. STACK GROWTH'],['gc','3. TRI-COLOR GC'],['layout','4. STRUCT LAYOUT'],['pointers','5. FAT POINTERS']];
+  document.getElementById('tabs').innerHTML=order.map(([k,l])=>`<button class="tab${k===curScene?' active':''}" data-key="${k}" onclick="selectScene('${k}')">${l}</button>`).join('');
+}
+
+function boot(){
+  const term=document.getElementById('boot-terminal');const fill=document.getElementById('boot-fill');
+  const lines=[{t:'MEM.VIZ v1.0 — INITIALIZING...',s:'',d:180},{t:'LOADING: ESCAPE_ANALYSIS.MOD',s:'OK',d:130},{t:'LOADING: STACK_GROWTH.MOD (contiguous stacks)',s:'OK',d:130},{t:'LOADING: GC_TRICOLOR.MOD (concurrent mark)',s:'OK',d:130},{t:'LOADING: STRUCT_LAYOUT.MOD (alignment)',s:'OK',d:120},{t:'LOADING: FAT_POINTERS.MOD (slice/iface)',s:'OK',d:120},{t:'GO MEMORY MODEL ONLINE.',s:'',d:200}];
+  let li=0;
+  function al(){if(li>=lines.length){setTimeout(sa,300);return;}const bl=lines[li];const div=document.createElement('div');div.className='bl';div.innerHTML=`<span>${bl.t}</span>${bl.s?`<span class="bl-ok">[${bl.s}]</span>`:'<span><span id="boot-cursor"></span></span>'}`;term.appendChild(div);requestAnimationFrame(()=>div.classList.add('show'));fill.style.width=Math.round((li/lines.length)*100)+'%';li++;setTimeout(al,bl.d);}al();
+}
+function sa(){document.getElementById('boot').style.display='none';document.getElementById('main').classList.add('show');buildTabs();const sc=SCENARIOS['escape'];document.getElementById('cx-info').innerHTML=sc.cx;document.getElementById('how-info').innerHTML=sc.how;document.getElementById('facts').innerHTML=sc.facts;renderCode(sc.code,-1);window.addEventListener('resize',resizeCanvas);resizeCanvas();setTimeout(()=>selectScene('escape'),300);}
+boot();
+</script>
+</body>
+</html>
