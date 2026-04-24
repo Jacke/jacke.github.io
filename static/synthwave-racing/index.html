@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SYNTHWAVE RACING — iamjacke.com</title>
+<style>
+@font-face{font-family:'FNH';src:url(/fonts/FuturaNowHeadline-Bd.woff2) format('woff2');font-weight:bold;font-display:swap}
+@font-face{font-family:'DM';src:url(/fonts/DankMono-Regular.woff2) format('woff2');font-display:swap}
+:root{--accent-1:#ff00b4;--accent-2:#00c8ff;--bg:#050010;--glow:#ff00b4}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);cursor:crosshair;user-select:none;transition:background .3s}
+#title{position:fixed;top:6%;left:50%;transform:translateX(-50%);z-index:10;font:bold clamp(20px,5vw,48px) 'FNH',Impact,sans-serif;color:#fff;text-shadow:0 0 30px var(--accent-1),0 0 15px var(--accent-2);pointer-events:none}
+#hud{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;font:14px 'DM',monospace;color:rgba(255,255,255,0.4);text-align:center;pointer-events:none}
+#speed{font:bold 36px 'FNH',sans-serif;color:var(--accent-2);text-shadow:0 0 10px var(--accent-2)}
+#speed-unit{font:12px 'DM',monospace;color:rgba(255,255,255,0.2)}
+#progress-bar{width:200px;height:3px;background:rgba(255,255,255,0.05);border-radius:2px;margin:6px auto;overflow:hidden}
+#progress-fill{width:0%;height:100%;background:linear-gradient(90deg,var(--accent-2),var(--accent-1));transition:width .2s}
+#ctrl{position:fixed;top:14px;right:18px;z-index:10;font:10px 'DM',monospace;color:rgba(255,255,255,0.12);text-align:right;line-height:1.8}
+#home{position:fixed;bottom:14px;right:18px;z-index:10;font:11px 'DM',monospace;color:rgba(255,255,255,0.25);text-decoration:none}
+#home:hover{color:var(--accent-1)}
+#minimap{position:fixed;bottom:16px;left:16px;z-index:10;border:1px solid var(--accent-1);background:rgba(5,0,16,0.7);opacity:0.85}
+#drift-indicator{position:fixed;top:calc(50% - 80px);left:50%;transform:translate(-50%,-50%);z-index:15;font:bold 22px 'FNH',sans-serif;color:var(--accent-2);text-shadow:0 0 15px var(--accent-2),0 0 30px var(--accent-2);letter-spacing:4px;pointer-events:none;opacity:0;transition:opacity .15s}
+#drift-angle{position:fixed;top:calc(50% - 40px);left:50%;transform:translateX(-50%);z-index:15;font:bold 56px 'FNH',sans-serif;color:var(--accent-1);text-shadow:0 0 20px var(--accent-1),0 0 40px var(--accent-1);pointer-events:none;opacity:0;transition:opacity .15s,color .1s,text-shadow .1s;white-space:nowrap;display:flex;align-items:baseline;gap:14px}
+#drift-angle .arr{font-size:40px;opacity:.8}
+#drift-bar{position:fixed;top:calc(50% + 30px);left:50%;transform:translateX(-50%);z-index:15;width:300px;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;pointer-events:none;opacity:0;transition:opacity .15s;overflow:visible}
+#drift-bar-center{position:absolute;left:50%;top:-4px;width:2px;height:12px;background:rgba(255,255,255,0.3);transform:translateX(-50%)}
+#drift-bar-fill{position:absolute;top:0;height:100%;background:#00c8ff;box-shadow:0 0 12px #00c8ff;transition:background .1s,box-shadow .1s}
+#mute-btn{position:fixed;bottom:56px;right:18px;z-index:100;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:15px;line-height:34px;text-align:center;color:rgba(255,255,255,0.35);transition:all .2s}
+#debug{position:fixed;top:60px;right:18px;z-index:20;font:11px 'DM',monospace;color:#0f0;background:rgba(0,0,0,0.55);padding:8px 12px;border-radius:4px;line-height:1.5;pointer-events:none;white-space:pre}
+#scn-panel{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:30;display:flex;gap:6px;align-items:center;font:11px 'DM',monospace;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.5);padding:6px 10px;border:1px solid var(--accent-1);border-radius:4px}
+#scn-panel select,#theme-panel select{background:rgba(0,0,0,0.6);color:#fff;border:1px solid rgba(255,255,255,0.15);padding:3px 6px;font:inherit;border-radius:3px;outline:none;max-width:220px}
+#scn-panel button{background:rgba(255,0,180,0.15);color:#fff;border:1px solid var(--accent-1);padding:3px 10px;font:inherit;border-radius:3px;cursor:pointer;letter-spacing:1px}
+#scn-panel button:hover{background:rgba(255,0,180,0.3)}
+#scn-panel button:disabled{opacity:.3;cursor:default}
+#scn-status{position:fixed;top:54px;left:50%;transform:translateX(-50%);z-index:30;font:bold 13px 'DM',monospace;color:var(--accent-2);text-shadow:0 0 8px var(--accent-2);background:rgba(0,0,0,0.55);padding:4px 12px;border-radius:3px;opacity:0;transition:opacity .15s;white-space:nowrap}
+#theme-panel{position:fixed;top:14px;left:14px;z-index:30;display:flex;gap:6px;align-items:center;font:11px 'DM',monospace;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.5);padding:6px 10px;border:1px solid var(--accent-2);border-radius:4px}
+#spark{position:fixed;top:calc(50% + 100px);left:50%;transform:translateX(-50%);z-index:15;font:bold 20px 'FNH',sans-serif;letter-spacing:3px;pointer-events:none;opacity:0;transition:opacity .15s}
+#boost-popup{position:fixed;top:calc(50% + 140px);left:50%;transform:translateX(-50%);z-index:15;font:bold 44px 'FNH',sans-serif;pointer-events:none;opacity:0;transition:opacity .4s,transform .4s;color:#ffcc00;text-shadow:0 0 25px #ff9900,0 0 50px #ff6600}
+#scanlines{position:fixed;top:0;left:0;width:100%;height:100%;z-index:8;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.03) 1px,rgba(0,0,0,0.03) 2px)}
+</style>
+</head>
+<body>
+<div id="scanlines"></div>
+<div id="title">SYNTHWAVE RACING</div>
+<a id="home" href="/synthwave/">← back</a>
+<div id="ctrl">A gas &nbsp; Z brake/reverse<br>← → steer &nbsp; SPACE drift<br>R respawn &nbsp; M mute</div>
+<div id="drift-indicator">D R I F T</div>
+<div id="drift-angle"><span class="arr" id="drift-arr-l">◀</span><span id="drift-num">0</span>°<span class="arr" id="drift-arr-r">▶</span></div>
+<div id="drift-bar"><div id="drift-bar-center"></div><div id="drift-bar-fill"></div></div>
+<div id="spark"></div>
+<div id="boost-popup"></div>
+<button id="mute-btn" title="M">&#x1F50A;</button>
+<div id="debug"></div>
+<div id="theme-panel">
+  <span>ENV:</span>
+  <select id="theme-select"></select>
+</div>
+<div id="scn-panel">
+  <span>SCN:</span>
+  <select id="scn-select"></select>
+  <button id="scn-play" title="Run autopilot (also resets car)">▶ PLAY</button>
+  <button id="scn-stop" title="Stop autopilot" disabled>■ STOP</button>
+  <button id="scn-reset" title="Reset car position">⟳ RESET</button>
+</div>
+<div id="scn-status"></div>
+<canvas id="minimap" width="200" height="150"></canvas>
+<div id="hud">
+  <div id="speed">0</div>
+  <div id="speed-unit">km/h</div>
+  <div id="progress-bar"><div id="progress-fill"></div></div>
+  <div id="progress-text" style="font-size:10px;color:rgba(255,255,255,0.15)">Moscow → London</div>
+</div>
+
+<script type="module">
+import { step, render, getTrackPoints2D, resetCar, setTheme, getThemes, getCurrentTheme, respawnToNearestCheckpoint } from '/js/synth3d-racing.js';
+import { scenarios, scenarioInputAt } from '/js/drift-scenarios.js';
+
+// Audio (disabled for debug)
+// const music = new Audio('/js/synthwave.mp3'); music.volume = 0; music.loop = true;
+// music.play().catch(() => {});
+// document.addEventListener('click', function h() { music.play(); document.removeEventListener('click', h); }, { once: true });
+// const mfi = setInterval(() => { if (!music.muted && music.volume < 0.5) music.volume += 0.01; else clearInterval(mfi); }, 80);
+const muteBtn = document.getElementById('mute-btn');
+function toggleMute() { /* disabled */ }
+muteBtn.addEventListener('click', toggleMute);
+
+// Input
+const keys = {};
+document.onkeydown = e => {
+  keys[e.keyCode] = true;
+  if (e.keyCode === 77) toggleMute();
+  if (e.keyCode === 82) respawnToNearestCheckpoint(); // R = respawn to nearest checkpoint
+  return false;
+};
+document.onkeyup = e => { keys[e.keyCode] = false; return false; };
+
+function getInput() {
+  return {
+    throttle: keys[65] || keys[38] || keys[87] ? 1 : 0,
+    brake: keys[90] || keys[40] || keys[83] ? 1 : 0,
+    left: keys[37] ? 1 : 0,
+    right: keys[39] ? 1 : 0,
+    ebrake: keys[32] ? 1 : 0,
+  };
+}
+
+// ─── Theme switcher ─────────────────────────────────────────────
+const themeSelect = document.getElementById('theme-select');
+const allThemes = getThemes();
+for (const [key, t] of Object.entries(allThemes)) {
+  const opt = document.createElement('option');
+  opt.value = key;
+  opt.textContent = t.label;
+  themeSelect.appendChild(opt);
+}
+themeSelect.value = getCurrentTheme() || 'neonwave';
+themeSelect.addEventListener('change', () => {
+  setTheme(themeSelect.value);
+  // Refresh minimap track data cache
+  setTimeout(() => { trackPts2D = getTrackPoints2D(); }, 50);
+});
+
+// ─── Scenario autopilot ─────────────────────────────────────────
+let scnActive = null;
+let scnElapsed = 0;
+const scnSelect = document.getElementById('scn-select');
+const scnPlay = document.getElementById('scn-play');
+const scnStop = document.getElementById('scn-stop');
+const scnReset = document.getElementById('scn-reset');
+const scnStatus = document.getElementById('scn-status');
+
+// Populate dropdown
+for (const [key, scn] of Object.entries(scenarios)) {
+  const opt = document.createElement('option');
+  opt.value = key;
+  opt.textContent = key + ' — ' + scn.title.slice(0, 55);
+  scnSelect.appendChild(opt);
+}
+
+function startScenario() {
+  const key = scnSelect.value;
+  if (!key || !scenarios[key]) return;
+  resetCar();
+  scnActive = scenarios[key];
+  scnElapsed = 0;
+  scnPlay.disabled = true;
+  scnStop.disabled = false;
+  scnStatus.style.opacity = '1';
+  scnStatus.textContent = 'AUTOPILOT: ' + key;
+  console.log('[SCENARIO START]', key, scnActive.title);
+}
+function stopScenario() {
+  if (scnActive) console.log('[SCENARIO STOP]', 'at t=' + scnElapsed.toFixed(2));
+  scnActive = null;
+  scnElapsed = 0;
+  scnPlay.disabled = false;
+  scnStop.disabled = true;
+  scnStatus.style.opacity = '0';
+}
+scnPlay.addEventListener('click', startScenario);
+scnStop.addEventListener('click', stopScenario);
+scnReset.addEventListener('click', () => { resetCar(); stopScenario(); });
+
+// When scenario active, return scripted input instead of keyboard
+function getScenarioInput(dt) {
+  if (!scnActive) return null;
+  scnElapsed += dt;
+  const cur = scenarioInputAt(scnActive, scnElapsed);
+  if (!cur) {
+    // finished — auto-stop
+    scnStatus.textContent = '✓ finished at t=' + scnElapsed.toFixed(2);
+    setTimeout(stopScenario, 800);
+    return { throttle: 0, brake: 0, left: 0, right: 0, ebrake: 0 };
+  }
+  scnStatus.textContent = `▶ ${scnSelect.value} | ${cur.phase} | t=${cur.tTotal.toFixed(2)}/${scnActive.totalDur.toFixed(2)}s`;
+  return {
+    throttle: cur.input.throttle || 0,
+    brake: cur.input.brake || 0,
+    left: cur.input.left || 0,
+    right: cur.input.right || 0,
+    ebrake: cur.input.ebrake || 0,
+  };
+}
+
+// HUD elements
+const speedEl = document.getElementById('speed');
+const progressFill = document.getElementById('progress-fill');
+const driftEl = document.getElementById('drift-indicator');
+const driftAngleEl = document.getElementById('drift-angle');
+const driftNumEl = document.getElementById('drift-num');
+const driftArrL = document.getElementById('drift-arr-l');
+const driftArrR = document.getElementById('drift-arr-r');
+const driftBarEl = document.getElementById('drift-bar');
+const driftBarFill = document.getElementById('drift-bar-fill');
+const sparkEl = document.getElementById('spark');
+const boostPopupEl = document.getElementById('boost-popup');
+const MAX_SLIP_DEG = 60;
+let lastBoostSeen = 0;
+let boostPopupTimer = 0;
+
+// Minimap
+const mmCv = document.getElementById('minimap');
+const mmCtx = mmCv.getContext('2d');
+let trackPts2D = null;
+setTimeout(() => { trackPts2D = getTrackPoints2D(); }, 1000);
+
+function drawMinimap(carState) {
+  if (!trackPts2D) return;
+  const w = 200, h = 150;
+  mmCtx.clearRect(0, 0, w, h);
+  mmCtx.fillStyle = 'rgba(5,0,16,0.8)';
+  mmCtx.fillRect(0, 0, w, h);
+
+  // Find track bounds
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  trackPts2D.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); });
+  const rangeX = maxX - minX || 1, rangeZ = maxZ - minZ || 1;
+  const scale = Math.min((w - 20) / rangeX, (h - 20) / rangeZ);
+  const offX = (w - rangeX * scale) / 2, offZ = (h - rangeZ * scale) / 2;
+  const toScreen = p => ({ x: (p.x - minX) * scale + offX, y: (p.z - minZ) * scale + offZ });
+
+  // Draw track
+  mmCtx.strokeStyle = 'rgba(0,200,255,0.3)'; mmCtx.lineWidth = 2; mmCtx.beginPath();
+  trackPts2D.forEach((p, i) => { const s = toScreen(p); i === 0 ? mmCtx.moveTo(s.x, s.y) : mmCtx.lineTo(s.x, s.y); });
+  mmCtx.stroke();
+
+  // Start marker
+  const start = toScreen(trackPts2D[0]);
+  mmCtx.fillStyle = '#ff3333'; mmCtx.beginPath(); mmCtx.arc(start.x, start.y, 4, 0, Math.PI * 2); mmCtx.fill();
+  // End marker
+  const end = toScreen(trackPts2D[trackPts2D.length - 1]);
+  mmCtx.fillStyle = '#ffcc00'; mmCtx.beginPath(); mmCtx.arc(end.x, end.y, 4, 0, Math.PI * 2); mmCtx.fill();
+
+  // Car dot
+  if (carState) {
+    const carScreen = toScreen({ x: carState.position.x, z: carState.position.z });
+    mmCtx.fillStyle = '#ff00b4';
+    mmCtx.beginPath(); mmCtx.arc(carScreen.x, carScreen.y, 4, 0, Math.PI * 2); mmCtx.fill();
+    // Glow
+    mmCtx.fillStyle = 'rgba(255,0,180,0.2)';
+    mmCtx.beginPath(); mmCtx.arc(carScreen.x, carScreen.y, 8, 0, Math.PI * 2); mmCtx.fill();
+  }
+
+  // Labels
+  mmCtx.font = '8px "DM",monospace'; mmCtx.fillStyle = 'rgba(255,100,100,0.4)';
+  mmCtx.fillText('MSK', start.x + 6, start.y + 3);
+  mmCtx.fillStyle = 'rgba(255,200,50,0.4)';
+  mmCtx.fillText('LDN', end.x + 6, end.y + 3);
+}
+
+// Game loop
+let prevT = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((now - prevT) / 1000, 0.05);
+  prevT = now;
+
+  const input = getScenarioInput(dt) || getInput();
+  const state = step(dt, input);
+  render();
+
+  // HUD
+  speedEl.textContent = state.speed;
+  progressFill.style.width = (state.progress * 100) + '%';
+  driftEl.style.opacity = state.isDrifting ? '1' : '0';
+
+  if (state.isDrifting) {
+    const deg = state.driftAngleDeg;
+    const dir = state.slipDir;
+    driftAngleEl.style.opacity = '1';
+    driftBarEl.style.opacity = '1';
+    driftNumEl.textContent = deg;
+    // slipDir > 0 = right drift → ▶ arrow; < 0 = left drift → ◀
+    driftArrL.style.opacity = dir < 0 ? '1' : '0.1';
+    driftArrR.style.opacity = dir > 0 ? '1' : '0.1';
+
+    // Color ramps cyan → magenta → red with intensity
+    const t = Math.min(1, deg / MAX_SLIP_DEG);
+    const col = deg > 45 ? '#ff0030' : deg > 22 ? '#ff00b4' : '#00c8ff';
+    driftAngleEl.style.color = col;
+    driftAngleEl.style.textShadow = `0 0 20px ${col},0 0 40px ${col}`;
+
+    // Bar: fills from center toward slip direction (positive = rightward)
+    const frac = t * 0.5;
+    if (dir > 0) {
+      driftBarFill.style.left = '50%';
+      driftBarFill.style.width = (frac * 100) + '%';
+    } else if (dir < 0) {
+      driftBarFill.style.left = (50 - frac * 100) + '%';
+      driftBarFill.style.width = (frac * 100) + '%';
+    } else {
+      driftBarFill.style.width = '0%';
+    }
+    driftBarFill.style.background = col;
+    driftBarFill.style.boxShadow = `0 0 12px ${col}`;
+  } else {
+    driftAngleEl.style.opacity = '0';
+    driftBarEl.style.opacity = '0';
+  }
+
+  // Mini-turbo spark indicator — Mario Kart blue / orange / purple
+  const d0 = state.debug || {};
+  const counter = d0.counter || 0;
+  if (state.isDrifting && counter >= 1.5) {
+    sparkEl.style.opacity = '1';
+    if (counter >= 3.5) { sparkEl.textContent = '★ ★ ★ ULTRA'; sparkEl.style.color = '#cc66ff'; sparkEl.style.textShadow = '0 0 20px #aa00ff,0 0 40px #6600ff'; }
+    else if (counter >= 2.5) { sparkEl.textContent = '★ ★ SUPER'; sparkEl.style.color = '#ff8800'; sparkEl.style.textShadow = '0 0 20px #ff6600,0 0 40px #ff3300'; }
+    else { sparkEl.textContent = '★ MINI'; sparkEl.style.color = '#00c8ff'; sparkEl.style.textShadow = '0 0 20px #0099ff,0 0 40px #0066ff'; }
+  } else {
+    sparkEl.style.opacity = '0';
+  }
+
+  // Boost popup on release
+  const boost = d0.lastBoost || 0;
+  if (boost > 0 && boost !== lastBoostSeen) {
+    lastBoostSeen = boost;
+    boostPopupTimer = 1.2;
+    boostPopupEl.textContent = boost >= 14 ? 'ULTRA BOOST!' : boost >= 9 ? 'SUPER BOOST!' : 'BOOST!';
+    boostPopupEl.style.color = boost >= 14 ? '#cc66ff' : boost >= 9 ? '#ff8800' : '#00c8ff';
+    boostPopupEl.style.textShadow = `0 0 25px currentColor,0 0 50px currentColor`;
+    boostPopupEl.style.opacity = '1';
+    boostPopupEl.style.transform = 'translateX(-50%) scale(1.2)';
+    setTimeout(() => { boostPopupEl.style.transform = 'translateX(-50%) scale(1)'; }, 80);
+  }
+  if (boostPopupTimer > 0) {
+    boostPopupTimer -= dt;
+    if (boostPopupTimer <= 0) { boostPopupEl.style.opacity = '0'; lastBoostSeen = 0; }
+  }
+
+  // Minimap
+  drawMinimap(state);
+
+  // Debug HUD
+  const dbg = document.getElementById('debug');
+  if (dbg) {
+    const d = state.debug || {};
+    const ctr = d.counter || 0;
+    const tier = ctr >= 3.5 ? 'ULT' : ctr >= 2.5 ? 'SUP' : ctr >= 1.5 ? 'MNI' : '---';
+    dbg.textContent =
+      'spd:   ' + state.speed.toString().padStart(3) + ' km/h\n' +
+      'dspd:  ' + (d.driftSpd || 0).toString().padStart(3) + ' km/h\n' +
+      'slip:  ' + (state.driftAngleDeg * (state.slipDir || 0)).toString().padStart(4) + '°\n' +
+      'drift: ' + (state.isDrifting ? ' ON ' : ' off') + (d.armed ? ' [armed]' : '') + '\n' +
+      'cool:  ' + (d.cooldown || 0).toFixed(2) + 's\n' +
+      'cntr:  ' + ctr.toFixed(2) + ' ' + tier + '\n' +
+      'thr:' + (input.throttle ? '1' : '0') + ' brk:' + (input.brake ? '1' : '0') + ' hbr:' + (input.ebrake ? '1' : '0') + ' ' +
+      (input.left ? '<' : ' ') + (input.right ? '>' : ' ');
+  }
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

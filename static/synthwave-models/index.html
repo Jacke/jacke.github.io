@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Model Viewer — SYNTHWAVE</title>
+<style>
+@font-face{font-family:'FNH';src:url(/fonts/FuturaNowHeadline-Bd.woff2) format('woff2');font-weight:bold;font-display:swap}
+@font-face{font-family:'DM';src:url(/fonts/DankMono-Regular.woff2) format('woff2');font-display:swap}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#050010;color:#fff;font-family:'DM',monospace}
+canvas{display:block}
+#hud{position:fixed;top:0;left:0;width:100%;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:16px 24px}
+#model-name{font:bold clamp(20px,4vw,36px) 'FNH',Impact,sans-serif;color:#ff00b4;text-shadow:0 0 20px #ff00b4}
+#model-desc{font:13px 'DM',monospace;color:rgba(255,255,255,0.35);margin-top:4px}
+#nav{display:flex;gap:12px;align-items:center}
+.nav-btn{background:rgba(255,0,180,0.08);border:1px solid rgba(255,0,180,0.25);color:#ff00b4;font:bold 18px 'DM',monospace;padding:8px 18px;cursor:pointer;border-radius:4px;transition:all .2s}
+.nav-btn:hover{background:rgba(255,0,180,0.15);border-color:#ff00b4}
+#counter{font:14px 'DM',monospace;color:rgba(255,255,255,0.3)}
+#bottom-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;font:11px 'DM',monospace;color:rgba(255,255,255,0.15);text-align:center}
+#home-link{position:fixed;bottom:16px;left:16px;z-index:10;font:11px 'DM',monospace;color:rgba(255,255,255,0.15);text-decoration:none}
+#home-link:hover{color:#ff00b4}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div>
+    <div id="model-name">DeLorean DMC-12</div>
+    <div id="model-desc">Procedural low-poly — stainless steel body, neon underglow</div>
+  </div>
+  <div id="nav">
+    <button class="nav-btn" id="prev-btn">← </button>
+    <span id="counter">1 / 4</span>
+    <button class="nav-btn" id="next-btn"> →</button>
+  </div>
+</div>
+<div id="bottom-bar">Drag to rotate · Scroll to zoom · ← → to switch</div>
+<a id="home-link" href="/synthwave/">← Back to game</a>
+
+<script type="module">
+import * as THREE from 'https://esm.sh/three@0.170.0?bundle';
+import { OrbitControls } from 'https://esm.sh/three@0.170.0/addons/controls/OrbitControls.js?bundle';
+import { GLTFLoader } from 'https://esm.sh/three@0.170.0/addons/loaders/GLTFLoader.js?bundle';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050010);
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(4, 3, 6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.5;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.5;
+controls.minDistance = 2;
+controls.maxDistance = 20;
+
+// Lighting
+scene.add(new THREE.AmbientLight(0x4444ff, 1.2));
+scene.add(new THREE.HemisphereLight(0x2200aa, 0x110022, 0.8));
+const sun = new THREE.DirectionalLight(0xff6688, 2); sun.position.set(2, 8, 5); scene.add(sun);
+const fill = new THREE.DirectionalLight(0x8888ff, 0.8); fill.position.set(-4, 3, -3); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xff00b4, 1.2); rim.position.set(3, 1, -5); scene.add(rim);
+
+// Grid floor
+const gridCanvas = document.createElement('canvas'); gridCanvas.width=512; gridCanvas.height=512;
+const gx = gridCanvas.getContext('2d');
+gx.fillStyle='#08000e'; gx.fillRect(0,0,512,512);
+gx.strokeStyle='#ff00b4'; gx.lineWidth=1; gx.globalAlpha=0.2;
+for(let i=0;i<=20;i++){const p=i*512/20;gx.beginPath();gx.moveTo(p,0);gx.lineTo(p,512);gx.stroke();gx.beginPath();gx.moveTo(0,p);gx.lineTo(512,p);gx.stroke()}
+gx.globalAlpha=1;
+const gridTex = new THREE.CanvasTexture(gridCanvas); gridTex.wrapS=gridTex.wrapT=THREE.RepeatWrapping; gridTex.repeat.set(4,4);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30,30), new THREE.MeshBasicMaterial({map:gridTex}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-0.01; scene.add(floor);
+
+// Materials (shared)
+function mat(color, opts={}){return new THREE.MeshStandardMaterial({color,metalness:opts.m??0.5,roughness:opts.r??0.4,emissive:opts.e??0,emissiveIntensity:opts.ei??0,transparent:opts.t??false,opacity:opts.o??1})}
+const M={
+  steel:mat(0xbbbbdd,{m:0.95,r:0.2}), dark:mat(0x181820,{m:0.4,r:0.7}),
+  glass:mat(0x2244aa,{m:0.2,r:0.05,t:true,o:0.4}), tire:mat(0x0a0a0a,{m:0.05,r:0.95}),
+  rim:mat(0x888899,{m:0.98,r:0.1}), tail:mat(0xff0030,{e:0xff0020,ei:5}),
+  head:mat(0xffffcc,{e:0xffffaa,ei:8}), neonC:mat(0x00ffff,{e:0x00ddff,ei:6,t:true,o:0.7}),
+  carbon:mat(0x222228,{m:0.35,r:0.55}),
+};
+
+// ═══ DeLorean ═══
+function buildDeLorean(){
+  const g=new THREE.Group();
+  const pts=[[-1.05,0.3],[-1.1,0.5],[-1.1,0.85],[-0.95,1.15],[-0.7,1.38],[-0.5,1.42],[0.5,1.42],[0.7,1.38],[0.95,1.15],[1.1,0.85],[1.1,0.5],[1.05,0.3]].map(p=>new THREE.Vector2(p[0],p[1]));
+  const body=new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(pts),{depth:2.2,bevelEnabled:true,bevelSize:0.02,bevelThickness:0.02}),M.steel);
+  body.position.z=-1.1;g.add(body);
+  // Bumpers
+  const fb=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.2,0.12),M.dark);fb.position.set(0,0.35,-1.15);g.add(fb);
+  const rb=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.2,0.12),M.dark);rb.position.set(0,0.35,1.15);g.add(rb);
+  // Windows
+  const ws=new THREE.Mesh(new THREE.PlaneGeometry(1.6,0.65),M.glass);ws.position.set(0,1.35,-0.4);ws.rotation.x=0.55;g.add(ws);
+  const rw=new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.5),M.glass);rw.position.set(0,1.28,0.65);rw.rotation.x=-0.35;g.add(rw);
+  // Door seams
+  [-1.11,1.11].forEach(x=>{const s=new THREE.Mesh(new THREE.BoxGeometry(0.005,0.9,1.5),M.dark);s.position.set(x,0.85,0);g.add(s)});
+  // Louvers
+  for(let i=0;i<7;i++){const s=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.015,0.04),M.dark);s.position.set(0,1+i*0.04,0.85+i*0.02);s.rotation.x=-0.2;g.add(s)}
+  // Wheels
+  [[-1,-0.65],[1,-0.65],[-1,0.7],[1,0.7]].forEach(([x,z])=>{
+    const wg=new THREE.Group();wg.add(new THREE.Mesh(new THREE.TorusGeometry(0.28,0.1,8,24),M.tire));
+    wg.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.08,12),M.rim));
+    for(let s=0;s<5;s++){const sp=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.09,0.18),M.rim);sp.rotation.x=s*Math.PI*2/5;wg.add(sp)}
+    wg.rotation.x=Math.PI/2;wg.position.set(x,0.28,z);g.add(wg)});
+  // Tail lights
+  [-0.75,0.75].forEach(x=>{const tl=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.08,0.03),M.tail);tl.position.set(x,0.65,1.12);g.add(tl);
+    const pl=new THREE.PointLight(0xff0030,1.5,3);pl.position.set(x,0.65,1.2);g.add(pl)});
+  // Headlights
+  [-0.7,0.7].forEach(x=>{const hl=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,8),M.head);hl.position.set(x,0.7,-1.12);g.add(hl)});
+  // Underglow
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8,0.015,2),M.neonC));
+  const ug=new THREE.PointLight(0x00c8ff,3,5);ug.position.set(0,0.05,0);g.add(ug);
+  [-1.12,1.12].forEach(x=>{const n=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.02,1.8),M.neonC);n.position.set(x,0.08,0);g.add(n)});
+  // Exhaust
+  [-0.35,0.35].forEach(x=>{const e=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.12,8),M.rim);e.rotation.x=Math.PI/2;e.position.set(x,0.22,1.16);g.add(e)});
+  g.scale.set(1.1,1.1,1.1);
+  return g;
+}
+
+// ═══ Tank ═══
+function buildTank() {
+  const g = new THREE.Group();
+  const km = mat(0x5a6a3a, { m: 0.25, r: 0.75, e: 0x2a3518, ei: 0.4 });
+  const kd = mat(0x3a4520, { m: 0.3, r: 0.7, e: 0x1a2510, ei: 0.35 });
+  const tm = mat(0x151515, { m: 0.3, r: 0.9, e: 0x0a0a0a, ei: 0.2 });
+  const wm = mat(0x3a3a3a, { m: 0.8, r: 0.3, e: 0x1a1a1a, ei: 0.2 });
+  const eraMat = mat(0x667744, { m: 0.2, r: 0.7, e: 0x334422, ei: 0.3 });
+
+  // ── Hull (custom BufferGeometry — proper T-72 wedge shape)
+  const hullVerts = new Float32Array([
+    // Bottom face (flat)
+    -1.4,0.4,-2, 1.4,0.4,-2, 1.4,0.4,2, -1.4,0.4,2,
+    // Top face (slopes down at front)
+    -1.3,1.0,-1.2, 1.3,1.0,-1.2, 1.3,1.0,1.6, -1.3,1.0,1.6,
+    // Front glacis top edge
+    -1.2,0.85,-2.1, 1.2,0.85,-2.1,
+    // Front lower edge
+    -1.3,0.5,-2.3, 1.3,0.5,-2.3,
+  ]);
+  const hullIdx = new Uint16Array([
+    // Bottom
+    0,1,2, 0,2,3,
+    // Top
+    4,6,5, 4,7,6,
+    // Left side
+    0,4,8, 0,3,7, 3,7,4, 3,4,0, 0,8,10,
+    // Right side
+    1,9,5, 1,11,9, 2,6,5, 2,5,1, 1,5,9,
+    // Front glacis (angled)
+    8,9,5, 8,5,4, 10,11,9, 10,9,8,
+    // Front lower
+    0,10,11, 0,11,1,
+    // Rear
+    3,2,6, 3,6,7,
+  ]);
+  const hullGeo = new THREE.BufferGeometry();
+  hullGeo.setAttribute('position', new THREE.BufferAttribute(hullVerts, 3));
+  hullGeo.setIndex(new THREE.BufferAttribute(hullIdx, 1));
+  hullGeo.computeVertexNormals();
+  const hull = new THREE.Mesh(hullGeo, km);
+  g.add(hull);
+  // Flat upper deck plate
+  const upperHull = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.06, 3.0), km);
+  upperHull.position.set(0, 1.02, 0.1); g.add(upperHull);
+  // Engine deck (rear, louvered)
+  const edeck = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.18, 1.0), kd);
+  edeck.position.set(0, 0.95, 1.5); g.add(edeck);
+  // Engine grilles
+  for (let eg = 0; eg < 3; eg++) {
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.02, 0.08), mat(0x222222, { m: 0.5, r: 0.5 }));
+    grille.position.set(-0.7 + eg * 0.7, 1.05, 1.5); g.add(grille);
+  }
+  // Exhaust pipes (rear)
+  [-0.8, 0.8].forEach(x => {
+    const exh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.4, 8), mat(0x333333, { m: 0.6, r: 0.5 }));
+    exh.rotation.x = Math.PI / 2; exh.position.set(x, 0.75, 2.1); g.add(exh);
+  });
+
+  // ── Fenders/side skirts
+  [-1.42, 1.42].forEach(x => {
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 4.0), km);
+    skirt.position.set(x, 0.55, 0); g.add(skirt);
+    // Mud flap
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.5), kd);
+    flap.position.set(x, 0.35, 2.0); g.add(flap);
+  });
+
+  // ── Track assemblies (highly detailed) ──
+  const rubberMat = mat(0x1a1a18, { m: 0.05, r: 0.95, e: 0x080808, ei: 0.1 });
+  const hubMat = mat(0x555555, { m: 0.9, r: 0.15, e: 0x222222, ei: 0.2 });
+  const armMat = mat(0x3a3a3a, { m: 0.5, r: 0.6 });
+
+  [-1.55, 1.55].forEach(x => {
+    const sign = x > 0 ? 1 : -1;
+    // Track skirt (outer shell)
+    const skirtOuter = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 4.5), tm);
+    skirtOuter.position.set(x + sign * 0.2, 0.3, 0); g.add(skirtOuter);
+    // Track inner wall
+    const skirtInner = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 4.5), tm);
+    skirtInner.position.set(x - sign * 0.15, 0.3, 0); g.add(skirtInner);
+    // Track pad (bottom, ground contact)
+    const trackPad = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.04, 4.5), rubberMat);
+    trackPad.position.set(x, 0.06, 0); g.add(trackPad);
+    // Track top run (upper return)
+    const trackTop = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.04, 3.6), rubberMat);
+    trackTop.position.set(x, 0.58, -0.1); g.add(trackTop);
+
+    // Drive sprocket (rear, toothed)
+    const sprocketHub = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.18, 16), hubMat);
+    sprocketHub.rotation.z = Math.PI / 2; sprocketHub.position.set(x, 0.35, 2.0); g.add(sprocketHub);
+    const sprocketRing = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.04, 8, 16), wm);
+    sprocketRing.rotation.y = Math.PI / 2; sprocketRing.position.set(x, 0.35, 2.0); g.add(sprocketRing);
+    // Sprocket teeth
+    for (let st = 0; st < 12; st++) {
+      const a = st * Math.PI * 2 / 12;
+      const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.04), wm);
+      tooth.position.set(x, 0.35 + Math.sin(a) * 0.28, 2.0 + Math.cos(a) * 0.28);
+      g.add(tooth);
+    }
+
+    // Idler wheel (front, with tension adjuster)
+    const idlerHub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.18, 14), hubMat);
+    idlerHub.rotation.z = Math.PI / 2; idlerHub.position.set(x, 0.3, -2.05); g.add(idlerHub);
+    const idlerRim = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.04, 8, 16), wm);
+    idlerRim.rotation.y = Math.PI / 2; idlerRim.position.set(x, 0.3, -2.05); g.add(idlerRim);
+    const idlerRubber = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.06, 8, 20), rubberMat);
+    idlerRubber.rotation.y = Math.PI / 2; idlerRubber.position.set(x, 0.3, -2.05); g.add(idlerRubber);
+
+    // Road wheels (6) with rubber tires + suspension arms
+    for (let w = 0; w < 6; w++) {
+      const wz = -1.5 + w * 0.58;
+      // Suspension arm (torsion bar stub)
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.08), armMat);
+      arm.position.set(x - sign * 0.1, 0.4, wz); arm.rotation.z = sign * 0.15; g.add(arm);
+      // Wheel hub
+      const wHub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.2, 12), hubMat);
+      wHub.rotation.z = Math.PI / 2; wHub.position.set(x, 0.25, wz); g.add(wHub);
+      // Wheel rim (with spokes)
+      const wRim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 14), wm);
+      wRim.rotation.z = Math.PI / 2; wRim.position.set(x, 0.25, wz); g.add(wRim);
+      // Rubber tire
+      const wTire = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.055, 8, 20), rubberMat);
+      wTire.rotation.y = Math.PI / 2; wTire.position.set(x, 0.25, wz); g.add(wTire);
+      // Hub cap (center detail)
+      const wCap = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.22, 6), mat(0x666666, { m: 0.95, r: 0.1 }));
+      wCap.rotation.z = Math.PI / 2; wCap.position.set(x, 0.25, wz); g.add(wCap);
+    }
+
+    // Return rollers (4 small, on top)
+    for (let r = 0; r < 4; r++) {
+      const rz = -1.3 + r * 0.9;
+      const rWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.12, 8), wm);
+      rWheel.rotation.z = Math.PI / 2; rWheel.position.set(x, 0.62, rz); g.add(rWheel);
+      // Roller bracket
+      const rBracket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.06), armMat);
+      rBracket.position.set(x - sign * 0.08, 0.62, rz); g.add(rBracket);
+    }
+
+    // Fender / track guard (thin plate over track)
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.02, 4.2), km);
+    guard.position.set(x, 0.64, 0); g.add(guard);
+    // Guard support brackets
+    for (let gb = 0; gb < 6; gb++) {
+      const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.06, 0.03), wm);
+      bracket.position.set(x - sign * 0.18, 0.62, -1.8 + gb * 0.72); g.add(bracket);
+    }
+  });
+
+  // ── ERA blocks (rows on glacis + turret)
+  for (let i = 0; i < 6; i++) {
+    const era = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.3), eraMat);
+    era.position.set(-1.0 + i * 0.4, 0.98, -1.0); g.add(era);
+  }
+  // ERA on turret front
+  for (let i = 0; i < 4; i++) {
+    const era = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.14, 0.25), eraMat);
+    era.position.set(-0.5 + i * 0.35, 0.15, -1.2);
+    // These are children of turretGroup, added below
+  }
+
+  // ── Turret assembly
+  const turretGroup = new THREE.Group();
+  turretGroup.position.set(0, 1.08, 0.1);
+  // Turret base ring
+  const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.08, 0.1, 24), kd);
+  turretGroup.add(baseRing);
+  // Turret (LatheGeometry — proper T-72 rounded profile)
+  const turretProfile = [
+    new THREE.Vector2(0, 0),       // center bottom
+    new THREE.Vector2(1.05, 0),    // base edge
+    new THREE.Vector2(1.1, 0.08),  // slight lip
+    new THREE.Vector2(1.0, 0.18),  // taper in
+    new THREE.Vector2(0.92, 0.28), // shoulder
+    new THREE.Vector2(0.8, 0.35),  // upper taper
+    new THREE.Vector2(0.6, 0.4),   // top curve
+    new THREE.Vector2(0.3, 0.42),  // near top
+    new THREE.Vector2(0, 0.43),    // apex
+  ];
+  const turretGeo = new THREE.LatheGeometry(turretProfile, 24);
+  const dome = new THREE.Mesh(turretGeo, kd);
+  dome.position.y = 0.02;
+  turretGroup.add(dome);
+  // Turret bustle (rear ammo/storage — slightly angled)
+  const bustle = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.32, 0.65), km);
+  bustle.position.set(0, 0.14, 0.95); turretGroup.add(bustle);
+  // Bustle rack (welded grid on rear)
+  const bustleRack = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.35, 0.08), wm);
+  bustleRack.position.set(0, 0.14, 1.3); turretGroup.add(bustleRack);
+  for (let br = 0; br < 5; br++) {
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.35, 4), wm);
+    bar.position.set(-0.5 + br * 0.25, 0.14, 1.3); turretGroup.add(bar);
+  }
+  // Commander's hatch
+  const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.05, 12), km);
+  hatch.position.set(0.4, 0.45, 0.1); turretGroup.add(hatch);
+  const hatchHandle = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.04), wm);
+  hatchHandle.position.set(0.4, 0.49, 0.1); turretGroup.add(hatchHandle);
+  // Gunner's sight
+  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.12), kd);
+  sight.position.set(-0.35, 0.45, -0.3); turretGroup.add(sight);
+  const sightGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.1), mat(0x224488, { e: 0x112244, ei: 2, t: true, o: 0.6 }));
+  sightGlass.position.set(-0.35, 0.45, -0.37); turretGroup.add(sightGlass);
+  // Barrel
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 4.2, 12), kd);
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.25, -2.8);
+  turretGroup.add(barrel);
+  // Barrel thermal sleeve
+  const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 2.5, 12), mat(0x4a5a2a, { m: 0.15, r: 0.85, e: 0x1a2510, ei: 0.2 }));
+  sleeve.rotation.x = Math.PI / 2; sleeve.position.set(0, 0.25, -2.0);
+  turretGroup.add(sleeve);
+  // Muzzle brake
+  const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.22, 12), kd);
+  muzzle.rotation.x = Math.PI / 2; muzzle.position.set(0, 0.25, -4.9);
+  turretGroup.add(muzzle);
+  // Bore evacuator (bulge on barrel)
+  const evacuator = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 12), kd);
+  evacuator.rotation.x = Math.PI / 2; evacuator.position.set(0, 0.25, -3.8);
+  turretGroup.add(evacuator);
+  // Coaxial MG
+  const mg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), mat(0x222222, { m: 0.8, r: 0.3 }));
+  mg.rotation.x = Math.PI / 2; mg.position.set(0.15, 0.2, -1.5);
+  turretGroup.add(mg);
+  // Turret ERA
+  for (let i = 0; i < 4; i++) {
+    const era = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.22), eraMat);
+    era.position.set(-0.5 + i * 0.35, 0.12, -1.15); turretGroup.add(era);
+  }
+  // Antenna (whip)
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.015, 2.5, 4), mat(0x444444, { m: 0.5, r: 0.5 }));
+  antenna.position.set(0.6, 1.3, 0.5); turretGroup.add(antenna);
+
+  // Smoke grenade launchers (4 per side of turret)
+  [-1, 1].forEach(side => {
+    for (let sl = 0; sl < 4; sl++) {
+      const launcher = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.18, 8), kd);
+      launcher.rotation.x = -0.3; launcher.position.set(side * 0.85, 0.35, -0.8 + sl * 0.15);
+      turretGroup.add(launcher);
+    }
+  });
+  // NSVT machine gun on commander's hatch
+  const nsvt = new THREE.Group();
+  const mgBase = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.08, 8), wm);
+  nsvt.add(mgBase);
+  const mgBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.5), mat(0x222222, { m: 0.8, r: 0.3 }));
+  mgBody.position.set(0, 0.06, -0.2); nsvt.add(mgBody);
+  const mgBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.6, 6), mat(0x1a1a1a, { m: 0.9, r: 0.2 }));
+  mgBarrel.rotation.x = Math.PI / 2; mgBarrel.position.set(0, 0.06, -0.6); nsvt.add(mgBarrel);
+  nsvt.position.set(0.4, 0.52, 0.1); turretGroup.add(nsvt);
+  // Searchlight
+  const searchlight = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10, 0, Math.PI), mat(0x444444, { m: 0.7, r: 0.3 }));
+  searchlight.position.set(-0.7, 0.35, -0.9); searchlight.rotation.y = Math.PI;
+  turretGroup.add(searchlight);
+  const slGlass = new THREE.Mesh(new THREE.CircleGeometry(0.09, 10), mat(0xffffdd, { e: 0xffff88, ei: 1, t: true, o: 0.5 }));
+  slGlass.position.set(-0.7, 0.35, -0.91); turretGroup.add(slGlass);
+  // Wind sensor on turret roof
+  const sensor = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25, 4), wm);
+  sensor.position.set(-0.2, 0.55, -0.1); turretGroup.add(sensor);
+  const sensorTop = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), wm);
+  sensorTop.position.set(-0.2, 0.68, -0.1); turretGroup.add(sensorTop);
+
+  g.add(turretGroup);
+  g.userData.turret = turretGroup;
+
+  // ── Hull details ──
+  // Tow hooks (front)
+  [-1.0, 1.0].forEach(x => {
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.02, 6, 12, Math.PI), wm);
+    hook.position.set(x, 0.5, -2.2); hook.rotation.x = Math.PI / 2; g.add(hook);
+  });
+  // Tow cable (draped on rear)
+  const cable = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.02, 6, 20, Math.PI * 0.8), mat(0x333333, { m: 0.4, r: 0.7 }));
+  cable.position.set(0, 0.85, 1.8); cable.rotation.x = Math.PI / 2; cable.rotation.z = 0.3; g.add(cable);
+  // Tool boxes (side of hull)
+  [-1.38, 1.38].forEach(x => {
+    const toolbox = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.6), km);
+    toolbox.position.set(x, 0.95, -0.5); g.add(toolbox);
+    // Latch
+    const latch = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.08), wm);
+    latch.position.set(x + (x > 0 ? 0.07 : -0.07), 0.97, -0.5); g.add(latch);
+  });
+  // External fuel drums (rear, 2 cylinders)
+  [-0.5, 0.5].forEach(x => {
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.7, 12), mat(0x3a4a2a, { m: 0.2, r: 0.8, e: 0x1a2510, ei: 0.2 }));
+    drum.rotation.x = Math.PI / 2; drum.position.set(x, 0.95, 2.0); g.add(drum);
+    // Drum straps
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.015, 4, 12), mat(0x444444, { m: 0.5, r: 0.5 }));
+    strap.position.set(x, 0.95, 1.85); g.add(strap);
+    const strap2 = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.015, 4, 12), mat(0x444444, { m: 0.5, r: 0.5 }));
+    strap2.position.set(x, 0.95, 2.15); g.add(strap2);
+  });
+  // Periscopes (driver)
+  const periscope = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 0.08), mat(0x224488, { e: 0x112244, ei: 1.5, t: true, o: 0.7 }));
+  periscope.position.set(-0.3, 1.1, -1.4); g.add(periscope);
+  // Driver's hatch
+  const dHatch = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 10), km);
+  dHatch.position.set(-0.3, 1.07, -1.2); g.add(dHatch);
+  // Log (for self-recovery, classic T-72 feature)
+  const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 8), mat(0x4a3520, { m: 0.1, r: 0.95 }));
+  log.rotation.z = Math.PI / 2; log.position.set(0, 1.05, 1.9); g.add(log);
+  // Shovel (on left fender)
+  const shovelHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.2, 4), mat(0x5a4530, { m: 0.1, r: 0.9 }));
+  shovelHandle.rotation.z = 0.1; shovelHandle.position.set(-1.35, 1.0, 0.5); g.add(shovelHandle);
+  const shovelBlade = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.12, 0.02), wm);
+  shovelBlade.position.set(-1.35, 0.45, 0.5); g.add(shovelBlade);
+  // Unditching beam holder brackets
+  [-0.6, 0.6].forEach(x => {
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.15), wm);
+    bracket.position.set(x, 1.08, 1.85); g.add(bracket);
+  });
+  // Track links (individual link detail on visible sections)
+  [-1.5, 1.5].forEach(x => {
+    for (let tl = 0; tl < 18; tl++) {
+      const link = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.12), tm);
+      link.position.set(x, 0.56, -2.0 + tl * 0.24); g.add(link);
+    }
+  });
+  // Weld seams (subtle lines on hull joints)
+  const seamMat = mat(0x6a7a4a, { m: 0.2, r: 0.8, e: 0x3a4a2a, ei: 0.2 });
+  [[-1.3, 0.72, 0, 0.02, 0.02, 3.8], [1.3, 0.72, 0, 0.02, 0.02, 3.8], // side seams
+   [0, 1.0, -0.9, 2.5, 0.02, 0.02], [0, 1.0, 0.9, 2.5, 0.02, 0.02]].forEach(s => { // cross seams
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(s[3], s[4], s[5]), seamMat);
+    seam.position.set(s[0], s[1], s[2]); g.add(seam);
+  });
+
+  // ── Z marking (3D geometry painted on hull — not a floating plane)
+  const whitePaint = mat(0xeeeeee, { m: 0.1, r: 0.9, e: 0xcccccc, ei: 0.3 });
+  // Z = 3 bars: top horizontal, diagonal, bottom horizontal
+  function addZ(parent, cx, cy, cz, size, rotY) {
+    const zg = new THREE.Group();
+    const t = size * 0.12; // thickness
+    const w = size * 0.7;  // width of horizontal bars
+    const h = size;        // total height
+    // Top bar
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w, t, t), whitePaint);
+    top.position.set(0, h / 2 - t / 2, 0); zg.add(top);
+    // Bottom bar
+    const bot = new THREE.Mesh(new THREE.BoxGeometry(w, t, t), whitePaint);
+    bot.position.set(0, -h / 2 + t / 2, 0); zg.add(bot);
+    // Diagonal
+    const diagLen = Math.sqrt(w * w + h * h) * 0.85;
+    const diagAngle = Math.atan2(h, -w);
+    const diag = new THREE.Mesh(new THREE.BoxGeometry(diagLen, t, t), whitePaint);
+    diag.rotation.z = diagAngle; zg.add(diag);
+    zg.position.set(cx, cy, cz);
+    if (rotY) zg.rotation.y = rotY;
+    parent.add(zg);
+  }
+  // Z on front glacis
+  addZ(g, 0, 0.85, -2.22, 0.8, 0);
+  // Z on rear
+  addZ(g, 0, 0.85, 2.22, 0.8, Math.PI);
+  // Z on right side (smaller)
+  addZ(g, 1.5, 0.75, 0, 0.5, Math.PI / 2);
+
+  // ── Headlights
+  [-0.9, 0.9].forEach(x => {
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), mat(0xffff88, { e: 0xffff44, ei: 8 }));
+    hl.position.set(x, 0.85, -2.2); g.add(hl);
+    const hlL = new THREE.PointLight(0xffffaa, 2, 6);
+    hlL.position.set(x, 0.85, -2.4); g.add(hlL);
+  });
+  // Rear light
+  [-0.7, 0.7].forEach(x => {
+    const rl = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), mat(0xff2200, { e: 0xff0000, ei: 3 }));
+    rl.position.set(x, 0.7, 2.15); g.add(rl);
+  });
+  // ── Additional hull detail ──
+  // Rivets / bolt heads along hull edges
+  const rivetMat = mat(0x555544, { m: 0.7, r: 0.4 });
+  for (let ri = 0; ri < 16; ri++) {
+    [-1.4, 1.4].forEach(x => {
+      const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.02, 4, 4), rivetMat);
+      rivet.position.set(x, 0.98, -1.8 + ri * 0.24); g.add(rivet);
+    });
+  }
+  // Hull top rivets
+  for (let ri = 0; ri < 10; ri++) {
+    const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.02, 4, 4), rivetMat);
+    rivet.position.set(-1.2 + ri * 0.27, 1.07, -0.3); g.add(rivet);
+  }
+  // Fender support brackets
+  [-1.42, 1.42].forEach(x => {
+    for (let fb = 0; fb < 5; fb++) {
+      const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.15, 0.04), wm);
+      bracket.position.set(x, 0.7, -1.6 + fb * 0.8); g.add(bracket);
+    }
+  });
+  // Headlight guards (wire mesh frames)
+  [-0.9, 0.9].forEach(x => {
+    const guard = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.008, 4, 12), wm);
+    guard.position.set(x, 0.85, -2.25); g.add(guard);
+  });
+  // Pioneer tools: axe on right fender
+  const axeHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.8, 4), mat(0x5a4530, { m: 0.1, r: 0.9 }));
+  axeHandle.rotation.z = 0.05; axeHandle.position.set(1.35, 1.0, 0.0); g.add(axeHandle);
+  const axeHead = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.025), wm);
+  axeHead.position.set(1.35, 0.62, 0.0); g.add(axeHead);
+  // Spare track links (on front glacis, 3 links)
+  for (let st = 0; st < 3; st++) {
+    const spareLink = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.06, 0.12), tm);
+    spareLink.position.set(-0.4 + st * 0.4, 1.05, -1.4); spareLink.rotation.x = -0.3; g.add(spareLink);
+  }
+  // Antenna base mount (on turret)
+  const antennaBase = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.06, 8), wm);
+  antennaBase.position.set(0.6, 0.5, 0.5); turretGroup.add(antennaBase);
+  // Second antenna (shorter, radio)
+  const ant2 = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.012, 1.5, 4), mat(0x444444, { m: 0.5, r: 0.5 }));
+  ant2.position.set(-0.6, 1.0, 0.6); turretGroup.add(ant2);
+  // Turret roof detail (ventilator)
+  const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.04, 10), kd);
+  vent.position.set(0.1, 0.47, 0.3); turretGroup.add(vent);
+  const ventGrill = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.01, 10), mat(0x222222, { m: 0.5, r: 0.5 }));
+  ventGrill.position.set(0.1, 0.5, 0.3); turretGroup.add(ventGrill);
+  // Turret side stowage rack
+  const rack = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.15, 0.8), wm);
+  rack.position.set(1.05, 0.15, 0.3); turretGroup.add(rack);
+  // Rack bars
+  for (let rb = 0; rb < 4; rb++) {
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 4), wm);
+    bar.position.set(1.05, 0.08, 0.0 + rb * 0.22); turretGroup.add(bar);
+  }
+  // Mantlet (armored gun housing — beveled box)
+  const mantletGeo = new THREE.CylinderGeometry(0.35, 0.4, 0.35, 12);
+  const mantlet = new THREE.Mesh(mantletGeo, kd);
+  mantlet.rotation.x = Math.PI / 2; mantlet.position.set(0, 0.25, -1.15);
+  turretGroup.add(mantlet);
+  // Mantlet armor plate (flat face)
+  const mantletPlate = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.06), kd);
+  mantletPlate.position.set(0, 0.25, -1.35); turretGroup.add(mantletPlate);
+  // Coax MG flash hider
+  const mgFlash = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.06, 6), mat(0x1a1a1a, { m: 0.9, r: 0.2 }));
+  mgFlash.rotation.x = Math.PI / 2; mgFlash.position.set(0.15, 0.2, -1.85); turretGroup.add(mgFlash);
+  // Engine deck exhaust grilles (detailed)
+  for (let eg = 0; eg < 8; eg++) {
+    const bar2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.01, 0.03), mat(0x222222, { m: 0.5, r: 0.5 }));
+    bar2.position.set(0, 1.05, 1.2 + eg * 0.08); g.add(bar2);
+  }
+  // Side ERA mounting rails
+  [-1.43, 1.43].forEach(x => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 3.0), wm);
+    rail.position.set(x, 0.9, 0); g.add(rail);
+    const rail2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 3.0), wm);
+    rail2.position.set(x, 0.75, 0); g.add(rail2);
+  });
+  // Dozer blade mounting points (front)
+  [-1.0, 1.0].forEach(x => {
+    const mount = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.1), wm);
+    mount.position.set(x, 0.48, -2.1); g.add(mount);
+  });
+  // Track tension adjusters (front idler area)
+  [-1.5, 1.5].forEach(x => {
+    const adj = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8), wm);
+    adj.rotation.z = Math.PI / 2; adj.position.set(x, 0.35, -2.05); g.add(adj);
+  });
+
+  // Self-illumination
+  const tankLight = new THREE.PointLight(0x88aa66, 1.5, 8);
+  tankLight.position.set(0, 2.5, 0); g.add(tankLight);
+
+  g.scale.set(0.6, 0.6, 0.6);
+  return g;
+}
+
+// ═══════════════════════════════════════════
+// FPV DRONE
+// ═══════════════════════════════════════════
+
+// ═══════════════════════════════════════════
+// FPV DRONE
+// ═══════════════════════════════════════════
+
+// ═══════════════════════════════════════════
+// FPV DRONE
+// ═══════════════════════════════════════════
+
+// ═══════════════════════════════════════════
+// FPV DRONE
+// ═══════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════
+// FPV DRONE
+// ═══════════════════════════════════════════
+
+// ═══ FPV Drone ═══
+function buildDrone(){
+  const g=new THREE.Group();
+  [Math.PI/4,-Math.PI/4].forEach(r=>{const a=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.015,0.7),M.carbon);a.rotation.y=r;g.add(a)});
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.1,0.035,0.1),M.carbon));
+  const bt=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.025,0.12),M.dark);bt.position.set(0,-0.02,0);g.add(bt);
+  [[0.25,0,0.25],[-0.25,0,0.25],[0.25,0,-0.25],[-0.25,0,-0.25]].forEach(p=>{
+    const mo=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.035,0.03,8),M.dark);mo.position.set(...p);g.add(mo);
+    const pr=new THREE.Mesh(new THREE.CircleGeometry(0.1,16),new THREE.MeshBasicMaterial({color:0x88aacc,transparent:true,opacity:0.15,side:THREE.DoubleSide}));
+    pr.rotation.x=-Math.PI/2;pr.position.set(p[0],0.02,p[2]);g.add(pr)});
+  const cm=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.03,0.03),mat(0x111115,{m:0.8,r:0.2}));cm.position.set(0,-0.01,-0.07);g.add(cm);
+  const ln=new THREE.Mesh(new THREE.SphereGeometry(0.012,8,8),mat(0x001122,{m:0.95,r:0.05,e:0x0066aa,ei:2}));ln.position.set(0,-0.01,-0.09);g.add(ln);
+  const led=new THREE.Mesh(new THREE.SphereGeometry(0.008,4,4),mat(0xff0000,{e:0xff0000,ei:10}));led.position.set(0,0.02,0.04);g.add(led);
+  g.scale.set(2.2,2.2,2.2);
+  return g;
+}
+
+// ═══ Enemy Sprites (shown as textured planes) ═══
+function buildEnemyShowcase(){
+  const g=new THREE.Group();
+  const types=[
+    {type:'rkn',label:'РКН'},
+    {type:'tv',label:'ПЕРВЫЙ'},
+    {type:'babushka',label:'БАБУШКА'},
+    {type:'znakomi',label:'ЗНАКОМЫЙ'},
+    {type:'chinovnik',label:'МФЦ'},
+  ];
+  types.forEach((en,i)=>{
+    const c=document.createElement('canvas');c.width=256;c.height=256;
+    const x=c.getContext('2d');x.textAlign='center';x.textBaseline='middle';
+    x.fillStyle='#0a0018';x.fillRect(0,0,256,256);
+    x.fillStyle='#ff00b4';x.font='bold 24px sans-serif';x.fillText(en.label,128,128);
+    x.strokeStyle='#ff00b4';x.lineWidth=2;x.strokeRect(10,10,236,236);
+    const tex=new THREE.CanvasTexture(c);
+    const plane=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.5),new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+    const angle=i*Math.PI*2/types.length;
+    plane.position.set(Math.cos(angle)*2,1,Math.sin(angle)*2);
+    plane.lookAt(0,1,0);
+    g.add(plane);
+  });
+  return g;
+}
+
+// ═══ Enemy sprite builders (individual) ═══
+function buildEnemySprite(type, label){
+  const g=new THREE.Group();
+  const c=document.createElement('canvas');c.width=256;c.height=256;
+  const x=c.getContext('2d');x.textAlign='center';x.textBaseline='middle';
+  x.clearRect(0,0,256,256);
+  if(type==='rkn'){
+    x.fillStyle='#0a2266';x.beginPath();x.moveTo(128,15);x.lineTo(215,50);x.lineTo(225,135);x.lineTo(200,195);x.lineTo(128,238);x.lineTo(56,195);x.lineTo(31,135);x.lineTo(41,50);x.closePath();x.fill();
+    x.strokeStyle='#c8a832';x.lineWidth=4;x.stroke();x.font='bold 70px serif';x.fillStyle='#c8a832';x.fillText('☦',128,105);
+    x.font='bold 24px sans-serif';x.fillText('РКН',128,155);x.font='11px sans-serif';x.fillStyle='rgba(200,168,50,0.6)';x.fillText('РОСКОМНАДЗОР',128,180);
+  } else if(type==='tv'){
+    x.fillStyle='#1a1a1a';x.beginPath();x.moveTo(40,35);x.lineTo(216,35);x.quadraticCurveTo(226,35,226,45);x.lineTo(226,175);x.quadraticCurveTo(226,185,216,185);x.lineTo(40,185);x.quadraticCurveTo(30,185,30,175);x.lineTo(30,45);x.quadraticCurveTo(30,35,40,35);x.closePath();x.fill();
+    x.fillStyle='#0a0a2a';x.fillRect(42,45,172,128);for(let py=45;py<173;py+=2){x.fillStyle='rgba(255,255,255,'+(Math.random()*0.08)+')';x.fillRect(42,py,172,1)}
+    x.fillStyle='#cc0000';x.font='bold 14px sans-serif';x.fillText('ПЕРВЫЙ КАНАЛ',128,65);
+    x.strokeStyle='#444';x.lineWidth=2;x.beginPath();x.moveTo(95,35);x.lineTo(75,8);x.stroke();x.beginPath();x.moveTo(161,35);x.lineTo(181,8);x.stroke();
+    x.fillStyle='#222';x.fillRect(110,185,36,12);x.fillRect(95,197,66,6);
+  } else if(type==='babushka'){
+    x.fillStyle='#8B4513';x.beginPath();x.moveTo(78,55);x.lineTo(178,55);x.lineTo(163,110);x.lineTo(128,120);x.lineTo(93,110);x.closePath();x.fill();
+    x.fillStyle='#D2A679';x.beginPath();x.arc(128,85,30,0,Math.PI*2);x.fill();
+    x.fillStyle='#333';x.fillRect(114,78,8,4);x.fillRect(134,78,8,4);
+    x.strokeStyle='#333';x.lineWidth=2;x.beginPath();x.arc(128,100,10,0.2,Math.PI-0.2);x.stroke();
+    x.fillStyle='#654321';x.beginPath();x.moveTo(88,115);x.lineTo(168,115);x.lineTo(178,210);x.lineTo(78,210);x.closePath();x.fill();
+    x.strokeStyle='#D2A679';x.lineWidth=4;x.lineCap='round';x.beginPath();x.moveTo(168,140);x.lineTo(198,110);x.stroke();
+    x.fillStyle='#D2A679';x.beginPath();x.arc(198,107,5,0,Math.PI*2);x.fill();
+    x.fillStyle='#cc9966';x.font='bold 16px sans-serif';x.fillText('БАБУШКА',128,238);
+  } else if(type==='znakomi'){
+    x.fillStyle='rgba(60,60,70,0.85)';x.beginPath();x.moveTo(25,30);x.lineTo(231,30);x.quadraticCurveTo(245,30,245,48);x.lineTo(245,150);x.quadraticCurveTo(245,168,231,168);x.lineTo(155,168);x.lineTo(128,205);x.lineTo(101,168);x.lineTo(25,168);x.quadraticCurveTo(11,168,11,150);x.lineTo(11,48);x.quadraticCurveTo(11,30,25,30);x.closePath();x.fill();
+    x.strokeStyle='rgba(255,255,255,0.15)';x.lineWidth=1.5;x.stroke();
+    x.fillStyle='rgba(255,255,255,0.25)';x.beginPath();x.arc(50,70,12,0,Math.PI*2);x.fill();x.beginPath();x.moveTo(38,85);x.lineTo(62,85);x.lineTo(65,110);x.lineTo(35,110);x.closePath();x.fill();
+    x.fillStyle='rgba(255,255,255,0.85)';x.font='15px sans-serif';x.fillText('��ЕРНЁШЬСЯ',148,70);x.fillText('ЧЕРЕЗ ПОЛГОДА',148,95);
+    x.fillStyle='rgba(255,255,255,0.3)';x.font='24px sans-serif';x.fillText('...',148,125);
+  } else if(type==='chinovnik'){
+    x.fillStyle='#e8e0d0';x.fillRect(50,20,156,200);
+    x.fillStyle='#d0c8b0';x.beginPath();x.moveTo(170,20);x.lineTo(206,20);x.lineTo(206,56);x.closePath();x.fill();
+    x.fillStyle='#c0b8a0';x.beginPath();x.moveTo(170,20);x.lineTo(206,56);x.lineTo(170,56);x.closePath();x.fill();
+    x.fillStyle='#334';x.font='bold 11px sans-serif';x.fillText('РОССИЙСКАЯ ФЕДЕРАЦИЯ',128,42);
+    x.fillStyle='#888';for(let l=0;l<7;l++)x.fillRect(65,58+l*18,110+Math.random()*20,2);
+    x.strokeStyle='#cc0000';x.lineWidth=2;x.beginPath();x.arc(160,160,25,0,Math.PI*2);x.stroke();x.beginPath();x.arc(160,160,18,0,Math.PI*2);x.stroke();
+    x.fillStyle='#cc0000';x.font='bold 9px sans-serif';x.fillText('ОТКАЗАНО',160,158);
+    x.strokeStyle='#0044aa';x.lineWidth=2;x.beginPath();x.arc(100,170,20,0,Math.PI*2);x.stroke();x.fillStyle='#0044aa';x.font='bold 7px sans-serif';x.fillText('МФЦ',100,170);
+  }
+  const tex=new THREE.CanvasTexture(c);
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+  plane.position.y=1;g.add(plane);
+  // Back side copy
+  const plane2=plane.clone();plane2.rotation.y=Math.PI;g.add(plane2);
+  return g;
+}
+
+// ═══ Ferrari (GLB) ═══
+function buildFerrariPlaceholder(){
+  // Show loading text while GLB loads
+  const g=new THREE.Group();
+  const c=document.createElement('canvas');c.width=256;c.height=64;const cx2=c.getContext('2d');
+  cx2.fillStyle='#ff00b4';cx2.font='bold 20px sans-serif';cx2.textAlign='center';cx2.fillText('Loading Ferrari GLB...',128,40);
+  const tex=new THREE.CanvasTexture(c);
+  const pl=new THREE.Mesh(new THREE.PlaneGeometry(3,0.75),new THREE.MeshBasicMaterial({map:tex,transparent:true}));
+  pl.position.y=1;g.add(pl);
+  return g;
+}
+
+let ferrariModel=null;
+// Async load
+import('https://esm.sh/three@0.170.0/addons/loaders/GLTFLoader.js?bundle').then(({GLTFLoader})=>{
+  return import('https://esm.sh/three@0.170.0/addons/loaders/DRACOLoader.js?bundle').then(({DRACOLoader})=>{
+    const dl=new DRACOLoader();dl.setDecoderPath('/js/lib/draco/');
+    const gl=new GLTFLoader();gl.setDRACOLoader(dl);
+    gl.load('/models/ferrari.glb',(gltf)=>{
+      ferrariModel=gltf.scene;
+      const box=new THREE.Box3().setFromObject(ferrariModel);const sz=new THREE.Vector3();box.getSize(sz);
+      const s=2.5/Math.max(sz.x,sz.y,sz.z);ferrariModel.scale.set(s,s,s);
+      const box2=new THREE.Box3().setFromObject(ferrariModel);ferrariModel.position.y=-box2.min.y;
+      ferrariModel.traverse(ch=>{if(ch.isMesh&&ch.material){if(ch.material.metalness!==undefined)ch.material.metalness=Math.max(ch.material.metalness,0.6);if(ch.material.roughness!==undefined)ch.material.roughness=Math.min(ch.material.roughness,0.3)}});
+      console.log('[models] Ferrari loaded');
+      // If currently viewing Ferrari, swap it
+      if(currentIdx===1&&currentModel){scene.remove(currentModel);currentModel=ferrariModel.clone();scene.add(currentModel)}
+    });
+  });
+}).catch(e=>console.warn('Ferrari load failed:',e));
+
+// ═══ GLB model loading ═══
+const loader = new GLTFLoader();
+function autoScale(model, target) {
+  const box = new THREE.Box3().setFromObject(model);
+  const sz = new THREE.Vector3(); box.getSize(sz);
+  const s = target / Math.max(sz.x, sz.y, sz.z);
+  model.scale.set(s, s, s);
+  const box2 = new THREE.Box3().setFromObject(model);
+  model.position.y = -box2.min.y;
+}
+const glbCache = {};
+function loadGLB(url, targetSize) {
+  return new Promise((resolve) => {
+    if (glbCache[url]) { const c = glbCache[url].clone(); autoScale(c, targetSize); resolve(c); return; }
+    loader.load(url, (gltf) => {
+      glbCache[url] = gltf.scene;
+      const c = gltf.scene.clone();
+      autoScale(c, targetSize);
+      // Add light so model is visible
+      const l = new THREE.PointLight(0xaaaaaa, 2, 8); l.position.set(0, 3, 0); c.add(l);
+      resolve(c);
+    }, undefined, () => resolve(null));
+  });
+}
+
+function buildGLBPlaceholder(name) {
+  const g = new THREE.Group();
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const cx2 = c.getContext('2d');
+  cx2.fillStyle = '#ff00b4'; cx2.font = 'bold 18px sans-serif'; cx2.textAlign = 'center';
+  cx2.fillText('Loading ' + name + '...', 128, 40);
+  const pl = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.75), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+  pl.position.y = 1; g.add(pl);
+  return g;
+}
+
+// ═══ Model registry ═══
+const models=[
+  {name:'DeLorean DMC-12',desc:'Procedural — stainless steel body, neon underglow, gull-wing seams',build:buildDeLorean,camDist:5},
+  {name:'T-72B3 Tank (GLB)',desc:'russian_t-72b3.glb — 831KB, high-detail military tank',build:()=>buildGLBPlaceholder('T-72B3'),camDist:6,glb:'/models/tank.glb',glbSize:4},
+  {name:'FPV Drone (GLB)',desc:'combat_fpv_drone_kamikaze.glb — 2MB, kamikaze FPV drone',build:()=>buildGLBPlaceholder('Drone'),camDist:3,glb:'/models/drone.glb',glbSize:1.5},
+  {name:'Гопник (GLB)',desc:'gopnik.glb — 2.2MB, squatting figure in tracksuit',build:()=>buildGLBPlaceholder('Gopnik'),camDist:4,glb:'/models/gopnik.glb',glbSize:2},
+  {name:'Ferrari (GLB)',desc:'Three.js demo — DRACO compressed, PBR materials',build:()=>ferrariModel?ferrariModel.clone():buildFerrariPlaceholder(),camDist:5},
+  {name:'T-72 Tank (procedural)',desc:'Procedural fallback — custom BufferGeometry hull, LatheGeometry turret',build:buildTank,camDist:6},
+  {name:'FPV Drone (procedural)',desc:'Procedural fallback — carbon X-frame, props, camera',build:buildDrone,camDist:3},
+  {name:'Враг: РКН',desc:'Роскомнадзор — щит, крест, золотая кайма',build:()=>buildEnemySprite('rkn','РКН'),camDist:4},
+  {name:'Враг: Первый Канал',desc:'Ретро-телевизор с помехами, антенны',build:()=>buildEnemySprite('tv','ПЕРВЫЙ'),camDist:4},
+  {name:'Враг: Бабушка',desc:'Платок, недовольное лицо, грозящий палец',build:()=>buildEnemySprite('babushka','БАБУШКА'),camDist:4},
+  {name:'Враг: Знакомый',desc:'Speech bubble с непрошенным советом',build:()=>buildEnemySprite('znakomi','ЗНАКОМЫЙ'),camDist:4},
+  {name:'Враг: МФЦ',desc:'Документ, печати ОТКАЗАНО и МФЦ',build:()=>buildEnemySprite('chinovnik','МФЦ'),camDist:4},
+  {name:'Враг: Гопник',desc:'Squatting figure, Adidas tracksuit, семечки',build:()=>buildEnemySprite('gopnik','ГОПНИК'),camDist:4},
+];
+
+let currentIdx=0;
+let currentModel=null;
+
+async function showModel(idx){
+  if(currentModel)scene.remove(currentModel);
+  currentIdx=((idx%models.length)+models.length)%models.length;
+  const m=models[currentIdx];
+  // Update UI immediately
+  document.getElementById('model-name').textContent=m.name;
+  document.getElementById('model-desc').textContent=m.desc;
+  document.getElementById('counter').textContent=(currentIdx+1)+' / '+models.length;
+  document.title=m.name+' — Model Viewer';
+  history.replaceState(null,'','#'+encodeURIComponent(m.name));
+  // Show placeholder first
+  currentModel=m.build();
+  scene.add(currentModel);
+  controls.target.set(0,0.8,0);
+  camera.position.set(m.camDist*0.7,m.camDist*0.5,m.camDist);
+  // If GLB available, async load and replace
+  if(m.glb){
+    const glbModel=await loadGLB(m.glb,m.glbSize||3);
+    if(glbModel&&currentIdx===idx%models.length){
+      scene.remove(currentModel);
+      currentModel=glbModel;
+      scene.add(currentModel);
+      controls.target.set(0,0.8,0);
+    }
+  }
+}
+
+// Load from hash on init
+const hashName=decodeURIComponent(location.hash.slice(1));
+if(hashName){const hi=models.findIndex(m=>m.name===hashName);if(hi>=0)currentIdx=hi;}
+
+showModel(0);
+
+// Nav
+document.getElementById('prev-btn').addEventListener('click',()=>showModel(currentIdx-1));
+document.getElementById('next-btn').addEventListener('click',()=>showModel(currentIdx+1));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'){e.preventDefault();showModel(currentIdx-1)}
+  if(e.key==='ArrowRight'){e.preventDefault();showModel(currentIdx+1)}
+});
+// Disable OrbitControls keyboard (it steals arrows)
+controls.enableKeys=false;
+controls.keys={};
+
+// Resize
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+// Render loop
+function frame(){
+  requestAnimationFrame(frame);
+  controls.update();
+  // Slow auto-rotate the model
+  if(currentModel)currentModel.rotation.y+=0.002;
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
