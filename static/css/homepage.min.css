@@ -41,10 +41,10 @@
   0%   { --background: #0d0a07; --foreground: #fffdf8; --foreground-dim: #d8cec3; --foreground-mute: #6d645d; --midground: #c8a882; --glow: #955f3b; }
   30%  { --background: #f5d061; --foreground: #3a2a14; --foreground-dim: #5a4630; --foreground-mute: #6d5a3f; --midground: #b58900; --glow: #cb4b16; }
   70%  { --background: #f5d061; --foreground: #3a2a14; --foreground-dim: #5a4630; --foreground-mute: #6d5a3f; --midground: #b58900; --glow: #cb4b16; }
-  100% { --background: #fdfbf3; --foreground: #1a1410; --foreground-dim: #3c3732; --foreground-mute: #7a6f63; --midground: #a47e3b; --glow: #c8a882; }
+  100% { --background: #fdfbf3; --foreground: #1a1410; --foreground-dim: #3c3732; --foreground-mute: #7a6f63; --midground: #6b4c1f; --glow: #c8a882; }
 }
 @keyframes theme-to-dark {
-  0%   { --background: #fdfbf3; --foreground: #1a1410; --foreground-dim: #3c3732; --foreground-mute: #7a6f63; --midground: #a47e3b; --glow: #c8a882; }
+  0%   { --background: #fdfbf3; --foreground: #1a1410; --foreground-dim: #3c3732; --foreground-mute: #7a6f63; --midground: #6b4c1f; --glow: #c8a882; }
   30%  { --background: #f5d061; --foreground: #3a2a14; --foreground-dim: #5a4630; --foreground-mute: #6d5a3f; --midground: #b58900; --glow: #cb4b16; }
   70%  { --background: #f5d061; --foreground: #3a2a14; --foreground-dim: #5a4630; --foreground-mute: #6d5a3f; --midground: #b58900; --glow: #cb4b16; }
   100% { --background: #0d0a07; --foreground: #fffdf8; --foreground-dim: #d8cec3; --foreground-mute: #6d645d; --midground: #c8a882; --glow: #955f3b; }
