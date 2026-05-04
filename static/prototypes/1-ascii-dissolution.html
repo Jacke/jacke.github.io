@@ -15,7 +15,19 @@
 
   <!-- ── Theme / mobile chrome ─────────────────────────────────── -->
   <meta name="theme-color" content="#0d0a07" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light dark" />
+  <script>
+    /* Set theme before paint to avoid FOUC */
+    (function(){
+      try {
+        var t = localStorage.getItem('theme');
+        if (t !== 'dark' && t !== 'light') {
+          t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = t;
+      } catch(e) { document.documentElement.dataset.theme = 'dark'; }
+    })();
+  </script>
   <meta name="msapplication-TileColor" content="#0d0a07" />
   <meta name="msapplication-config" content="/favicon/browserconfig.xml" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -335,6 +347,7 @@
     </div>
   </section>
 
+  <script src="/js/theme.js"></script>
   <script src="/js/shield.min.js"></script>
   <script src="/js/konami.min.js"></script>
   <script src="/js/glitch.min.js"></script>
